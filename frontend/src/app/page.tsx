@@ -9,11 +9,11 @@ export default function HomePage() {
   return (
     <div className="mx-auto w-full max-w-6xl">
       {/* Light panel like Figma content area */}
-      <section className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-sm dark:border-white/10 dark:bg-zinc-950">
-        <h1 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-white">
+      <section className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-sm">
+        <h1 className="text-lg font-semibold tracking-tight text-zinc-900">
           Suggested Paper For You
         </h1>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="mt-1 text-sm text-zinc-500">
           Mock data + layout for code review; connect to API later.
         </p>
 

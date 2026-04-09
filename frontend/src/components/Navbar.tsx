@@ -19,19 +19,19 @@ const navItems = [
 
 export function Navbar() {
   return (
-    <header className="border-b border-black/10 bg-white px-4 py-3 dark:border-white/15 dark:bg-black">
+    <header className="border-b border-black/10 bg-white px-4 py-3">
       <nav className="mx-auto flex w-full max-w-6xl items-center gap-4">
         {/* Figma-style wordmark: “odd” in brand blue, “Academia” in dark text */}
         <div className="font-semibold tracking-tight">
           <span className="text-[#0066FF]">odd</span>
-          <span className="text-zinc-900 dark:text-white">Academia</span>
+          <span className="text-zinc-900">Academia</span>
         </div>
         <div className="flex items-center gap-3">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="text-sm text-zinc-700 hover:text-black dark:text-zinc-300 dark:hover:text-white"
+              className="text-sm text-zinc-700 hover:text-black"
             >
               {item.label}
             </Link>

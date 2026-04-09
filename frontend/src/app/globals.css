@@ -14,11 +14,9 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* MVP matches Figma (light UI). Do not auto-switch to dark when OS is dark. */
+html {
+  color-scheme: light;
 }
 
 body {
