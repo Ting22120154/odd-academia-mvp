@@ -12,7 +12,7 @@ type Props = {
  * - tag pills
  * - author row + small decorative fold (visual only)
  *
- * The whole card links to `/posts/[id]` to preserve Member D routing demo.
+ * The whole card links to `/paper/[id]` to meet the shareable URL requirement.
  */
 export function SuggestedPaperCard({ post }: Props) {
   const tags = post.tags?.length ? post.tags : [post.subject];
@@ -25,7 +25,7 @@ export function SuggestedPaperCard({ post }: Props) {
   return (
     <li className="group relative list-none">
       <Link
-        href={`/posts/${post.id}`}
+        href={`/paper/${post.id}`}
         className="flex h-full flex-col overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
       >
         {/* Decorative header — matches Figma “abstract gradient” strip */}
