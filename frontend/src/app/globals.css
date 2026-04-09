@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  --background: #f8f9fa;
   --foreground: #171717;
+  /* Figma primary blue (approx.) — use for buttons/links later */
+  --brand: #0066ff;
 }
 
 @theme inline {
@@ -22,5 +24,4 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }

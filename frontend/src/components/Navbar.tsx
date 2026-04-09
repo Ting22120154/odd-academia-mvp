@@ -20,8 +20,12 @@ const navItems = [
 export function Navbar() {
   return (
     <header className="border-b border-black/10 bg-white px-4 py-3 dark:border-white/15 dark:bg-black">
-      <nav className="mx-auto flex w-full max-w-5xl items-center gap-4">
-        <div className="font-semibold">Odd Academia</div>
+      <nav className="mx-auto flex w-full max-w-6xl items-center gap-4">
+        {/* Figma-style wordmark: “odd” in brand blue, “Academia” in dark text */}
+        <div className="font-semibold tracking-tight">
+          <span className="text-[#0066FF]">odd</span>
+          <span className="text-zinc-900 dark:text-white">Academia</span>
+        </div>
         <div className="flex items-center gap-3">
           {navItems.map((item) => (
             <Link

@@ -3,7 +3,15 @@ export type MockPost = {
   title: string;
   summary: string;
   authorName: string;
+  /** Primary subject / fallback when `tags` is empty */
   subject: string;
+  /** Category pills (Figma shows 1–2 tags per card) */
+  tags?: string[];
+  /**
+   * Tailwind classes for the gradient strip at the top of the card.
+   * Figma uses mesh-like gradients; we approximate with multi-stop gradients.
+   */
+  headerGradientClass?: string;
 };
 
 /**
@@ -16,21 +24,50 @@ export type MockPost = {
 export const mockPosts: MockPost[] = [
   {
     id: "1",
-    title: "Example Research Post 1",
-    summary: "Short summary of the research post.",
-    authorName: "Student A",
-    subject: "AI",
+    title: "Innovative Approaches in Quantum Computing",
+    summary:
+      "Exploring novel methods and frameworks that could reshape how we think about computation at scale. This preview truncates with an ellipsis in the UI…",
+    authorName: "James B.",
+    subject: "Computer science",
+    tags: ["AI infrastructure", "Computer science"],
+    headerGradientClass:
+      "bg-gradient-to-br from-orange-300 via-amber-200 to-rose-300",
   },
   {
     id: "2",
-    title: "Example Research Post 2",
-    summary: "Another short summary.",
-    authorName: "Student B",
+    title: "Biohacking for Health Optimisation",
+    summary:
+      "A short overview of practical interventions and evidence-based tweaks for wellbeing. More detail appears on the paper page…",
+    authorName: "Max Z.",
     subject: "Health",
+    tags: ["Health", "Biohacking"],
+    headerGradientClass:
+      "bg-gradient-to-br from-sky-400 via-indigo-400 to-fuchsia-400",
+  },
+  {
+    id: "3",
+    title: "Effects of Workplace Fashion Choices",
+    summary:
+      "How appearance and dress norms interact with perception and team dynamics in modern workplaces…",
+    authorName: "Jack E.",
+    subject: "Pop Culture",
+    tags: ["Health", "Pop Culture"],
+    headerGradientClass:
+      "bg-gradient-to-br from-emerald-300 via-teal-200 to-cyan-300",
+  },
+  {
+    id: "4",
+    title: "The Angelic Tune",
+    summary:
+      "A creative exploration of sound, culture, and the stories we attach to music across communities…",
+    authorName: "Tina A.",
+    subject: "Pop Culture",
+    tags: ["Pop Culture", "Biohacking"],
+    headerGradientClass:
+      "bg-gradient-to-br from-pink-300 via-violet-300 to-orange-200",
   },
 ];
 
 export function getMockPostById(id: string) {
   return mockPosts.find((p) => p.id === id) ?? null;
 }
-

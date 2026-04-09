@@ -33,6 +33,18 @@ export default async function PostDetailPage({
         <div>
           <strong>Subject:</strong> {post.subject}
         </div>
+        {post.tags && post.tags.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {post.tags.map((t) => (
+              <span
+                key={t}
+                className="rounded-full border border-black/[0.06] bg-zinc-100 px-2.5 py-0.5 text-xs dark:border-white/10 dark:bg-zinc-900"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
       <p className="mt-6 text-base leading-7 text-zinc-800 dark:text-zinc-200">
         {post.summary}
