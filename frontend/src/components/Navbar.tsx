@@ -1,37 +1,77 @@
-import Link from "next/link";
+"use client";
 
-/**
- * Global navigation for the MVP.
- *
- * Intent:
- * - Provide a stable set of routes so each member can implement their page independently.
- * - Keep links explicit (no auth gating yet) to simplify early integration/testing.
- *
- * When auth is implemented, we can conditionally hide/show items (e.g. Login vs Profile)
- * based on session state.
- */
-const navItems = [
-  { href: "/", label: "Home" },
-  { href: "/upload", label: "Upload" },
-  { href: "/profile", label: "Profile" },
-  { href: "/login", label: "Login" },
-];
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { BellIcon, PlusIcon } from "@/components/icons";
+
+function Logo() {
+  return (
+    <Link href="/" className="flex items-center gap-2">
+      <div className="text-lg font-semibold tracking-tight text-zinc-900">
+        OddAcademia
+      </div>
+    </Link>
+  );
+}
 
 export function Navbar() {
+  const pathname = usePathname();
+  const onProfilePage = pathname?.startsWith("/profile");
+  const onHomePage = pathname === "/";
+
   return (
-    <header className="border-b border-black/10 bg-white px-4 py-3 dark:border-white/15 dark:bg-black">
-      <nav className="mx-auto flex w-full max-w-5xl items-center gap-4">
-        <div className="font-semibold">Odd Academia</div>
+    <header className="border-b border-zinc-200 bg-white">
+      <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3">
+        <Logo />
+
+        {onHomePage ? (
+          <div className="hidden text-sm font-medium text-zinc-700 sm:block">
+            Welcome to OddAcademia!
+          </div>
+        ) : (
+          <div className="hidden sm:block" />
+        )}
+
         <div className="flex items-center gap-3">
-          {navItems.map((item) => (
+          {onProfilePage ? (
+            <>
+              <Link
+                href="/upload"
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                <PlusIcon className="h-4 w-4" />
+                Submit New Paper
+              </Link>
+              <button
+                type="button"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+                aria-label="Notifications"
+              >
+                <BellIcon className="h-5 w-5" />
+              </button>
+              <Link
+                href="/profile"
+                className="relative h-9 w-9 overflow-hidden rounded-full border border-zinc-200 bg-zinc-100"
+                aria-label="Profile"
+              >
+                <Image
+                  src="/avatars/profile.svg"
+                  alt="Profile"
+                  fill
+                  className="object-cover"
+                  sizes="36px"
+                />
+              </Link>
+            </>
+          ) : (
             <Link
-              key={item.href}
-              href={item.href}
-              className="text-sm text-zinc-700 hover:text-black dark:text-zinc-300 dark:hover:text-white"
+              href="/login"
+              className="inline-flex h-9 items-center rounded-lg bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700"
             >
-              {item.label}
+              Login/Create Account
             </Link>
-          ))}
+          )}
         </div>
       </nav>
     </header>

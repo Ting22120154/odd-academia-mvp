@@ -1,36 +1,103 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { mockPosts } from "@/lib/mockPosts";
+import { CategoryFilter } from "@/components/CategoryFilter";
+import { PostCard } from "@/components/PostCard";
+import { SearchIcon } from "@/components/icons";
+import { CATEGORIES, mockPosts, type PostCategory } from "@/data/mockPosts";
 
 export default function HomePage() {
-  return (
-    <section className="mx-auto w-full max-w-5xl">
-      <h1 className="text-2xl font-semibold">Home</h1>
-      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-        Mock posts for routing demo. Member A can replace this later.
-      </p>
+  const [selectedCategory, setSelectedCategory] =
+    useState<PostCategory>("Trending");
+  const [query, setQuery] = useState("");
 
-      <ul className="mt-6 grid gap-4 sm:grid-cols-2">
-        {mockPosts.map((p) => (
-          <li
-            key={p.id}
-            className="rounded-xl border border-black/10 bg-white p-4 dark:border-white/15 dark:bg-zinc-950"
-          >
-            <Link
-              href={`/posts/${p.id}`}
-              className="text-base font-semibold text-black hover:underline dark:text-white"
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return mockPosts.filter((p) => {
+      const categoryOk =
+        selectedCategory === "Trending" || p.category === selectedCategory;
+      if (!categoryOk) return false;
+      if (!q) return true;
+      const haystack = [
+        p.title,
+        p.description,
+        p.category,
+        p.author.name,
+        ...p.tags,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [query, selectedCategory]);
+
+  return (
+    <section className="mx-auto w-full max-w-6xl">
+      <div className="text-sm text-zinc-600">Home</div>
+
+      <div className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm font-medium text-zinc-700">
+            Search Category Cards
+          </div>
+
+          <div className="flex w-full max-w-md items-center gap-2 self-start sm:self-auto">
+            <div className="relative flex-1">
+              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search"
+                className="h-10 w-full rounded-lg border border-zinc-200 bg-white pl-9 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+            <button
+              type="button"
+              className="inline-flex h-10 items-center rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700"
+              onClick={() => {
+                // no-op for now; state already filters.
+              }}
             >
-              {p.title}
+              Go
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <CategoryFilter
+            categories={CATEGORIES}
+            selected={selectedCategory}
+            onChange={setSelectedCategory}
+          />
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+          <div className="flex items-center justify-between">
+            <div className="text-base font-semibold text-zinc-900">
+              Popular Papers
+            </div>
+            <Link
+              href="/"
+              className="text-sm font-medium text-blue-700 hover:underline"
+            >
+              View More
             </Link>
-            {/* This card intentionally links to `/posts/[id]` so we can demo "click post → detail page" early. */}
-            <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-              {p.summary}
+          </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filtered.map((p) => (
+              <PostCard key={p.id} post={p} />
+            ))}
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="mt-6 text-sm text-zinc-600">
+              No papers match your filters.
             </div>
-            <div className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-              {p.subject} · {p.authorName}
-            </div>
-          </li>
-        ))}
-      </ul>
+          ) : null}
+        </div>
+      </div>
     </section>
   );
 }
