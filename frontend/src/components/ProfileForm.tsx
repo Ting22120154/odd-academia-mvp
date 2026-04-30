@@ -18,9 +18,9 @@ function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
     <input
       {...props}
       className={[
-        "h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900",
+        "h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-900",
         "placeholder:text-zinc-400",
-        "focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100",
+        "focus:border-black/20 focus:outline-none",
         props.className ?? "",
       ].join(" ")}
     />
@@ -32,8 +32,8 @@ function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
     <select
       {...props}
       className={[
-        "h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900",
-        "focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100",
+        "h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-900",
+        "focus:border-black/20 focus:outline-none",
         props.className ?? "",
       ].join(" ")}
     />
@@ -45,12 +45,86 @@ function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
     <textarea
       {...props}
       className={[
-        "min-h-28 w-full resize-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900",
+        "min-h-28 w-full resize-none rounded-xl border border-black/[0.08] bg-white px-4 py-3 text-sm text-zinc-900",
         "placeholder:text-zinc-400",
-        "focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100",
+        "focus:border-black/20 focus:outline-none",
         props.className ?? "",
       ].join(" ")}
     />
+  );
+}
+
+function Row({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <FieldLabel>{label}</FieldLabel>
+      {children}
+    </div>
+  );
+}
+
+function InlineIcon({ label }: { label: "github" | "linkedin" }) {
+  const cls = "h-4 w-4";
+  if (label === "github") {
+    return (
+      <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M9 19c-4 1.5-4-2-5-2m10 4v-3.1c0-.9.3-1.6.8-2-2.7-.3-5.5-1.3-5.5-5.8 0-1.3.5-2.4 1.2-3.3-.1-.3-.5-1.6.1-3.3 0 0 1-.3 3.4 1.2a11.6 11.6 0 0 1 6.2 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.7.2 3 .1 3.3.8.9 1.2 2 1.2 3.3 0 4.5-2.8 5.5-5.5 5.8.5.4.9 1.2.9 2.4V21"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg className={cls} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M6.5 10.5V18m0-7.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10.5 18v-4.2c0-1.9 1.1-3.3 2.9-3.3 1.7 0 2.6 1.2 2.6 3.1V18"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <path
+        d="M17.8 10.8v.6"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function Toggle({ on }: { on: boolean }) {
+  return (
+    <span
+      className={[
+        "relative inline-flex h-5 w-9 items-center rounded-full border border-black/[0.08] p-0.5 transition",
+        on ? "bg-[var(--brand)]" : "bg-zinc-100",
+      ].join(" ")}
+      aria-hidden
+    >
+      <span
+        className={[
+          "h-4 w-4 rounded-full bg-white shadow-sm transition",
+          on ? "translate-x-4" : "translate-x-0",
+        ].join(" ")}
+      />
+    </span>
   );
 }
 
@@ -61,37 +135,11 @@ export function ProfileForm({ user }: Props) {
   }, [user]);
 
   const [form, setForm] = useState<FormState>(initial);
-  const [interestDraft, setInterestDraft] = useState("");
 
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  function addInterest(raw: string) {
-    const v = raw.trim();
-    if (!v) return;
-    setForm((prev) => {
-      const exists = prev.interests.some(
-        (x) => x.toLowerCase() === v.toLowerCase(),
-      );
-      if (exists) return prev;
-      return { ...prev, interests: [...prev.interests, v] };
-    });
-    setInterestDraft("");
-  }
-
-  function removeInterest(value: string) {
-    setForm((prev) => ({
-      ...prev,
-      interests: prev.interests.filter((x) => x !== value),
-    }));
-  }
-
-  function onCancel() {
-    setForm(initial);
-    setInterestDraft("");
   }
 
   function onSave() {
@@ -100,103 +148,61 @@ export function ProfileForm({ user }: Props) {
 
   return (
     <form
-      className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm"
+      className="rounded-2xl border border-black/[0.06] bg-white p-5 shadow-[var(--shadow-sm)]"
       onSubmit={(e) => {
         e.preventDefault();
         onSave();
       }}
     >
-      <div className="flex items-center gap-4">
-        <div className="h-16 w-16 rounded-full bg-zinc-200" />
-        <div>
-          <div className="text-sm font-medium text-zinc-800">Profile Image</div>
-          <button
-            type="button"
-            className="mt-2 inline-flex h-8 items-center rounded-md bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700"
-            onClick={() => window.alert("Image upload (mock)")}
-          >
-            Change
-          </button>
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-semibold text-zinc-900">About Me</div>
+        <button
+          type="submit"
+          className="inline-flex h-9 items-center rounded-lg bg-[var(--brand)] px-6 text-xs font-semibold text-white hover:opacity-95"
+          disabled={!dirty}
+        >
+          Save
+        </button>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-black/[0.06] bg-white">
+        <div className="px-5 py-4">
+          <div className="text-sm font-medium text-zinc-900">Biography</div>
+        </div>
+        <div className="border-t border-black/[0.06] px-5 py-4">
+          <TextArea
+            value={form.bio}
+            placeholder="Write your bio here..."
+            onChange={(e) => set("bio", e.target.value)}
+          />
+          <div className="mt-2 text-right text-[11px] text-zinc-400">
+            {Math.min(form.bio.length, 200)}/200
+          </div>
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
-        <div className="space-y-2">
-          <FieldLabel>Full Name</FieldLabel>
-          <TextInput
-            value={form.fullName}
-            placeholder="First & Last Name"
-            onChange={(e) => set("fullName", e.target.value)}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <FieldLabel>Email</FieldLabel>
-          <TextInput
-            value={form.email}
-            placeholder="name@example.com"
-            onChange={(e) => set("email", e.target.value)}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <FieldLabel>Work Status</FieldLabel>
-          <SelectInput
-            value={form.workStatus}
-            onChange={(e) =>
-              set(
-                "workStatus",
-                e.target.value as FormState["workStatus"],
-              )
-            }
-          >
-            <option>Open for Work</option>
-            <option>Not Looking</option>
-            <option>Freelancing</option>
-            <option>Student</option>
-          </SelectInput>
-        </div>
-
-        <div className="space-y-2">
-          <FieldLabel>Interests</FieldLabel>
-          <div className="flex min-h-10 flex-wrap items-center gap-2 rounded-lg border border-zinc-200 bg-white px-2 py-2">
-            {form.interests.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => removeInterest(t)}
-                className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700"
-                title="Remove"
-              >
-                {t}
-                <span className="text-blue-500">×</span>
-              </button>
-            ))}
-            <input
-              value={interestDraft}
-              onChange={(e) => setInterestDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addInterest(interestDraft);
-                }
-              }}
-              placeholder="Type and press Enter"
-              className="min-w-[160px] flex-1 bg-transparent px-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => addInterest(interestDraft)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
-              title="Add interest"
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Row label="Work Status">
+          <div className="relative">
+            <SelectInput
+              value={form.workStatus}
+              onChange={(e) =>
+                set("workStatus", e.target.value as FormState["workStatus"])
+              }
+              className="pr-12"
             >
-              +
-            </button>
+              <option>Open for Work</option>
+              <option>Not Looking</option>
+              <option>Freelancing</option>
+              <option>Student</option>
+            </SelectInput>
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
+              <Toggle on />
+            </span>
           </div>
-        </div>
+        </Row>
 
-        <div className="space-y-2">
-          <FieldLabel>Profile Visibility</FieldLabel>
+        <Row label="Profile Visibility">
           <SelectInput
             value={form.profileVisibility}
             onChange={(e) =>
@@ -209,78 +215,38 @@ export function ProfileForm({ user }: Props) {
             <option>Public</option>
             <option>Private</option>
           </SelectInput>
-        </div>
+        </Row>
 
-        <div className="space-y-2">
-          <FieldLabel>Education</FieldLabel>
-          <TextInput
-            value={form.education}
-            placeholder="Your degree"
-            onChange={(e) => set("education", e.target.value)}
-          />
-        </div>
+        <Row label="Github">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500">
+              <InlineIcon label="github" />
+            </span>
+            <TextInput
+              value={form.github}
+              placeholder="/rick_sss_03"
+              onChange={(e) => set("github", e.target.value)}
+              className="pl-11 pr-12"
+            />
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
+              <Toggle on />
+            </span>
+          </div>
+        </Row>
 
-        <div className="space-y-2">
-          <FieldLabel>Username</FieldLabel>
-          <TextInput
-            value={form.username}
-            placeholder="username"
-            onChange={(e) => set("username", e.target.value)}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <FieldLabel>Job Role</FieldLabel>
-          <TextInput
-            value={form.jobRole}
-            placeholder="e.g. AI Engineer"
-            onChange={(e) => set("jobRole", e.target.value)}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <FieldLabel>GitHub</FieldLabel>
-          <TextInput
-            value={form.github}
-            placeholder="/your_handle"
-            onChange={(e) => set("github", e.target.value)}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <FieldLabel>LinkedIn</FieldLabel>
-          <TextInput
-            value={form.linkedin}
-            placeholder="@your_linkedin"
-            onChange={(e) => set("linkedin", e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="mt-5 space-y-2">
-        <FieldLabel>Public Bio</FieldLabel>
-        <TextArea
-          value={form.bio}
-          onChange={(e) => set("bio", e.target.value)}
-        />
-      </div>
-
-      <div className="mt-6 flex items-center justify-end gap-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="inline-flex h-10 items-center rounded-lg border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-          disabled={!dirty}
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          className="inline-flex h-10 items-center rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700"
-          disabled={!dirty}
-        >
-          Save Changes
-        </button>
+        <Row label="Linkedin">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500">
+              <InlineIcon label="linkedin" />
+            </span>
+            <TextInput
+              value={form.linkedin}
+              placeholder="@rick_s_cs"
+              onChange={(e) => set("linkedin", e.target.value)}
+              className="pl-11"
+            />
+          </div>
+        </Row>
       </div>
     </form>
   );
