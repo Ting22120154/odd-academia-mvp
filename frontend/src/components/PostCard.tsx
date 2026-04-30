@@ -9,6 +9,12 @@ type Props = {
 
 export function PostCard({ post }: Props) {
   return (
+    /*
+     * Generic paper card used on profile ("Your Papers") and can be reused elsewhere.
+     * It consumes `src/data/mockPosts.ts` (dashboard-category style mock).
+     *
+     * If we decide to unify post models later, this is one of the components to update.
+     */
     <article className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm transition hover:shadow-md">
       <div className="relative aspect-[16/9] w-full bg-zinc-100">
         <Image

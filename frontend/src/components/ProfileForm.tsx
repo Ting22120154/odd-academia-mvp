@@ -134,6 +134,14 @@ export function ProfileForm({ user }: Props) {
     return rest;
   }, [user]);
 
+  /*
+   * This component intentionally owns its own form state for MVP,
+   * so the UI can be reviewed in isolation before backend integration.
+   *
+   * Integration point later:
+   * - replace `onSave` alert with an API call
+   * - consider moving state into a form library if validation grows
+   */
   const [form, setForm] = useState<FormState>(initial);
 
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);

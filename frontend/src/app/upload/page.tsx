@@ -30,6 +30,16 @@ export default function UploadPage() {
 
   const abstractCount = useMemo(() => Math.min(abstract.length, 200), [abstract]);
 
+  /*
+   * Submit page matches the client's "Submit New Paper" Figma:
+   * - drag/drop file area + "Browse File"
+   * - title + keywords fields
+   * - abstract with 200 char counter
+   * - optional anonymous author row
+   *
+   * Integration point later:
+   * - replace the alert in `onSubmit` with an upload + create-paper API call.
+   */
   function pickFile() {
     inputRef.current?.click();
   }

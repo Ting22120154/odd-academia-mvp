@@ -5,6 +5,14 @@ import { mockPosts } from "@/data/mockPosts";
 
 export default function ProfilePage() {
   return (
+    /*
+     * Profile screen is built to match the client's Figma:
+     * - header card (banner + avatar + small stats)
+     * - "About Me" form
+     * - "Your Papers" grid
+     *
+     * Data is mocked for MVP; swap `mockUser`/`mockPosts` with real API later.
+     */
     <section className="mx-auto w-full max-w-[var(--page-max)] space-y-4">
       <div className="text-sm font-semibold text-zinc-900">Profile</div>
 

@@ -31,6 +31,7 @@ export type MockPost = {
  * - Keep the `MockPost` shape as a starting point for a shared Post type.
  */
 export const mockPosts: MockPost[] = [
+  // Note: these entries are curated to match the paper cards shown in Figma.
   {
     id: "1",
     title: "Innovative Approaches in Quantum Computing",
