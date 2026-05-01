@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+:root {
+  /* Core surfaces */
+  --background: #f8f9fa;
+  --surface: #ffffff;
+
+  /* Text */
+  --foreground: #171717;
+  --muted: rgba(24, 24, 27, 0.6); /* close to zinc-600 */
+
+  /* Brand (Figma primary blue approx) */
+  --brand: #0066ff;
+  --brand-foreground: #ffffff;
+
+  /* Borders + shadows (Figma-like subtle black) */
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+
+  /* Radius */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  /* Layout */
+  --page-max: 72rem; /* ~= max-w-6xl */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* MVP matches Figma (light UI). Do not auto-switch to dark when OS is dark. */
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
