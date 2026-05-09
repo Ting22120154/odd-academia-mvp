@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { MockPost } from "@/lib/mockPosts";
+import { GuestTracker } from "@/app/paper/_components/GuestTracker";
 
 type Props = {
   post: MockPost;
@@ -117,6 +118,8 @@ export function PaperDetailClient({ post }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Tracks guest article views and enforces the 5-article limit */}
+      <GuestTracker paperId={post.id} />
       {/* Author card */}
       <section className="rounded-2xl border border-black/[0.06] bg-white p-5 shadow-[var(--shadow-sm)]">
         <div className="flex items-center gap-4">

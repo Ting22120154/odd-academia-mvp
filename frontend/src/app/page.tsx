@@ -5,8 +5,11 @@ import Link from "next/link";
 import { SearchIcon } from "@/components/icons";
 import { SuggestedPaperCard } from "@/components/SuggestedPaperCard";
 import { mockPosts as suggestedPosts } from "@/lib/mockPosts";
+import { useAuth } from "@/context/AuthContext";
 
 export default function HomePage() {
+  const { user, isGuest } = useAuth();
+  const displayName = isGuest ? "Guest" : (user?.fullName ?? "User");
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -27,20 +30,22 @@ export default function HomePage() {
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-full bg-zinc-200" />
           <div>
-            <div className="text-sm font-semibold text-zinc-900">Rick Taylor</div>
+            <div className="text-sm font-semibold text-zinc-900">{displayName}</div>
             <div className="text-xs text-zinc-500">Welcome back to Odd Academia</div>
           </div>
         </div>
 
-        <Link
-          href="/upload"
-          className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-medium text-white shadow-sm hover:opacity-95"
-        >
-          <span className="text-white/90" aria-hidden>
-            ⤴
-          </span>
-          Submit New Paper
-        </Link>
+        {!isGuest && (
+          <Link
+            href="/upload"
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--brand)] px-4 text-sm font-medium text-white shadow-sm hover:opacity-95"
+          >
+            <span className="text-white/90" aria-hidden>
+              ⤴
+            </span>
+            Submit New Paper
+          </Link>
+        )}
       </div>
 
       {/* Search */}

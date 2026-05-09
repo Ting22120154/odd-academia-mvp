@@ -1,9 +1,23 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { ProfileForm } from "@/components/ProfileForm";
 import { mockUser } from "@/data/mockUser";
 import { PostCard } from "@/components/PostCard";
 import { mockPosts } from "@/data/mockPosts";
 
 export default function ProfilePage() {
+  const { isLoggedIn } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoggedIn) router.replace("/login");
+  }, [isLoggedIn, router]);
+
+  if (!isLoggedIn) return null;
+
   return (
     /*
      * Profile screen is built to match the client's Figma:

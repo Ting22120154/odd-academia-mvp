@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: "grid" as const },
@@ -12,6 +13,9 @@ const nav = [
   // Figma shows Settings selected on the profile screen.
   { href: "/profile", label: "Settings", icon: "settings" as const },
 ];
+
+// Nav items guests cannot access
+const AUTH_ONLY_HREFS = new Set(["/upload", "/notifications", "/profile"]);
 
 function Icon({ name }: { name: (typeof nav)[number]["icon"] }) {
   const cls = "h-4 w-4";
@@ -118,6 +122,11 @@ function Icon({ name }: { name: (typeof nav)[number]["icon"] }) {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user, isGuest, isLoggedIn, logout } = useAuth();
+
+  const visibleNav = isGuest
+    ? nav.filter((item) => !AUTH_ONLY_HREFS.has(item.href))
+    : nav;
 
   return (
     <aside className="sticky top-0 flex h-screen w-[260px] flex-col border-r border-black/[0.06] bg-white">
@@ -130,7 +139,7 @@ export function Sidebar() {
 
       <nav className="px-3">
         <ul className="space-y-1">
-          {nav.map((item) => {
+          {visibleNav.map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href);
             return (
               <li key={item.href}>
@@ -156,14 +165,39 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto border-t border-black/[0.06] px-4 py-4">
-        <div className="flex items-center gap-3 rounded-2xl bg-zinc-50 px-3 py-3">
-          <div className="h-9 w-9 overflow-hidden rounded-full bg-zinc-200" />
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-zinc-900">Rick Taylor</div>
-            <div className="truncate text-xs text-zinc-500">rick@gmail.com</div>
+        {isLoggedIn && user ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 rounded-2xl bg-zinc-50 px-3 py-3">
+              <div className="h-9 w-9 overflow-hidden rounded-full bg-zinc-200" />
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-zinc-900">
+                  {user.fullName}
+                </div>
+                <div className="truncate text-xs text-zinc-500">{user.email}</div>
+              </div>
+              <span className="ml-auto text-zinc-400">›</span>
+            </div>
+            <button
+              type="button"
+              onClick={logout}
+              className="w-full rounded-xl border border-black/[0.06] py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
+            >
+              Sign Out
+            </button>
           </div>
-          <span className="ml-auto text-zinc-400">›</span>
-        </div>
+        ) : isGuest ? (
+          <div className="space-y-2">
+            <div className="rounded-2xl bg-zinc-50 px-3 py-3 text-sm text-zinc-500">
+              Browsing as Guest
+            </div>
+            <Link
+              href="/login"
+              className="block w-full rounded-xl border border-[var(--brand)] py-2 text-center text-xs font-medium text-[var(--brand)] hover:bg-[rgba(0,102,255,0.04)]"
+            >
+              Sign In / Sign Up
+            </Link>
+          </div>
+        ) : null}
       </div>
     </aside>
   );
