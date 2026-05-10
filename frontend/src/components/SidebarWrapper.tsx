@@ -3,11 +3,11 @@
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 
-// Routes where the sidebar should not render (full-page auth screens)
-const SIDEBAR_EXCLUDED = ["/login"];
+// The paper viewer uses a dedicated layout that matches Figma (no sidebar).
+const SIDEBAR_EXCLUDED_PREFIXES = ["/login", "/paper"];
 
 export function SidebarWrapper() {
   const pathname = usePathname();
-  if (SIDEBAR_EXCLUDED.includes(pathname)) return null;
+  if (SIDEBAR_EXCLUDED_PREFIXES.some((p) => pathname.startsWith(p))) return null;
   return <Sidebar />;
 }
