@@ -18,17 +18,20 @@ function readViewedPapers(): string[] {
 }
 
 export function useGuestAccess() {
-  const { isGuest } = useAuth();
+  const { isGuest, isLoggedIn } = useAuth();
+  // In this frontend-only MVP, "visitor" (logged-out) should behave like guest
+  // for the 5-article limit. Logged-in users are unlimited.
+  const isGuestLike = isGuest || !isLoggedIn;
 
   // Read fresh from localStorage each render (not stored in state) to avoid
   // stale closures when multiple views are recorded in a session.
-  const viewedPapers = isGuest ? readViewedPapers() : [];
+  const viewedPapers = isGuestLike ? readViewedPapers() : [];
   const viewedCount = viewedPapers.length;
   const hasReachedLimit = viewedCount >= GUEST_LIMIT;
 
   const recordArticleView = useCallback(
     (paperId: string): boolean => {
-      if (!isGuest) return false;
+      if (!isGuestLike) return false;
       const current = readViewedPapers();
       // Deduplicated — re-visiting the same paper doesn't count again
       if (current.includes(paperId)) return current.length >= GUEST_LIMIT;
@@ -36,8 +39,8 @@ export function useGuestAccess() {
       localStorage.setItem(LS_KEY, JSON.stringify(updated));
       return updated.length >= GUEST_LIMIT;
     },
-    [isGuest]
+    [isGuestLike]
   );
 
-  return { isGuest, viewedCount, hasReachedLimit, recordArticleView };
+  return { isGuest: isGuestLike, viewedCount, hasReachedLimit, recordArticleView };
 }

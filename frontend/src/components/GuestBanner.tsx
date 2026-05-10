@@ -2,12 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useAuth } from "@/context/AuthContext";
 import { useGuestAccess } from "@/hooks/useGuestAccess";
 
 export function GuestBanner() {
-  const { isGuest } = useAuth();
-  const { viewedCount } = useGuestAccess();
+  const { isGuest, viewedCount } = useGuestAccess();
   const [dismissed, setDismissed] = useState(false);
 
   if (!isGuest || dismissed) return null;
