@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# pnpm
+.pnpm-debug.log*
+
+# build outputs
+dist/
+build/
+.next/
+out/
+
+# env files
+.env*
+
+# misc
+.DS_Store
+*.pem
+*.tsbuildinfo

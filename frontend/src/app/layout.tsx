@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/context/AuthContext";
-import { SidebarWrapper } from "@/components/SidebarWrapper";
-import { GuestBanner } from "@/components/GuestBanner";
+import { ConditionalLayout } from "@/components/ConditionalLayout";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -32,13 +31,7 @@ export default function RootLayout({
     >
       <body className="min-h-full font-sans text-[var(--foreground)]">
         <AuthProvider>
-          <div className="flex min-h-screen bg-[var(--background)]">
-            <SidebarWrapper />
-            <div className="flex min-w-0 flex-1 flex-col">
-              <GuestBanner />
-              <main className="flex-1 px-6 py-6">{children}</main>
-            </div>
-          </div>
+          <ConditionalLayout>{children}</ConditionalLayout>
         </AuthProvider>
       </body>
     </html>

@@ -6,10 +6,8 @@ import { useAuth } from "@/context/AuthContext";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: "grid" as const },
-  { href: "/analytics", label: "Analytics", icon: "chart" as const },
   { href: "/papers", label: "Papers", icon: "file" as const },
   { href: "/upload", label: "Submit", icon: "upload" as const },
-  { href: "/formatting", label: "Formatting Guides", icon: "book" as const },
   // Figma shows Settings selected on the profile screen.
   { href: "/profile", label: "Settings", icon: "settings" as const },
 ];
