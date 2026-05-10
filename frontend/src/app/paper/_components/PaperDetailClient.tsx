@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { MockPost } from "@/lib/mockPosts";
+import { GuestTracker } from "@/app/paper/_components/GuestTracker";
 import { mockPosts } from "@/lib/mockPosts";
 import { mockUser } from "@/data/mockUser";
 
@@ -317,6 +318,8 @@ export function PaperDetailClient({ post }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Tracks guest article views and enforces the 5-article limit */}
+      <GuestTracker paperId={post.id} />
       {/* This page uses the global top nav from RootLayout (Figma style). */}
 
       {/* Two-column layout matches the Figma viewer page */}

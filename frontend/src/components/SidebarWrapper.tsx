@@ -11,4 +11,3 @@ export function SidebarWrapper() {
   if (SIDEBAR_EXCLUDED_PREFIXES.some((p) => pathname.startsWith(p))) return null;
   return <Sidebar />;
 }
-
