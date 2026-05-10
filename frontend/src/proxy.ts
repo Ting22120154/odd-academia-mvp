@@ -9,9 +9,6 @@ const AUTH_ONLY_PREFIXES = [
   "/upload",
   "/profile",
   "/notifications",
-  "/analytics",
-  "/formatting",
-  "/papers",
 ];
 
 export function proxy(request: NextRequest) {
@@ -26,13 +23,10 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // No session at all → redirect to login
-  if (!isLoggedIn && !isGuest) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-
-  // Guest trying to access a logged-in-only page → redirect to login
-  if (isGuest && AUTH_ONLY_PREFIXES.some((p) => pathname.startsWith(p))) {
+  // Frontend-only MVP: allow browsing without a session (logged-out users).
+  // Only gate pages that require a real account.
+  const isAuthOnly = AUTH_ONLY_PREFIXES.some((p) => pathname.startsWith(p));
+  if (isAuthOnly && !isLoggedIn) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
