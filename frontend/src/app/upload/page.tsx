@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
@@ -36,19 +36,11 @@ export default function UploadPage() {
   const [abstract, setAbstract] = useState("");
   const [anonymous, setAnonymous] = useState(false);
   const [author, setAuthor] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const abstractCount = useMemo(() => Math.min(abstract.length, 200), [abstract]);
 
-  /*
-   * Submit page matches the client's "Submit New Paper" Figma:
-   * - drag/drop file area + "Browse File"
-   * - title + keywords fields
-   * - abstract with 200 char counter
-   * - optional anonymous author row
-   *
-   * Integration point later:
-   * - replace the alert in `onSubmit` with an upload + create-paper API call.
-   */
   function pickFile() {
     inputRef.current?.click();
   }
@@ -57,20 +49,57 @@ export default function UploadPage() {
     setFile(f);
   }
 
-  function onSubmit() {
-    window.alert(
-      [
-        "Submitted (mock)!",
-        file ? `File: ${file.name}` : "File: (none)",
-        `Title: ${title || "(empty)"}`,
-        `Keyword: ${keyword || "(none)"}`,
-        `Anonymous: ${anonymous ? "yes" : "no"}`,
-        `Author: ${anonymous ? "(hidden)" : author || "(empty)"}`,
-      ].join("\n"),
-    );
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+
+    if (!title.trim()) {
+      setError("Please enter a title.");
+      return;
+    }
+    if (!abstract.trim()) {
+      setError("Please enter an abstract.");
+      return;
+    }
+    if (!file) {
+      setError("Please attach a paper file.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const keywordList = keyword ? [keyword] : [];
+
+      const res = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          content: abstract.trim(),
+          keywords: keywordList,
+          author: {
+            name: anonymous ? "Anonymous" : author.trim() || "User",
+            bio: "",
+            avatar: "/avatars/profile.svg",
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? "Could not upload paper");
+      }
+
+      router.push("/");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  const canSubmit = Boolean(file) && title.trim().length > 0;
+  const canSubmit = Boolean(file) && title.trim().length > 0 && abstract.trim().length > 0;
 
   if (!isLoggedIn) return null;
 
@@ -80,7 +109,10 @@ export default function UploadPage() {
         Submit New Paper
       </div>
 
-      <div className="mt-5 rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
+      <form
+        onSubmit={onSubmit}
+        className="mt-5 rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]"
+      >
         {/* Paper upload */}
         <div className="text-sm font-semibold text-zinc-900">Paper</div>
         <div
@@ -140,7 +172,7 @@ export default function UploadPage() {
             <div className="text-sm font-semibold text-zinc-900">Keywords</div>
             <select
               value={keyword}
-              onChange={(e) => setKeyword(e.target.value as Keyword)}
+              onChange={(e) => setKeyword(e.target.value as Keyword | "")}
               className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-900 outline-none focus:border-black/20"
             >
               <option value="">Select Keywords</option>
@@ -217,23 +249,23 @@ export default function UploadPage() {
           </div>
         </div>
 
+        {error ? <div className="mt-4 text-sm text-red-600">{error}</div> : null}
+
         <div className="mt-6 flex justify-end">
           <button
-            type="button"
-            onClick={onSubmit}
-            disabled={!canSubmit}
+            type="submit"
+            disabled={!canSubmit || submitting}
             className={[
               "inline-flex h-10 items-center rounded-xl px-10 text-sm font-medium text-white",
-              canSubmit
+              canSubmit && !submitting
                 ? "bg-[var(--brand)] hover:opacity-95"
                 : "bg-zinc-300 text-white/80",
             ].join(" ")}
           >
-            Submit
+            {submitting ? "Uploading..." : "Submit"}
           </button>
         </div>
-      </div>
+      </form>
     </section>
   );
 }
-

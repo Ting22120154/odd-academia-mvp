@@ -1,27 +1,90 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { SearchIcon } from "@/components/icons";
+import { PostCard } from "@/components/PostCard";
 import { SuggestedPaperCard } from "@/components/SuggestedPaperCard";
-import { mockPosts as suggestedPosts } from "@/lib/mockPosts";
+import { mockPosts as suggestedMockPosts, type MockPost } from "@/lib/mockPosts";
+import type { Post } from "@/lib/posts";
 
 const CATEGORY_TABS = ["For You", "Following", "Biohacking", "Maths", "Sustainability"] as const;
 
-export default function HomePage() {
-  const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<(typeof CATEGORY_TABS)[number]>("For You");
+type HomeTab = (typeof CATEGORY_TABS)[number];
 
-  const filtered = useMemo(() => {
+function suggestedMatchesTab(p: MockPost, tab: HomeTab): boolean {
+  if (tab === "For You" || tab === "Following") return true;
+  const haystack = [p.title, p.summary, p.subject, p.authorName, ...(p.tags ?? [])]
+    .join(" ")
+    .toLowerCase();
+  const tabTerms: Record<Exclude<HomeTab, "For You" | "Following">, string[]> = {
+    Biohacking: ["bio", "biomarker", "wearable", "stress", "recovery", "sleep", "health"],
+    Maths: ["math", "gradient", "convex", "proof", "optimization", "quantum"],
+    Sustainability: ["sustain", "green", "energy", "renewable", "climate"],
+  };
+  return tabTerms[tab].some((term) => haystack.includes(term));
+}
+
+function categoryMatchesApiPost(post: Post, tab: HomeTab): boolean {
+  if (tab === "For You" || tab === "Following") return true;
+
+  const haystack = [post.title, post.content, post.author.bio, ...post.keywords]
+    .join(" ")
+    .toLowerCase();
+
+  const categoryTerms: Record<Exclude<HomeTab, "For You" | "Following">, string[]> = {
+    Biohacking: ["bio", "biomarker", "wearable", "stress", "recovery", "sleep"],
+    Maths: ["math", "gradient", "convex", "proof", "optimization"],
+    Sustainability: ["sustain", "green", "energy", "renewable", "climate"],
+  };
+
+  return categoryTerms[tab].some((term) => haystack.includes(term));
+}
+
+export default function HomePage() {
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<HomeTab>("For You");
+
+  useEffect(() => {
+    async function loadPosts() {
+      try {
+        const res = await fetch("/api/posts", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as Post[];
+        setPosts(data);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void loadPosts();
+  }, []);
+
+  const suggestedFiltered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return suggestedPosts.filter((p) => {
+    return suggestedMockPosts.filter((p) => {
+      if (!suggestedMatchesTab(p, activeTab)) return false;
       if (!q) return true;
       const haystack = [p.title, p.summary, p.subject, p.authorName, ...(p.tags ?? [])]
         .join(" ")
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [query]);
+  }, [query, activeTab]);
+
+  const apiFiltered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return posts.filter((p) => {
+      if (!categoryMatchesApiPost(p, activeTab)) return false;
+      if (!q) return true;
+      const haystack = [p.title, p.content, p.author.name, p.author.bio, ...p.keywords]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [posts, query, activeTab]);
 
   return (
     <section className="w-full">
@@ -83,14 +146,40 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Suggested */}
+      {/* Suggested (Figma mock cards → /paper/[id]) */}
       <div className="mt-4 rounded-2xl border border-black/[0.06] bg-white p-4 shadow-[var(--shadow-sm)]">
         <div className="text-sm font-semibold text-zinc-900">Suggested Paper For You</div>
         <ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {filtered.slice(0, 4).map((p) => (
+          {suggestedFiltered.slice(0, 4).map((p) => (
             <SuggestedPaperCard key={p.id} post={p} />
           ))}
         </ul>
+      </div>
+
+      {/* API-backed feed (same filters + search) */}
+      <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 shadow-[var(--shadow-sm)]">
+        <div className="flex items-center justify-between">
+          <div className="text-base font-semibold text-zinc-900">Popular Papers</div>
+          <Link
+            href="/"
+            className="text-sm font-medium text-blue-700 hover:underline"
+          >
+            View More
+          </Link>
+        </div>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {loading ? (
+            <div className="text-sm text-zinc-600">Loading posts...</div>
+          ) : null}
+          {apiFiltered.map((p) => (
+            <PostCard key={p.id} post={p} />
+          ))}
+        </div>
+
+        {!loading && apiFiltered.length === 0 ? (
+          <div className="mt-6 text-sm text-zinc-600">No papers match your filters.</div>
+        ) : null}
       </div>
     </section>
   );
