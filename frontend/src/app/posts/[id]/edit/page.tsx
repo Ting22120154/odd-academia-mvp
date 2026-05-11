@@ -1,14 +1,34 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { CATEGORIES, type PostCategory } from "@/data/mockPosts";
-import { mockUser } from "@/data/mockUser";
 
 type ContributorTag = {
   label: string;
   href?: string;
+};
+
+type Attachment = {
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+};
+
+type PostShape = {
+  id: number;
+  title: string;
+  content: string;
+  categories?: string[];
+  keywords?: string[];
+  publishedDate?: string;
+  doi?: string;
+  references?: string[];
+  contributors?: ContributorTag[];
+  attachment?: Attachment;
+  author?: { name: string };
 };
 
 function formatFileSize(bytes: number): string {
@@ -39,13 +59,21 @@ function parseCitation(input: string): string | null {
   return `(${lastName}, ${year})`;
 }
 
-export default function UploadPage() {
+export default function EditPaperPage() {
   const { isLoggedIn, user } = useAuth();
   const router = useRouter();
+  const params = useParams<{ id: string }>();
+  const id = params?.id;
 
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const [file, setFile] = useState<File | null>(null);
   const [fileProgress, setFileProgress] = useState(0);
+  const [existingAttachment, setExistingAttachment] = useState<Attachment | null>(null);
+
   const [title, setTitle] = useState("");
   const [published, setPublished] = useState("");
   const [categoryQuery, setCategoryQuery] = useState("");
@@ -58,17 +86,57 @@ export default function UploadPage() {
   const [doi, setDoi] = useState("");
   const [referenceInput, setReferenceInput] = useState("");
   const [references, setReferences] = useState<string[]>([]);
-  const [submitting, setSubmitting] = useState(false);
+
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successUrl, setSuccessUrl] = useState<string | null>(null);
 
+  const abstractCount = useMemo(() => Math.min(abstract.length, 200), [abstract]);
+
   useEffect(() => {
-    // Keep the page publicly viewable (UI preview without login).
-    // Submission itself remains disabled unless logged in.
+    async function load() {
+      if (!id) return;
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const res = await fetch(`/api/posts/${id}`, { cache: "no-store" });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(body?.error ?? "Could not load paper");
+        }
+        const post = (await res.json()) as PostShape;
+        setTitle(post.title ?? "");
+        setAbstract(post.content ?? "");
+        setPublished(post.publishedDate ?? "");
+        setDoi(post.doi ?? "");
+        setReferences(Array.isArray(post.references) ? post.references : []);
+        setContributors(Array.isArray(post.contributors) ? post.contributors : []);
+        setExistingAttachment(post.attachment ?? null);
+        setAnonymous(post.author?.name === "Anonymous");
+
+        const cats = (post.categories ?? post.keywords ?? []) as string[];
+        const valid = cats.filter((c) => (CATEGORIES as string[]).includes(c)) as PostCategory[];
+        setCategories(valid);
+      } catch (e) {
+        setLoadError(e instanceof Error ? e.message : "Unknown error");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void load();
+  }, [id]);
+
+  useEffect(() => {
     if (successUrl && !isLoggedIn) setSuccessUrl(null);
   }, [isLoggedIn, successUrl]);
 
-  const abstractCount = useMemo(() => Math.min(abstract.length, 200), [abstract]);
+  const availableCategories = useMemo(() => {
+    const q = categoryQuery.trim().toLowerCase();
+    const remaining = CATEGORIES.filter((c) => !categories.includes(c));
+    if (!q) return remaining;
+    return remaining.filter((c) => c.toLowerCase().includes(q));
+  }, [categoryQuery, categories]);
 
   function pickFile() {
     inputRef.current?.click();
@@ -90,24 +158,6 @@ export default function UploadPage() {
     setFile(f);
     setFileProgress(100);
   }
-
-  const availableCategories = useMemo(() => {
-    const q = categoryQuery.trim().toLowerCase();
-    const remaining = CATEGORIES.filter((c) => !categories.includes(c));
-    if (!q) return remaining;
-    return remaining.filter((c) => c.toLowerCase().includes(q));
-  }, [categoryQuery, categories]);
-
-  const knownProfiles = useMemo(() => {
-    const current = user
-      ? [{ id: user.id, fullName: user.fullName, href: "/profile" }]
-      : [];
-    const fallback = [{ id: mockUser.id, fullName: mockUser.fullName, href: "/profile" }];
-    const all = [...current, ...fallback];
-    const dedup = new Map<string, { fullName: string; href: string }>();
-    for (const p of all) dedup.set(p.fullName.toLowerCase(), { fullName: p.fullName, href: p.href });
-    return [...dedup.values()];
-  }, [user]);
 
   function addCategory(cat: PostCategory) {
     setCategories((prev) => (prev.includes(cat) ? prev : [...prev, cat]));
@@ -133,29 +183,15 @@ export default function UploadPage() {
   function addContributor(raw: string) {
     const trimmed = raw.trim();
     if (!trimmed) return;
-    const match = knownProfiles.find((p) => p.fullName.toLowerCase() === trimmed.toLowerCase());
-    const tag: ContributorTag = match ? { label: match.fullName, href: match.href } : { label: trimmed };
-    setContributors((prev) => (prev.some((c) => c.label.toLowerCase() === tag.label.toLowerCase()) ? prev : [...prev, tag]));
+    const tag: ContributorTag = { label: trimmed };
+    setContributors((prev) =>
+      prev.some((c) => c.label.toLowerCase() === tag.label.toLowerCase()) ? prev : [...prev, tag],
+    );
     setContributorsInput("");
   }
 
   function removeContributor(label: string) {
     setContributors((prev) => prev.filter((c) => c.label !== label));
-  }
-
-  async function shareToSocials(url: string) {
-    try {
-      if (typeof navigator !== "undefined" && "share" in navigator) {
-        await (navigator as any).share({ title: "ODD Academia paper", url });
-        return;
-      }
-    } catch {
-      // fall through to share links
-    }
-
-    const encoded = encodeURIComponent(url);
-    const shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encoded}`;
-    window.open(shareUrl, "_blank", "noopener,noreferrer");
   }
 
   async function copyLink(url: string) {
@@ -166,11 +202,28 @@ export default function UploadPage() {
     }
   }
 
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+  async function shareToSocials(url: string) {
+    try {
+      if (typeof navigator !== "undefined" && "share" in navigator) {
+        await (navigator as any).share({ title: "ODD Academia paper", url });
+        return;
+      }
+    } catch {
+      // fall through
+    }
+    const encoded = encodeURIComponent(url);
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encoded}`, "_blank", "noopener,noreferrer");
+  }
+
+  async function onSave(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setSuccessUrl(null);
 
+    if (!isLoggedIn) {
+      setError("Please log in to save changes.");
+      return;
+    }
     if (!title.trim()) {
       setError("Please enter a title.");
       return;
@@ -179,24 +232,20 @@ export default function UploadPage() {
       setError("Please enter an abstract.");
       return;
     }
-    if (!file) {
-      setError("Please attach a paper file.");
-      return;
-    }
-    if (!isPdfFile(file)) {
-      setError("Please upload a PDF file only.");
+    if (categories.length === 0) {
+      setError("Please select at least one category.");
       return;
     }
 
-    setSubmitting(true);
+    setSaving(true);
     try {
-      setFileProgress(20);
-      const progressTimer = window.setInterval(() => {
-        setFileProgress((p) => (p >= 90 ? 90 : p + 7));
-      }, 120);
+      setFileProgress(file ? 20 : 100);
+      const progressTimer = file
+        ? window.setInterval(() => setFileProgress((p) => (p >= 90 ? 90 : p + 7)), 120)
+        : null;
 
-      const res = await fetch("/api/posts", {
-        method: "POST",
+      const res = await fetch(`/api/posts/${id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: title.trim(),
@@ -209,64 +258,80 @@ export default function UploadPage() {
           contributors,
           author: {
             name: anonymous ? "Anonymous" : user?.fullName || "User",
-            bio: "",
-            avatar: "/avatars/profile.svg",
           },
-          attachment: {
-            fileName: file.name,
-            mimeType: "application/pdf",
-            sizeBytes: file.size,
-          },
+          attachment: file
+            ? { fileName: file.name, mimeType: "application/pdf", sizeBytes: file.size }
+            : existingAttachment ?? undefined,
         }),
       });
 
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? "Could not upload paper");
+        throw new Error(body?.error ?? "Could not save changes");
       }
 
-      const created = (await res.json().catch(() => null)) as { id?: number } | null;
-      window.clearInterval(progressTimer);
+      if (progressTimer) window.clearInterval(progressTimer);
       setFileProgress(100);
 
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-      const url = created?.id ? `${origin}/posts/${created.id}` : `${origin}/`;
+      const origin = window.location.origin;
+      const url = `${origin}/posts/${id}`;
       setSuccessUrl(url);
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-      setFileProgress(file ? 100 : 0);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
   }
 
-  const canSubmit =
-    Boolean(file) &&
-    title.trim().length > 0 &&
-    abstract.trim().length > 0 &&
-    categories.length > 0 &&
-    isLoggedIn &&
-    !submitting;
+  if (loading) {
+    return (
+      <section className="mx-auto w-full max-w-[var(--page-max)]">
+        <div className="text-sm text-zinc-600">Loading paper...</div>
+      </section>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <section className="mx-auto w-full max-w-[var(--page-max)]">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {loadError}
+        </div>
+      </section>
+    );
+  }
+
+  const canSave = !saving && isLoggedIn && title.trim() && abstract.trim() && categories.length > 0;
 
   return (
     <section className="mx-auto w-full max-w-[var(--page-max)]">
-      <div className="text-base font-semibold text-zinc-900">
-        Submit New Paper
-      </div>
+      <button
+        type="button"
+        onClick={() => {
+          router.push(`/posts/${id}`);
+          router.refresh();
+        }}
+        className="inline-flex items-center gap-2 text-sm text-zinc-600 hover:text-zinc-900"
+      >
+        ← Back
+      </button>
+
+      <div className="mt-3 text-base font-semibold text-zinc-900">Edit Paper</div>
 
       <form
-        onSubmit={onSubmit}
+        onSubmit={onSave}
         className="mt-5 rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]"
       >
         {!isLoggedIn ? (
           <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            You can preview this page without logging in, but you’ll need to log in to submit a paper.
+            You can preview this page without logging in, but you’ll need to log in to save changes.
           </div>
         ) : null}
-        {/* Paper upload */}
+
         <div className="text-sm font-semibold text-zinc-900">Paper</div>
-        {file ? (
+
+        {file || existingAttachment ? (
           <div className="mt-3 rounded-2xl border border-black/[0.08] bg-white p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
@@ -274,15 +339,22 @@ export default function UploadPage() {
                   PDF
                 </div>
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-zinc-900">{file.name}</div>
+                  <div className="truncate text-sm font-medium text-zinc-900">
+                    {file?.name ?? existingAttachment?.fileName}
+                  </div>
                   <div className="mt-0.5 text-xs text-zinc-500">
-                    {formatFileSize(file.size)} • {submitting ? "Uploading..." : "Completed"}
+                    {formatFileSize(file?.size ?? existingAttachment?.sizeBytes ?? 0)} •{" "}
+                    {saving ? "Uploading..." : "Completed"}
                   </div>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => onChooseFile(null)}
+                onClick={() => {
+                  setFile(null);
+                  setExistingAttachment(null);
+                  setFileProgress(0);
+                }}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-50 hover:text-zinc-700"
                 aria-label="Remove file"
               >
@@ -293,6 +365,22 @@ export default function UploadPage() {
               <div
                 className="h-full rounded-full bg-[var(--brand)] transition-[width]"
                 style={{ width: `${Math.max(0, Math.min(100, fileProgress))}%` }}
+              />
+            </div>
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={pickFile}
+                className="inline-flex h-9 items-center rounded-lg border border-black/[0.08] bg-white px-4 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
+              >
+                Replace PDF
+              </button>
+              <input
+                ref={inputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => onChooseFile(e.target.files?.[0] ?? null)}
+                accept=".pdf"
               />
             </div>
           </div>
@@ -336,7 +424,6 @@ export default function UploadPage() {
           </div>
         )}
 
-        {/* Title + published */}
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="space-y-2">
             <div className="text-sm font-semibold text-zinc-900">Title</div>
@@ -347,7 +434,6 @@ export default function UploadPage() {
               className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-black/20"
             />
           </div>
-
           <div className="space-y-2">
             <div className="text-sm font-semibold text-zinc-900">Published</div>
             <input
@@ -359,7 +445,6 @@ export default function UploadPage() {
           </div>
         </div>
 
-        {/* Category (searchable + multi select) */}
         <div className="mt-6 space-y-2">
           <div className="text-sm font-semibold text-zinc-900">Categories</div>
           <div className="relative">
@@ -370,9 +455,7 @@ export default function UploadPage() {
                 setCategoryOpen(true);
               }}
               onFocus={() => setCategoryOpen(true)}
-              onBlur={() => {
-                window.setTimeout(() => setCategoryOpen(false), 120);
-              }}
+              onBlur={() => window.setTimeout(() => setCategoryOpen(false), 120)}
               placeholder="Select Category"
               className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 pr-10 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-black/20"
             />
@@ -426,7 +509,6 @@ export default function UploadPage() {
           ) : null}
         </div>
 
-        {/* Abstract */}
         <div className="mt-6 space-y-2">
           <div className="text-sm font-semibold text-zinc-900">Abstract</div>
           <div className="rounded-2xl border border-black/[0.08] bg-white p-3">
@@ -436,9 +518,7 @@ export default function UploadPage() {
               placeholder="Explain your research to your audience in a simple way so anyone without assumed knowledge can understand"
               className="min-h-[164px] w-full resize-none bg-transparent px-1 py-1 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none"
             />
-            <div className="text-right text-[11px] text-zinc-400">
-              {abstractCount}/200
-            </div>
+            <div className="text-right text-[11px] text-zinc-400">{abstractCount}/200</div>
           </div>
         </div>
 
@@ -522,7 +602,6 @@ export default function UploadPage() {
           </div>
         </div>
 
-        {/* References */}
         <div className="mt-6 space-y-2">
           <div className="text-sm font-semibold text-zinc-900">References</div>
           <input
@@ -568,15 +647,13 @@ export default function UploadPage() {
         <div className="mt-6 flex justify-end">
           <button
             type="submit"
-            disabled={!canSubmit}
+            disabled={!canSave}
             className={[
               "inline-flex h-10 items-center rounded-xl px-10 text-sm font-medium text-white",
-              canSubmit
-                ? "bg-[var(--brand)] hover:opacity-95"
-                : "bg-zinc-300 text-white/80",
+              canSave ? "bg-[var(--brand)] hover:opacity-95" : "bg-zinc-300 text-white/80",
             ].join(" ")}
           >
-            {submitting ? "Submitting..." : "Submit"}
+            {saving ? "Saving..." : "Submit"}
           </button>
         </div>
       </form>
@@ -586,7 +663,11 @@ export default function UploadPage() {
           <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-[0_30px_80px_rgba(0,0,0,0.25)]">
             <button
               type="button"
-              onClick={() => setSuccessUrl(null)}
+              onClick={() => {
+                setSuccessUrl(null);
+                router.push(`/posts/${id}`);
+                router.refresh();
+              }}
               className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-50 hover:text-zinc-700"
               aria-label="Close"
             >
@@ -597,7 +678,7 @@ export default function UploadPage() {
               ✓
             </div>
             <div className="mt-4 text-center text-xl font-semibold text-zinc-900">Success</div>
-            <div className="mt-1 text-center text-sm text-zinc-500">Your paper has been submitted!</div>
+            <div className="mt-1 text-center text-sm text-zinc-500">Your paper has been updated!</div>
 
             <div className="mt-4 flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2">
               <div className="min-w-0 flex-1 truncate text-sm text-zinc-700">{successUrl}</div>
@@ -624,3 +705,4 @@ export default function UploadPage() {
     </section>
   );
 }
+

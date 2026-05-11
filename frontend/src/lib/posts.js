@@ -25,6 +25,12 @@ function seedFromUiMocks() {
       title: p.title,
       content: p.description,
       keywords: p.tags,
+      categories: [p.category],
+      publishedDate: isoNow().slice(0, 10),
+      doi: "",
+      references: [],
+      contributors: [],
+      attachment: undefined,
       author: {
         name: p.author.name,
         bio: "Researcher at OddAcademia (mock).",
@@ -49,20 +55,32 @@ function seedFromUiMocks() {
   });
 }
 
-let posts = seedFromUiMocks();
-let nextPostId = posts.reduce((m, p) => Math.max(m, p.id), 0) + 1;
-let nextCommentId =
-  posts.reduce(
-    (m, p) => Math.max(m, ...p.comments.map((c) => c.id)),
-    0,
-  ) + 1;
+const STORE_KEY = "__oddAcademiaPostsStore";
+
+function getStore() {
+  const g = globalThis;
+  if (!g[STORE_KEY]) {
+    const seeded = seedFromUiMocks();
+    g[STORE_KEY] = {
+      posts: seeded,
+      nextPostId: seeded.reduce((m, p) => Math.max(m, p.id), 0) + 1,
+      nextCommentId:
+        seeded.reduce(
+          (m, p) => Math.max(m, ...p.comments.map((c) => c.id)),
+          0,
+        ) + 1,
+    };
+  }
+  return g[STORE_KEY];
+}
 
 /**
  * @returns {import("./posts").Post[]}
  */
 export function getPosts() {
+  const store = getStore();
   // Newest-first (lexicographic ISO sort works).
-  return clone([...posts].sort((a, b) => b.date.localeCompare(a.date)));
+  return clone([...store.posts].sort((a, b) => b.date.localeCompare(a.date)));
 }
 
 /**
@@ -70,9 +88,10 @@ export function getPosts() {
  * @returns {import("./posts").Post | null}
  */
 export function getPostById(id) {
+  const store = getStore();
   const numericId = typeof id === "string" ? Number(id) : id;
   if (!Number.isFinite(numericId)) return null;
-  const post = posts.find((p) => p.id === numericId) ?? null;
+  const post = store.posts.find((p) => p.id === numericId) ?? null;
   return post ? clone(post) : null;
 }
 
@@ -81,11 +100,18 @@ export function getPostById(id) {
  * @returns {import("./posts").Post}
  */
 export function addPost(post) {
+  const store = getStore();
   const created = {
-    id: nextPostId++,
+    id: store.nextPostId++,
     title: post.title,
     content: post.content,
     keywords: post.keywords ?? [],
+    categories: post.categories ?? post.keywords ?? [],
+    publishedDate: post.publishedDate ?? isoNow().slice(0, 10),
+    doi: post.doi ?? "",
+    references: post.references ?? [],
+    contributors: post.contributors ?? [],
+    attachment: post.attachment,
     author: {
       name: post.author?.name ?? "User",
       bio: post.author?.bio ?? "",
@@ -101,8 +127,54 @@ export function addPost(post) {
     comments: [],
   };
 
-  posts = [created, ...posts];
+  store.posts = [created, ...store.posts];
   return clone(created);
+}
+
+/**
+ * @param {number|string} id
+ * @param {Partial<import("./posts").NewPost>} patch
+ * @returns {import("./posts").Post}
+ */
+export function updatePost(id, patch) {
+  const store = getStore();
+  const numericId = typeof id === "string" ? Number(id) : id;
+  if (!Number.isFinite(numericId)) {
+    throw new Error("Invalid postId");
+  }
+
+  const idx = store.posts.findIndex((p) => p.id === numericId);
+  if (idx === -1) {
+    throw new Error("Post not found");
+  }
+
+  const existing = store.posts[idx];
+
+  const updated = {
+    ...existing,
+    title: typeof patch.title === "string" ? patch.title : existing.title,
+    content: typeof patch.content === "string" ? patch.content : existing.content,
+    keywords: Array.isArray(patch.keywords) ? patch.keywords : existing.keywords,
+    categories: Array.isArray(patch.categories) ? patch.categories : existing.categories,
+    // Treat edits as "recent activity" so feeds update predictably.
+    date: isoNow(),
+    publishedDate:
+      typeof patch.publishedDate === "string" ? patch.publishedDate : existing.publishedDate,
+    doi: typeof patch.doi === "string" ? patch.doi : existing.doi,
+    references: Array.isArray(patch.references) ? patch.references : existing.references,
+    contributors: Array.isArray(patch.contributors) ? patch.contributors : existing.contributors,
+    attachment: patch.attachment ?? existing.attachment,
+    author: patch.author
+      ? {
+          name: patch.author.name ?? existing.author.name,
+          bio: patch.author.bio ?? existing.author.bio,
+          avatar: patch.author.avatar ?? existing.author.avatar,
+        }
+      : existing.author,
+  };
+
+  store.posts = store.posts.map((p, i) => (i === idx ? updated : p));
+  return clone(updated);
 }
 
 /**
@@ -111,26 +183,27 @@ export function addPost(post) {
  * @returns {import("./posts").Comment}
  */
 export function addComment(postId, comment) {
+  const store = getStore();
   const numericId = typeof postId === "string" ? Number(postId) : postId;
   if (!Number.isFinite(numericId)) {
     throw new Error("Invalid postId");
   }
 
-  const idx = posts.findIndex((p) => p.id === numericId);
+  const idx = store.posts.findIndex((p) => p.id === numericId);
   if (idx === -1) {
     throw new Error("Post not found");
   }
 
   const created = {
-    id: nextCommentId++,
+    id: store.nextCommentId++,
     user: comment.user ?? "User",
     text: comment.text,
     date: comment.date ?? isoNow(),
   };
 
-  const target = posts[idx];
+  const target = store.posts[idx];
   const updated = { ...target, comments: [...target.comments, created] };
-  posts = posts.map((p, i) => (i === idx ? updated : p));
+  store.posts = store.posts.map((p, i) => (i === idx ? updated : p));
 
   return clone(created);
 }
