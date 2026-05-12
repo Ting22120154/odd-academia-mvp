@@ -1,11 +1,15 @@
-import AdminSidebar from "@/components/AdminSidebar";
+import AdminTopNav from "@/components/AdminTopNav";
 
+/**
+ * Layout for all protected admin routes.
+ * Renders the top nav above the page content.
+ */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <AdminSidebar />
-      <main className="flex-1 pl-60">
-        <div className="max-w-6xl mx-auto px-8 py-8">{children}</div>
+    <div className="min-h-screen bg-white flex flex-col">
+      <AdminTopNav />
+      <main className="flex-1 max-w-5xl w-full mx-auto px-8 py-8">
+        {children}
       </main>
     </div>
   );
