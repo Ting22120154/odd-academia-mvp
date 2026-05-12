@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 type Keyword =
   | "AI infrastructure"
@@ -20,6 +22,13 @@ const KEYWORDS: Keyword[] = [
 ];
 
 export default function UploadPage() {
+  const { isLoggedIn } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoggedIn) router.replace("/login");
+  }, [isLoggedIn, router]);
+
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
@@ -62,6 +71,8 @@ export default function UploadPage() {
   }
 
   const canSubmit = Boolean(file) && title.trim().length > 0;
+
+  if (!isLoggedIn) return null;
 
   return (
     <section className="mx-auto w-full max-w-[var(--page-max)]">
