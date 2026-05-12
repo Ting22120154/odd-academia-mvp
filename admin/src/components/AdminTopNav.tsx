@@ -5,26 +5,20 @@
  * Horizontal top navigation bar matching the Figma design.
  * Logo on the left, nav links on the right.
  * Active link is shown as a filled blue pill.
- * "Account" triggers logout.
  */
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 const NAV = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Papers",    href: "/papers" },
   { label: "Users",     href: "/users" },
+  { label: "Account",   href: "/account" },
 ];
 
 export default function AdminTopNav() {
   const pathname = usePathname();
-  const router   = useRouter();
-
-  async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-  }
 
   return (
     <header className="w-full bg-white border-b border-gray-100 px-8 py-3 flex items-center justify-between">
@@ -54,14 +48,6 @@ export default function AdminTopNav() {
             </Link>
           );
         })}
-
-        {/* Account — acts as logout */}
-        <button
-          onClick={handleLogout}
-          className="px-4 py-1.5 rounded-full text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
-        >
-          Account
-        </button>
       </nav>
     </header>
   );

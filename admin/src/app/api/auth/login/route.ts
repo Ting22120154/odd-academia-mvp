@@ -12,10 +12,7 @@
 import { NextRequest } from "next/server";
 import { signToken } from "@/lib/auth/jwt";
 import { ok, err } from "@/lib/response";
-
-// Hardcoded admin credentials — swap these out when DB auth is added
-const ADMIN_EMAIL = "admin@oddacademia.com";
-const ADMIN_PASSWORD = "Admin@1234";
+import { adminCredentials } from "@/lib/auth/store";
 
 export async function POST(req: NextRequest) {
   // Parse request body; return 400 if body is malformed
@@ -24,13 +21,13 @@ export async function POST(req: NextRequest) {
     return err("Email and password are required.", 400);
   }
 
-  // Check credentials against hardcoded values
-  if (body.email !== ADMIN_EMAIL || body.password !== ADMIN_PASSWORD) {
+  // Check credentials against the in-memory store (updated by PATCH /api/auth/account)
+  if (body.email !== adminCredentials.email || body.password !== adminCredentials.password) {
     return err("Invalid email or password.", 401);
   }
 
   // Sign a JWT containing the admin identity
-  const token = signToken({ sub: "admin", email: ADMIN_EMAIL, role: "admin" });
+  const token = signToken({ sub: "admin", email: adminCredentials.email, role: "admin" });
 
   // Attach the token as an httpOnly cookie so it is invisible to JavaScript
   // and automatically sent with every request to this origin
