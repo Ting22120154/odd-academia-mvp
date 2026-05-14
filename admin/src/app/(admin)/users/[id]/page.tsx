@@ -392,7 +392,7 @@ export default function UserDetailPage() {
       {/* TODO: fetch real counts from GET /api/users/:id/metrics once backend is ready */}
       <div className="border border-gray-200 rounded-lg p-5">
         <h2 className="text-sm font-semibold text-gray-700 mb-4">Engagement Metrics</h2>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             { icon: "📄", label: "Papers",          value: user.metrics.papers          },
             { icon: "👤", label: "Followers",        value: user.metrics.followers       },
@@ -412,12 +412,12 @@ export default function UserDetailPage() {
 
       {/* ── Papers section ── */}
       <div>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
           <h2 className="text-base font-semibold text-gray-800">
             Papers <span className="text-gray-400 font-normal">({papers.length})</span>
           </h2>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             {/* Paper search — client-side only until API supports /api/users/:id/papers?search= */}
             <div className="relative">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -460,7 +460,8 @@ export default function UserDetailPage() {
 
         {/* Papers table */}
         <div className="border border-gray-200 rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[550px]">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="text-left px-4 py-3 font-medium text-gray-600">
@@ -517,6 +518,7 @@ export default function UserDetailPage() {
               ))}
             </tbody>
           </table>
+          </div>
 
           {filteredPapers.length > 3 && (
             <div className="flex justify-end px-4 py-3 border-t border-gray-100">

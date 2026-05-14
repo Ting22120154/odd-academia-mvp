@@ -123,10 +123,10 @@ export default function PapersPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
         <h1 className="text-2xl font-bold text-gray-900">Papers</h1>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {/* Search — client-side only; replace with API ?search= once backend is ready */}
           <div className="relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -167,7 +167,8 @@ export default function PapersPage() {
 
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[700px]">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
               <th className="text-left px-4 py-3 font-medium text-gray-600">Paper Name <SortIcon /></th>
@@ -209,6 +210,7 @@ export default function PapersPage() {
             ))}
           </tbody>
         </table>
+        </div>
 
         {/* Show More — will become server-side pagination once backend is connected */}
         {filtered.length > INITIAL_ROWS && (

@@ -255,7 +255,7 @@ export default function PaperDetailPage() {
 
       {/* ── Paper Analytics ── */}
       <div className="border border-gray-200 rounded-lg p-5">
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
           <h2 className="text-base font-semibold text-gray-800">Paper Analytics</h2>
           <div className="relative">
             <button
@@ -279,8 +279,8 @@ export default function PaperDetailPage() {
           </div>
         </div>
 
-        {/* Stat cards — 3 per row */}
-        <div className="grid grid-cols-3 gap-4">
+        {/* Stat cards — 1 col mobile, 2 col sm, 3 col lg */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {PAPER.analytics.map(stat => (
             <div key={stat.label} className="border border-gray-100 rounded-lg p-4">
               <div className="text-xl mb-1">{stat.icon}</div>
@@ -370,7 +370,8 @@ export default function PaperDetailPage() {
 
         {/* Table */}
         <div className="border border-gray-200 rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[600px]">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
@@ -396,6 +397,7 @@ export default function PaperDetailPage() {
               ))}
             </tbody>
           </table>
+          </div>
 
           {/* Pagination */}
           <div className="flex items-center justify-center gap-3 px-4 py-3 border-t border-gray-100 text-sm text-gray-500">

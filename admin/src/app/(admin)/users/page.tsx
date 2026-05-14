@@ -158,7 +158,7 @@ export default function UsersPage() {
       </div>
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
         <h1 className="text-2xl font-bold text-gray-900">Users</h1>
 
         <div className="flex items-center gap-3">
@@ -204,7 +204,8 @@ export default function UsersPage() {
 
       {/* ── Table ── */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[650px]">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
               {/* TODO: add server-side sort once API supports ?sortBy=&sortDir= */}
@@ -248,6 +249,7 @@ export default function UsersPage() {
             ))}
           </tbody>
         </table>
+        </div>
 
         {/* Show More — client-side for now, will become server-side pagination */}
         {filtered.length > INITIAL_ROWS && (

@@ -108,7 +108,7 @@ function Calendar() {
 // ---------------------------------------------------------------------------
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="relative bg-white border border-gray-200 rounded-lg px-5 py-4 overflow-hidden w-48">
+    <div className="relative bg-white border border-gray-200 rounded-lg px-5 py-4 overflow-hidden flex-1 min-w-[140px]">
       <p className="text-xs text-gray-500 mb-2 leading-tight">{label}</p>
       <p className="text-2xl font-bold text-gray-900">{value}</p>
 
@@ -132,7 +132,7 @@ export default function DashboardPage() {
   return (
     <div>
       {/* Header row */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex items-start justify-between gap-3 mb-8 flex-wrap">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
 
         {/* Date range filter */}
@@ -167,7 +167,7 @@ export default function DashboardPage() {
         {SECTIONS.map((section) => (
           <div key={section.title}>
             <h2 className="text-base font-semibold text-gray-800 mb-3">{section.title}</h2>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-4">
               {section.cards.map((card) => (
                 <StatCard key={card.label} label={card.label} value={card.value} />
               ))}
