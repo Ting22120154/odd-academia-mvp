@@ -1,29 +1,61 @@
 "use client";
 
+/**
+ * Papers list page — matches Figma design.
+ *
+ * Columns: Paper Name | Author | Category | Published | Views | Cited | Downloaded | Comments | actions
+ *
+ * Actions:
+ *  - "•••" navigates to paper detail page (/papers/[id])
+ *  - "Remove" opens a confirmation modal; on confirm shows a success state
+ *
+ * TODO (backend integration):
+ *  - Replace ALL_PAPERS with fetch to GET /api/papers?page=&limit=&search=
+ *  - Wire Remove confirm to DELETE /api/papers/:id
+ *  - Switch client-side search + Show More to server-side pagination
+ */
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 // ---------------------------------------------------------------------------
-// Hardcoded data
+// Types
 // ---------------------------------------------------------------------------
-const ALL_PAPERS = Array.from({ length: 10 }, (_, i) => ({
-  id:        String(i + 1),
-  title:     "Sustainable Energy Practices in Urban Environments",
-  author:    "James B.",
-  interest:  "Sustainable Energy",
-  published: "29/01/2025",
-  views:     3023,
-  cited:     33,
+interface Paper {
+  id:         string;
+  title:      string;
+  author:     string;
+  category:   string;
+  published:  string;
+  views:      number;
+  cited:      number;
+  downloaded: number;
+  comments:   number;
+}
+
+// ---------------------------------------------------------------------------
+// Hardcoded placeholder data — replace with API response once backend is ready
+// ---------------------------------------------------------------------------
+const ALL_PAPERS: Paper[] = Array.from({ length: 10 }, (_, i) => ({
+  id:         String(i + 1),
+  title:      "Sustainable Energy Practices in Urban Environments",
+  author:     "James B.",
+  category:   "Sustainable Energy",
+  published:  "29/01/2025",
+  views:      3023,
+  cited:      33,
+  downloaded: i % 3 === 0 ? 0 : 343 - i * 10, // varied sample data
+  comments:   i % 4 === 0 ? 0 : 67 - i,
 }));
 
 // ---------------------------------------------------------------------------
-// Minimal inline Calendar (same pattern as dashboard)
+// Inline Calendar (same pattern used across all admin pages)
 // ---------------------------------------------------------------------------
 const DAYS   = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 function Calendar() {
-  const [year,  setYear]  = useState(2025);
+  const [year, setYear]   = useState(2025);
   const [month, setMonth] = useState(0);
 
   const firstDay    = new Date(year, month, 1).getDay();
@@ -58,9 +90,6 @@ function Calendar() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Sort icon
-// ---------------------------------------------------------------------------
 function SortIcon() {
   return (
     <svg className="inline ml-1 w-3 h-3 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -69,19 +98,22 @@ function SortIcon() {
   );
 }
 
+
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
+const INITIAL_ROWS = 5;
+
 export default function PapersPage() {
   const router = useRouter();
 
+  const [papers] = useState<Paper[]>(ALL_PAPERS);
   const [search,       setSearch]       = useState("");
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [showAll,      setShowAll]      = useState(false);
 
-  const INITIAL_ROWS = 5;
-
-  const filtered = ALL_PAPERS.filter(p =>
+  const filtered = papers.filter(p =>
     p.title.toLowerCase().includes(search.toLowerCase()) ||
     p.author.toLowerCase().includes(search.toLowerCase())
   );
@@ -95,7 +127,7 @@ export default function PapersPage() {
         <h1 className="text-2xl font-bold text-gray-900">Papers</h1>
 
         <div className="flex items-center gap-3">
-          {/* Search */}
+          {/* Search — client-side only; replace with API ?search= once backend is ready */}
           <div className="relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -109,7 +141,7 @@ export default function PapersPage() {
             />
           </div>
 
-          {/* Date range filter */}
+          {/* Date range filter — cosmetic until API supports ?from=&to= */}
           <div className="relative">
             <button
               onClick={() => setCalendarOpen(o => !o)}
@@ -140,30 +172,35 @@ export default function PapersPage() {
             <tr className="bg-gray-50 border-b border-gray-200">
               <th className="text-left px-4 py-3 font-medium text-gray-600">Paper Name <SortIcon /></th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Author <SortIcon /></th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Interest</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Category</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Published</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Views</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Cited</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Downloaded</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Comments</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {visible.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center py-12 text-gray-400">No papers found.</td>
+                <td colSpan={9} className="text-center py-12 text-gray-400">No papers found.</td>
               </tr>
             ) : visible.map(p => (
               <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 text-gray-900 max-w-xs truncate">{p.title}</td>
+                <td className="px-4 py-3 text-gray-900 max-w-[180px] truncate">{p.title}</td>
                 <td className="px-4 py-3 text-gray-600">{p.author}</td>
-                <td className="px-4 py-3 text-gray-600">{p.interest}</td>
+                <td className="px-4 py-3 text-gray-600">{p.category}</td>
                 <td className="px-4 py-3 text-gray-600">{p.published}</td>
                 <td className="px-4 py-3 text-gray-600">{p.views.toLocaleString()}</td>
                 <td className="px-4 py-3 text-gray-600">{p.cited}</td>
+                <td className="px-4 py-3 text-gray-600">{p.downloaded}</td>
+                <td className="px-4 py-3 text-gray-600">{p.comments}</td>
                 <td className="px-4 py-3 text-right">
+                  {/* ••• navigates to the paper detail page where Remove action lives */}
                   <button
                     onClick={() => router.push(`/papers/${p.id}`)}
-                    className="text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition-colors text-base leading-none tracking-widest"
+                    className="text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 text-base leading-none tracking-widest"
                   >
                     •••
                   </button>
@@ -173,7 +210,7 @@ export default function PapersPage() {
           </tbody>
         </table>
 
-        {/* Show More */}
+        {/* Show More — will become server-side pagination once backend is connected */}
         {filtered.length > INITIAL_ROWS && (
           <div className="flex justify-end px-4 py-3 border-t border-gray-100">
             <button
@@ -185,6 +222,7 @@ export default function PapersPage() {
           </div>
         )}
       </div>
+
     </div>
   );
 }

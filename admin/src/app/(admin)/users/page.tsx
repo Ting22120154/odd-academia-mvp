@@ -12,7 +12,7 @@
  *   - Replace Show More with real pagination against the API total count
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 // ---------------------------------------------------------------------------
@@ -123,26 +123,11 @@ const INITIAL_ROWS = 5;
 export default function UsersPage() {
   const router = useRouter();
 
-  // Users list state — driven from hardcoded data; swap for API fetch once backend is ready
-  const [users,        setUsers]        = useState<User[]>(HARDCODED_USERS);
+  // Users list — hardcoded data; swap for API fetch once backend is ready
+  const [users]        = useState<User[]>(HARDCODED_USERS);
   const [search,       setSearch]       = useState("");
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [showAll,      setShowAll]      = useState(false);
-
-  // Track which row's action dropdown is currently open
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // Close action dropdown when clicking outside it
-  useEffect(() => {
-    function handleOutsideClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpenMenuId(null);
-      }
-    }
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, []);
 
   // Client-side search filter — replace with API debounce once backend is ready
   const filtered = users.filter(u =>
@@ -150,24 +135,6 @@ export default function UsersPage() {
   );
 
   const visible = showAll ? filtered : filtered.slice(0, INITIAL_ROWS);
-
-  // TODO: call PATCH /api/users/:id { status: "suspended" } — currently just updates local state
-  function handleSuspend(id: string) {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, status: "Suspended" } : u));
-    setOpenMenuId(null);
-  }
-
-  // TODO: call PATCH /api/users/:id { status: "active" } — currently just updates local state
-  function handleActivate(id: string) {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, status: "Active" } : u));
-    setOpenMenuId(null);
-  }
-
-  // TODO: call DELETE /api/users/:id — currently just removes from local state
-  function handleRemove(id: string) {
-    setUsers(prev => prev.filter(u => u.id !== id));
-    setOpenMenuId(null);
-  }
 
   return (
     <div>
@@ -236,7 +203,7 @@ export default function UsersPage() {
       </div>
 
       {/* ── Table ── */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden" ref={menuRef}>
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
@@ -268,46 +235,14 @@ export default function UsersPage() {
                 <td className="px-4 py-3 text-gray-500">{u.following}</td>
                 <td className="px-4 py-3 text-gray-500">{u.followers}</td>
                 <td className="px-4 py-3"><StatusBadge status={u.status} /></td>
-                <td className="px-4 py-3 text-right relative">
-                  {/* Action menu — stop row click propagating to prevent navigation */}
+                <td className="px-4 py-3 text-right">
+                  {/* ••• navigates to user detail page where Suspend/Remove actions live */}
                   <button
-                    onClick={e => { e.stopPropagation(); setOpenMenuId(id => id === u.id ? null : u.id); }}
+                    onClick={e => { e.stopPropagation(); router.push(`/users/${u.id}`); }}
                     className="text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition-colors text-base leading-none tracking-widest"
                   >
                     •••
                   </button>
-
-                  {/* Per-row dropdown */}
-                  {openMenuId === u.id && (
-                    <div className="absolute right-8 top-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[110px] overflow-hidden">
-                      {u.status === "Suspended" ? (
-                        /* Suspended users can be re-activated */
-                        <button
-                          onClick={e => { e.stopPropagation(); handleActivate(u.id); }}
-                          className="w-full text-left px-4 py-2 text-xs text-green-600 hover:bg-gray-50 flex items-center gap-2"
-                        >
-                          Activate
-                          <span className="w-2 h-2 rounded-full bg-green-500 ml-auto" />
-                        </button>
-                      ) : (
-                        /* Active / Inactive users can be suspended */
-                        <button
-                          onClick={e => { e.stopPropagation(); handleSuspend(u.id); }}
-                          className="w-full text-left px-4 py-2 text-xs text-red-500 hover:bg-gray-50 flex items-center gap-2"
-                        >
-                          Suspend
-                          <span className="w-2 h-2 rounded-full bg-red-500 ml-auto" />
-                        </button>
-                      )}
-                      <button
-                        onClick={e => { e.stopPropagation(); handleRemove(u.id); }}
-                        className="w-full text-left px-4 py-2 text-xs text-red-500 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
-                      >
-                        Remove
-                        <span className="w-2 h-2 rounded-full bg-red-500 ml-auto" />
-                      </button>
-                    </div>
-                  )}
                 </td>
               </tr>
             ))}

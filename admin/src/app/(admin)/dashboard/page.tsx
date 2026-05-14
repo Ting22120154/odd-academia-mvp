@@ -6,10 +6,11 @@
  * Layout:
  *  - "Dashboard" heading + date range filter (top right)
  *  - Calendar dropdown opens when filter is clicked
- *  - Users section: Total Number of Users (20,000) + Number of New Users (2,000)
- *  - Papers section: Total Number of Papers (3,000) + Number of New Papers (33)
+ *  - Users section:  Users (20,000) | New Users (2,000) | Users Posted (54)
+ *  - Papers section: Papers (3,000) | New Papers (33) | Papers Downloaded (100) | Comments (899)
  *
  * All values are hardcoded until the database API is wired up.
+ * TODO: replace each card value with the corresponding API endpoint response.
  */
 
 import { useState } from "react";
@@ -21,15 +22,18 @@ const SECTIONS = [
   {
     title: "Users",
     cards: [
-      { label: "Total Number of Users", value: "20,000" },
-      { label: "Number of New Users",   value: "2,000" },
+      { label: "Users",        value: "20,000" }, // TODO: GET /api/stats/users/total
+      { label: "New Users",    value: "2,000"  }, // TODO: GET /api/stats/users/new
+      { label: "Users Posted", value: "54"     }, // TODO: GET /api/stats/users/posted
     ],
   },
   {
     title: "Papers",
     cards: [
-      { label: "Total Number of Papers", value: "3,000" },
-      { label: "Number of New Papers",   value: "33" },
+      { label: "Papers",            value: "3,000" }, // TODO: GET /api/stats/papers/total
+      { label: "New Papers",        value: "33"    }, // TODO: GET /api/stats/papers/new
+      { label: "Papers Downloaded", value: "100"   }, // TODO: GET /api/stats/papers/downloads
+      { label: "Comments",          value: "899"   }, // TODO: GET /api/stats/comments/total
     ],
   },
 ];

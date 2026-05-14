@@ -113,6 +113,77 @@ function Calendar() {
 }
 
 // ---------------------------------------------------------------------------
+// Report Comment modal — shown when admin clicks a "Pending Review" badge.
+// Admin can keep the comment or remove it.
+// TODO: wire "Remove Comment" to DELETE /api/comments/:id
+// ---------------------------------------------------------------------------
+function ReportCommentModal({
+  onKeep,
+  onRemove,
+}: {
+  onKeep:   () => void;
+  onRemove: () => void;
+}) {
+  const [subject,     setSubject]     = useState("");
+  const [description, setDescription] = useState("");
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 relative">
+        <button onClick={onKeep} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Report Comment</h2>
+
+        {/* Subject — filled by admin before deciding action */}
+        <div className="mb-3">
+          <label className="block text-xs font-medium text-gray-500 mb-1">Subject</label>
+          <input
+            type="text"
+            value={subject}
+            onChange={e => setSubject(e.target.value)}
+            placeholder="How did you like this cite in my paper."
+            className="w-full text-sm border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0066ff]/30 focus:border-[#0066ff]"
+          />
+        </div>
+
+        {/* Description — reason for the report */}
+        <div className="mb-5">
+          <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
+          <textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            rows={3}
+            placeholder="The comment we talking about biohazards in my AI paper."
+            className="w-full text-sm border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0066ff]/30 focus:border-[#0066ff] resize-none"
+          />
+        </div>
+
+        <div className="flex gap-3">
+          {/* Keep Comment — dismisses the report, comment stays visible */}
+          <button
+            onClick={onKeep}
+            className="flex-1 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
+            Keep Comment
+          </button>
+          {/* Remove Comment — TODO: call DELETE /api/comments/:id */}
+          <button
+            onClick={onRemove}
+            className="flex-1 py-2 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600"
+          >
+            Remove Comment
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Status badge
 // ---------------------------------------------------------------------------
 function StatusBadge({ status }: { status: string }) {
@@ -130,9 +201,14 @@ function StatusBadge({ status }: { status: string }) {
 const USER_TABS = ["Views", "Followers", "Shares", "Downloads"] as const;
 
 export default function PaperDetailPage() {
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [activeTab,    setActiveTab]    = useState<typeof USER_TABS[number]>("Views");
-  const [userPage,     setUserPage]     = useState(1);
+  const [calendarOpen,  setCalendarOpen]  = useState(false);
+  const [activeTab,     setActiveTab]     = useState<typeof USER_TABS[number]>("Views");
+  const [userPage,      setUserPage]      = useState(1);
+
+  // reportTarget holds the id of the reply whose "Pending Review" badge was clicked.
+  // null means the modal is closed.
+  const [reportTarget,  setReportTarget]  = useState<number | null>(null);
+  const [comments,      setComments]      = useState(COMMENTS);
 
   return (
     <div className="space-y-8">
@@ -359,7 +435,7 @@ export default function PaperDetailPage() {
           Comments <span className="inline-block w-2 h-2 rounded-full bg-yellow-400 ml-1 align-middle" />
         </h3>
         <div className="space-y-6">
-          {COMMENTS.map(comment => (
+          {comments.map(comment => (
             <div key={comment.id}>
               {/* Top-level comment */}
               <div className="flex gap-3">
@@ -385,10 +461,14 @@ export default function PaperDetailPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <p className="text-xs font-semibold text-gray-800">{reply.author}</p>
+                      {/* Clicking Pending Review opens the Report Comment modal */}
                       {reply.badge && (
-                        <span className="text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5">
+                        <button
+                          onClick={() => setReportTarget(reply.id)}
+                          className="text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5 hover:bg-orange-100"
+                        >
                           {reply.badge}
-                        </span>
+                        </button>
                       )}
                     </div>
                     <p className="text-sm text-gray-700 leading-relaxed mb-2">{reply.text}</p>
@@ -405,6 +485,21 @@ export default function PaperDetailPage() {
           <button className="w-full text-center text-sm text-[#0066ff] hover:underline py-2">Show More</button>
         </div>
       </div>
+
+      {/* Report Comment modal — opens when admin clicks a Pending Review badge */}
+      {reportTarget !== null && (
+        <ReportCommentModal
+          onKeep={() => setReportTarget(null)}
+          onRemove={() => {
+            // TODO: call DELETE /api/comments/:id (reportTarget) once backend is ready
+            setComments(prev => prev.map(c => ({
+              ...c,
+              replies: c.replies.filter(r => r.id !== reportTarget),
+            })));
+            setReportTarget(null);
+          }}
+        />
+      )}
 
     </div>
   );

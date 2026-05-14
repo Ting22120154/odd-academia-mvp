@@ -21,6 +21,98 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+// ---------------------------------------------------------------------------
+// Remove User modal — two states: confirm prompt → success message.
+// Matches the Figma "USERS/Remove User Confirmation" screens.
+// TODO: wire "Remove User" confirm to DELETE /api/users/:id
+// ---------------------------------------------------------------------------
+function RemoveUserModal({
+  userName,
+  onCancel,
+  onConfirm,
+}: {
+  userName: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const router  = useRouter();
+  const [removed, setRemoved] = useState(false);
+
+  function handleConfirm() {
+    // TODO: call DELETE /api/users/:id here; on success set removed = true
+    onConfirm();
+    setRemoved(true);
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 relative">
+
+        <button onClick={onCancel} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+
+        {!removed ? (
+          /* ── Confirmation state ── */
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Remove User</h2>
+            <p className="text-sm text-gray-500 mb-6">
+              Are you sure you would like to remove{" "}
+              <span className="font-semibold text-gray-800">{userName}</span>? This user will
+              lose all access to Odd Academia and all its functionalities.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={onCancel}
+                className="px-5 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirm}
+                className="px-5 py-2 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600 flex items-center gap-2"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                </svg>
+                Remove User
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* ── Success state ── */
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mx-auto mb-4">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0066ff" strokeWidth="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">User has been removed</h2>
+            <p className="text-sm text-gray-500 mb-6">
+              User has been removed for the platform. They will no longer have access to the platform.
+            </p>
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="w-full py-2 text-sm rounded-lg bg-[#0066ff] text-white hover:bg-blue-700"
+            >
+              Back to Dashboard
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Hardcoded placeholder data — swap for real API responses once backend is ready
@@ -138,6 +230,9 @@ export default function UserDetailPage() {
   const [paperSearch,   setPaperSearch]   = useState("");
   const [showAllPapers, setShowAllPapers] = useState(false);
 
+  // Controls the Remove User confirmation modal
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+
   // Tracks which action menu is open — "header" | paper/comment id | null
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -231,8 +326,11 @@ export default function UserDetailPage() {
                     Suspend <span className="w-2 h-2 rounded-full bg-red-500 ml-auto" />
                   </button>
                 )}
-                {/* TODO: redirect to /users after DELETE /api/users/:id */}
-                <button className="w-full text-left px-4 py-2 text-xs text-red-500 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100">
+                {/* Opens the Remove User confirmation modal */}
+                <button
+                  onClick={() => { setOpenMenu(null); setShowRemoveModal(true); }}
+                  className="w-full text-left px-4 py-2 text-xs text-red-500 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
+                >
                   Remove <span className="w-2 h-2 rounded-full bg-red-500 ml-auto" />
                 </button>
               </div>
@@ -512,6 +610,18 @@ export default function UserDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* Remove User modal — shown when admin clicks Remove in the header ••• menu */}
+      {showRemoveModal && (
+        <RemoveUserModal
+          userName={user.name}
+          onCancel={() => setShowRemoveModal(false)}
+          onConfirm={() => {
+            // Local state update — real DELETE /api/users/:id is called inside the modal
+            setUser(u => ({ ...u, status: "Suspended" }));
+          }}
+        />
+      )}
 
     </div>
   );
