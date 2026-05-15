@@ -4,10 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 type Props = {
-  /**
-   * In this frontend-only MVP we don't have a real session provider on main yet.
-   * The nav stays usable with a boolean flag so it can be wired to AuthContext later.
-   */
   isLoggedIn?: boolean;
 };
 
@@ -15,13 +11,19 @@ function IconButton({
   children,
   href,
   label,
+  active,
 }: {
   children: React.ReactNode;
   href?: string;
   label: string;
+  active?: boolean;
 }) {
-  const cls =
-    "inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/[0.06] bg-white text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700";
+  const cls = [
+    "inline-flex h-10 w-10 items-center justify-center rounded-full border transition",
+    active
+      ? "border-[var(--brand)] bg-blue-50 text-[var(--brand)]"
+      : "border-black/[0.06] bg-white text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700",
+  ].join(" ");
 
   if (href) {
     return (
@@ -41,18 +43,18 @@ function IconButton({
 export function TopNav({ isLoggedIn }: Props) {
   const pathname = usePathname();
 
-  // Full-screen auth pages should not show the app chrome.
   if (pathname === "/login") return null;
-
-  // Paper viewer renders its own layout; we keep only one top bar to match Figma.
-  // If you want the top bar in the viewer too, remove this guard and delete the viewer header.
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (pathname?.startsWith("/paper")) return null;
+
+  const isHome = pathname === "/" || pathname === "/home";
+  const isFollowing = pathname?.startsWith("/following");
+  const isNotifications = pathname?.startsWith("/notifications");
+  const isProfile = pathname === "/profile" || pathname?.startsWith("/profile/") || pathname?.startsWith("/user/");
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-black/[0.06] bg-white/80 backdrop-blur">
       <div className="mx-auto flex w-full max-w-[var(--page-max)] items-center justify-between px-6 py-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
+        <Link href="/home" className="flex items-center gap-2 font-semibold tracking-tight">
           <span className="text-[var(--brand)]">odd</span>
           <span className="text-zinc-900">Academia</span>
         </Link>
@@ -74,28 +76,50 @@ export function TopNav({ isLoggedIn }: Props) {
             </Link>
           )}
 
-          {/* Icon set matches the Figma top-right chrome (stub actions for now). */}
-          <IconButton label="Reader">
-            <span aria-hidden>📖</span>
+          <IconButton href="/home" label="Home" active={isHome}>
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path d="M4 19V6a2 2 0 0 1 2-2h8l4 4v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
+              <path d="M12 4v4h4" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
+              <path d="M8 13h8M8 16h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+            </svg>
           </IconButton>
-          <IconButton label="Following">
-            <span aria-hidden>👥</span>
+          <IconButton href="/following" label="Following" active={isFollowing}>
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <circle cx="9" cy="7" r="3" stroke="currentColor" strokeWidth="1.8"/>
+              <path d="M2 21a7 7 0 0 1 14 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+              <circle cx="17" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.8"/>
+              <path d="M22 21a5 5 0 0 0-7.5-4.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+            </svg>
           </IconButton>
-          <IconButton label="Notifications">
-            <span aria-hidden>🔔</span>
+          <IconButton href="/notifications" label="Notifications" active={isNotifications}>
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 7h18s-3 0-3-7Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
+              <path d="M9.5 19a2.5 2.5 0 0 0 5 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+            </svg>
           </IconButton>
-          {/* Figma shows a profile image here; use a text badge until the asset is available. */}
           <Link
             href="/profile"
             aria-label="Profile"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/[0.06] bg-white text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+            className={[
+              "inline-flex h-10 w-10 items-center justify-center rounded-full text-xs font-semibold transition",
+              isProfile
+                ? "ring-2 ring-[var(--brand)] ring-offset-2 bg-zinc-200 text-zinc-700"
+                : "bg-zinc-200 text-zinc-700 hover:bg-zinc-300",
+            ].join(" ")}
             title="Profile"
           >
-            RT
+            <img
+              src="/avatar-placeholder.png"
+              alt=""
+              className="h-full w-full rounded-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+                (e.target as HTMLImageElement).parentElement!.textContent = "G";
+              }}
+            />
           </Link>
         </div>
       </div>
     </header>
   );
 }
-
