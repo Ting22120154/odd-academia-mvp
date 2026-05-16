@@ -1,0 +1,26 @@
+{
+  "name": "odd-academia",
+  "private": true,
+  "packageManager": "pnpm@10.6.3",
+  "scripts": {
+    "dev":          "turbo dev",
+    "build":        "turbo build",
+    "lint":         "turbo lint",
+    "db:generate":  "pnpm --filter @odd-academia/db db:generate",
+    "db:push":      "pnpm --filter @odd-academia/db db:push",
+    "db:seed":      "pnpm --filter @odd-academia/db db:seed",
+    "db:studio":    "pnpm --filter @odd-academia/db db:studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma",
+      "sharp"
+    ]
+  }
+}

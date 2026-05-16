@@ -1,0 +1,302 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum WorkStatus {
+  open
+  not_open  @map("not-open")
+  freelance
+  none
+}
+
+enum Role {
+  user
+  admin
+}
+
+enum PaperStatus {
+  published
+  pending
+  removed
+}
+
+enum NotificationType {
+  comment
+  reply
+  follow
+  citation
+  paper
+  contact
+}
+
+enum ReferenceType {
+  comment
+  user
+  paper
+  message
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id                String     @id @default(uuid())
+  email             String     @unique
+  passwordHash      String     @map("password_hash")
+  fullName          String     @map("full_name")
+  username          String     @unique
+  avatarUrl         String?    @map("avatar_url")
+  bio               String?
+  workStatus        WorkStatus @default(open) @map("work_status")
+  jobTitle          String?    @map("job_title")
+  education         String?
+  githubUrl         String?    @map("github_url")
+  linkedinUrl       String?    @map("linkedin_url")
+  profileVisibility   Boolean    @default(true) @map("profile_visibility")
+  role                Role       @default(user)
+  isEmailVerified     Boolean    @default(false) @map("is_email_verified")
+  verificationCode    String?    @map("verification_code")
+  verificationExpiry  DateTime?  @map("verification_expiry")
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+
+  interests            UserInterest[]
+  papers               Paper[]               @relation("AuthoredPapers")
+  comments             Comment[]
+  reports              CommentReport[]       @relation("Reporter")
+  followers            Follow[]              @relation("Following")
+  following            Follow[]              @relation("Follower")
+  notifications        Notification[]
+  notificationSettings NotificationSettings?
+  sentMessages         Message[]             @relation("SentMessages")
+  receivedMessages     Message[]             @relation("ReceivedMessages")
+  adminUser            AdminUser?
+
+  @@index([role])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model Interest {
+  id   String @id @default(uuid())
+  name String @unique
+  icon String
+
+  users UserInterest[]
+
+  @@map("interests")
+}
+
+model UserInterest {
+  userId     String @map("user_id")
+  interestId String @map("interest_id")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interest Interest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+
+  @@id([userId, interestId])
+  @@map("user_interests")
+}
+
+model Paper {
+  id               String      @id @default(uuid())
+  authorId         String      @map("author_id")
+  title            String
+  abstract         String?
+  publishedAt      DateTime?   @map("published_at")
+  fileUrl          String?     @map("file_url")
+  doi              String?
+  isAnonymous      Boolean     @default(false) @map("is_anonymous")
+  isBoosted        Boolean     @default(false) @map("is_boosted")
+  boostScheduledAt DateTime?   @map("boost_scheduled_at")
+  status           PaperStatus @default(published)
+  viewCount        Int         @default(0) @map("view_count")
+  citationCount    Int         @default(0) @map("citation_count")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  author         User               @relation("AuthoredPapers", fields: [authorId], references: [id], onDelete: Cascade)
+  keywords       PaperKeyword[]
+  categories     PaperCategory[]
+  contributors   PaperContributor[]
+  references     PaperReference[]   @relation("PaperReferences")
+  citedBy        PaperReference[]   @relation("CitedPaper")
+  comments       Comment[]
+  linkedMessages Message[]
+
+  @@index([authorId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("papers")
+}
+
+model PaperKeyword {
+  id      String @id @default(uuid())
+  paperId String @map("paper_id")
+  keyword String
+
+  paper Paper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+
+  @@index([paperId])
+  @@index([keyword])
+  @@map("paper_keywords")
+}
+
+model PaperCategory {
+  id       String @id @default(uuid())
+  paperId  String @map("paper_id")
+  category String
+
+  paper Paper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+
+  @@index([paperId])
+  @@index([category])
+  @@map("paper_categories")
+}
+
+model PaperContributor {
+  id              String @id @default(uuid())
+  paperId         String @map("paper_id")
+  contributorName String @map("contributor_name")
+
+  paper Paper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+
+  @@index([paperId])
+  @@map("paper_contributors")
+}
+
+model PaperReference {
+  id           String  @id @default(uuid())
+  paperId      String  @map("paper_id")
+  citedPaperId String? @map("cited_paper_id")
+  citationText String? @map("citation_text")
+
+  paper      Paper  @relation("PaperReferences", fields: [paperId], references: [id], onDelete: Cascade)
+  citedPaper Paper? @relation("CitedPaper", fields: [citedPaperId], references: [id], onDelete: SetNull)
+
+  @@index([paperId])
+  @@index([citedPaperId])
+  @@map("paper_references")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  paperId   String   @map("paper_id")
+  authorId  String   @map("author_id")
+  parentId  String?  @map("parent_id")
+  content   String
+  isHidden  Boolean  @default(false) @map("is_hidden")
+  isFlagged Boolean  @default(false) @map("is_flagged")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  paper   Paper           @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  author  User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent  Comment?        @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[]       @relation("CommentReplies")
+  reports CommentReport[]
+
+  @@index([paperId])
+  @@index([authorId])
+  @@index([parentId])
+  @@map("comments")
+}
+
+model CommentReport {
+  id         String   @id @default(uuid())
+  commentId  String   @map("comment_id")
+  reporterId String   @map("reporter_id")
+  reason     String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  comment  Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  reporter User    @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([commentId])
+  @@index([reporterId])
+  @@map("comment_reports")
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower  User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+  @@map("follows")
+}
+
+model Notification {
+  id            String           @id @default(uuid())
+  userId        String           @map("user_id")
+  type          NotificationType
+  referenceId   String?          @map("reference_id")
+  referenceType ReferenceType?   @map("reference_type")
+  isRead        Boolean          @default(false) @map("is_read")
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model NotificationSettings {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  followedAuthors Boolean  @default(true) @map("followed_authors")
+  followedPapers  Boolean  @default(false) @map("followed_papers")
+  repliedTo       Boolean  @default(true) @map("replied_to")
+  citations       Boolean  @default(true)
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_settings")
+}
+
+model Message {
+  id          String   @id @default(uuid())
+  senderId    String   @map("sender_id")
+  recipientId String   @map("recipient_id")
+  subject     String
+  body        String
+  linkToPaper String?  @map("link_to_paper")
+  isRead      Boolean  @default(false) @map("is_read")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  sender    User   @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient User   @relation("ReceivedMessages", fields: [recipientId], references: [id], onDelete: Cascade)
+  paper     Paper? @relation(fields: [linkToPaper], references: [id], onDelete: SetNull)
+
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+model AdminUser {
+  id           String   @id @default(uuid())
+  userId       String   @unique @map("user_id")
+  adminEmail   String   @unique @map("admin_email")
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admin_users")
+}

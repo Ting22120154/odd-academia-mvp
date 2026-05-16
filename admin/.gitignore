@@ -5,8 +5,9 @@ node_modules/
 .next/
 out/
 
-# env files
+# env files (but allow .env.example templates)
 .env*
+!.env.example
 .env.local
 
 # misc

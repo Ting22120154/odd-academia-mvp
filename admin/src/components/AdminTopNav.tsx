@@ -3,19 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
+import { mockFlaggedComments } from "@odd-academia/db";
 
 const NAV = [
   { label: "Dashboard", href: "/dashboard" },
   { label: "Papers",    href: "/papers"    },
   { label: "Users",     href: "/users"     },
   { label: "Account",   href: "/account"   },
-];
-
-// Hardcoded reported comments — replace with GET /api/comments?status=pending once DB is ready
-const REPORTED_COMMENTS = [
-  { id: 1, author: "Sophia",    text: "That's a valid point. The paper does touch on retrofitting...", paperId: "1" },
-  { id: 2, author: "Sophia",    text: "Thank you for bringing up QA — Urban Landscape Transformations!...", paperId: "1" },
-  { id: 3, author: "Alexander", text: "While I appreciate the paper's approach to sustainable energy...", paperId: "1" },
 ];
 
 export default function AdminTopNav() {
@@ -76,7 +70,7 @@ export default function AdminTopNav() {
                 <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
               </svg>
               <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                {REPORTED_COMMENTS.length}
+                {mockFlaggedComments.length}
               </span>
             </button>
 
@@ -84,10 +78,10 @@ export default function AdminTopNav() {
               <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100">
                   <p className="text-sm font-semibold text-gray-800">Reported Comments</p>
-                  <p className="text-xs text-gray-400">{REPORTED_COMMENTS.length} pending review</p>
+                  <p className="text-xs text-gray-400">{mockFlaggedComments.length} pending review</p>
                 </div>
                 <div className="divide-y divide-gray-50">
-                  {REPORTED_COMMENTS.map(c => (
+                  {mockFlaggedComments.map(c => (
                     <div key={c.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">

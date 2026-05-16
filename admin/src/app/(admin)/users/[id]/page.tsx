@@ -21,7 +21,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
+import { mockAdminUserDetails, mockAdminPapers, mockAdminComments } from "@odd-academia/db";
 
 // ---------------------------------------------------------------------------
 // Remove User modal — two states: confirm prompt → success message.
@@ -114,65 +115,6 @@ function RemoveUserModal({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Hardcoded placeholder data — swap for real API responses once backend is ready
-// ---------------------------------------------------------------------------
-
-const HARDCODED_USER = {
-  id:           "2",
-  name:         "Evelyn Harper",
-  username:     "@Ex_Harper",
-  email:        "evharper@gmail.com",
-  jobTitle:     "Data Scientist",
-  openForWork:  true,
-  status:       "Active" as "Active" | "Inactive" | "Suspended",
-  bio:          "Dr. Evelyn Harper is a passionate advocate for sustainable energy, with a strong focus on renewable technologies. She has written extensively on the subject and is a sought-after speaker at events promoting green energy solutions.",
-  followers:    "1.2k",
-  following:    300,
-  metrics: {
-    papers:          120,
-    followers:       "1.2K",
-    followingPapers: 300,
-    citedComments:   50,
-  },
-};
-
-const HARDCODED_PAPERS = [
-  { id: "p1", title: "Sustainable Energy Practices in Urban Environments",    interest: "Sustainable Energy, Computer Science", published: "29/01/2025", views: 3023, cited: 33 },
-  { id: "p2", title: "Innovative Solar Power Solutions for Urban Communities", interest: "AI Infrastructure, Data Science",        published: "29/01/2025", views: 3023, cited: 33 },
-  { id: "p3", title: "Revolutionising Wind Energy Practices in Urban Settings", interest: "AI Infrastructure, Computer Science",   published: "29/01/2025", views: 3023, cited: 33 },
-  { id: "p4", title: "Efficient Waste-to-Energy Solutions for Urban Environments", interest: "AI Infrastructure, Data Science",    published: "29/01/2025", views: 3023, cited: 33 },
-];
-
-const HARDCODED_COMMENTS = [
-  {
-    id:           "c1",
-    author:       "Evelyn Harper",
-    timestamp:    "5 hr. ago",
-    pendingReview: false,
-    text:         "This paper offers some insightful perspectives on sustainable energy, but I feel like it underestimates the challenges of implementing these practices in older urban infrastructures. How can cities retrofit without massive costs or disruptions?",
-    replies:      1,
-    likes:        1,
-  },
-  {
-    id:           "c2",
-    author:       "Evelyn Harper",
-    timestamp:    "18-12-2024",
-    pendingReview: true, // reported by a user — shown with Pending Review badge
-    text:         "This paper offers some insightful perspectives on sustainable energy, but I feel like it underestimates the challenges of implementing these practices in older urban infrastructures. How can cities retrofit without massive costs or disruptions?",
-    replies:      0,
-    likes:        0,
-  },
-  {
-    id:           "c3",
-    author:       "Evelyn Harper",
-    timestamp:    "17-11-2024",
-    pendingReview: false,
-    text:         "This paper offers some insightful perspectives on sustainable energy, but I feel like it underestimates the challenges of implementing these practices in older urban infrastructures. How can cities retrofit without massive costs or disruptions?",
-    replies:      4,
-    likes:        3,
-  },
-];
 
 // ---------------------------------------------------------------------------
 // Inline Calendar (same pattern used across Dashboard, Papers, Users list)
@@ -222,9 +164,16 @@ function Calendar() {
 // Page
 // ---------------------------------------------------------------------------
 export default function UserDetailPage() {
-  const [user,    setUser]    = useState(HARDCODED_USER);
-  const [papers,  setPapers]  = useState(HARDCODED_PAPERS);
-  const [comments,setComments]= useState(HARDCODED_COMMENTS);
+  const params = useParams();
+  const id = typeof params.id === "string" ? params.id : "1";
+
+  const userDetail = mockAdminUserDetails.find(u => u.id === id) ?? mockAdminUserDetails[0];
+  const userPapers = mockAdminPapers.filter(p => p.author === userDetail.name);
+  const userComments = mockAdminComments.filter(c => c.author === userDetail.name);
+
+  const [user,    setUser]    = useState(userDetail);
+  const [papers,  setPapers]  = useState(userPapers);
+  const [comments,setComments]= useState(userComments);
 
   const [calendarOpen,  setCalendarOpen]  = useState(false);
   const [paperSearch,   setPaperSearch]   = useState("");
@@ -367,7 +316,7 @@ export default function UserDetailPage() {
 
         {/* Followers / following */}
         <div className="flex items-center gap-4 mt-3 text-sm text-gray-700">
-          <span><strong>{user.followers}</strong> followers</span>
+          <span><strong>{user.metrics.followers}</strong> followers</span>
           <span><strong>{user.following}</strong> following</span>
         </div>
 
@@ -491,7 +440,7 @@ export default function UserDetailPage() {
               {visiblePapers.map(p => (
                 <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-gray-900 max-w-xs truncate">{p.title}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{p.interest}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">{p.category}</td>
                   <td className="px-4 py-3 text-gray-500">{p.published}</td>
                   <td className="px-4 py-3 text-gray-500">{p.views.toLocaleString()}</td>
                   <td className="px-4 py-3 text-gray-500">{p.cited}</td>
@@ -553,14 +502,14 @@ export default function UserDetailPage() {
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className="text-xs font-semibold text-gray-800">{c.author}</span>
 
-                  {/* Pending Review badge — shown when comment has been reported by a user */}
-                  {c.pendingReview && (
+                  {/* Pending Review badge — shown when comment has been flagged/reported */}
+                  {c.isFlagged && (
                     <span className="text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5">
                       Pending Review
                     </span>
                   )}
 
-                  <span className="text-xs text-gray-400 ml-auto">{c.timestamp}</span>
+                  <span className="text-xs text-gray-400 ml-auto">29/01/2025</span>
 
                   {/* Comment action menu */}
                   <div className="relative">
@@ -593,14 +542,14 @@ export default function UserDetailPage() {
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                     </svg>
-                    {c.replies} Reply
+                    {c.replies.length} Reply
                   </span>
                   <span className="flex items-center gap-1 cursor-pointer hover:text-gray-600">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
                       <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
                     </svg>
-                    {c.likes} Like
+                    0 Like
                   </span>
                 </div>
               </div>

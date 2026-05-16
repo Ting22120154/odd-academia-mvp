@@ -1,11 +1,11 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   turbopack: {
-    // Fix: C:\Users\prem\package.json is detected as the workspace root, causing
-    // Turbopack to look for node_modules in the wrong directory. Pinning root to
-    // this file's directory forces it to resolve packages from frontend/.
-    root: __dirname,
+    // Point to the monorepo root so Turbopack can resolve hoisted packages
+    // (e.g. next, react) from the root node_modules.
+    root: path.resolve(__dirname, ".."),
   },
 };
 
