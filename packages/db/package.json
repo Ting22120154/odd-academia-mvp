@@ -13,7 +13,7 @@
     "db:studio":   "prisma studio"
   },
   "prisma": {
-    "seed": "tsx --env-file .env prisma/seed.ts"
+    "seed": "tsx --env-file .env src/seed.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

@@ -74,6 +74,10 @@ pnpm db:push
 
 ### 4. Seed the database (optional — loads sample data)
 
+> **Warning:** This command deletes all existing data before inserting.
+> Do not run on a shared Neon instance unless everyone on the team is okay
+> with losing their current data.
+
 ```bash
 pnpm db:seed
 ```

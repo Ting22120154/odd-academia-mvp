@@ -3,37 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { mockAdminPapers, mockAdminComments, mockAdminUsers } from "@odd-academia/db";
-
-// USERS section stays local — it represents who viewed/followed the paper,
-// not the same list as the platform users. Replace with API once backend is ready.
-const USERS = [
-  { name: "Rick Smith",    registered: "29/01/2025", papers: 5, following: 500, followers: 330, status: "Active"    },
-  { name: "Evelyn Harper", registered: "29/01/2025", papers: 1, following: 10,  followers: 298, status: "Inactive"  },
-  { name: "Olivia Jr",    registered: "29/01/2025", papers: 3, following: 18,  followers: 45,  status: "Inactive"  },
-  { name: "Reuben Hiles", registered: "29/01/2025", papers: 2, following: 22,  followers: 45,  status: "Inactive"  },
-  { name: "Berry B",      registered: "24/01/2025", papers: 2, following: 234, followers: 170, status: "Active"    },
-  { name: "Sue Lee",      registered: "21/01/2025", papers: 0, following: 0,   followers: 10,  status: "Suspended" },
-];
-
-// Citations are paper-specific UI content — stays local until citation DB table is built
-const CITATIONS = [
-  {
-    author:  "Alexander",
-    title:   "Biofuel Production Methods and Environmental Impact",
-    text:    "\"According to Harper, the implementation of rooftop solar panel installations in urban environments can lead to a significant reduction in carbon emissions. This is particularly crucial in the face of the growing demand for energy in urban areas.\" (Harper, 2024, p. 43)",
-  },
-  {
-    author:  "Alexander",
-    title:   "Biofuel Production Methods and Environmental Impact",
-    text:    "\"According to Harper, the implementation of rooftop solar panel installations in urban environments can lead to a significant reduction in carbon emissions. This is particularly crucial in the face of the growing demand for energy in urban areas.\" (Harper, 2024, p. 43)",
-  },
-  {
-    author:  "Sophia",
-    title:   "Innovative Solar Panel Designs for Sustainable Energy",
-    text:    "\"According to Harper, the implementation of rooftop solar panel installations in urban environments can lead to a significant reduction in carbon emissions. This is particularly crucial in the face of the growing demand for energy in a future.\" (Harper, 2024, p. 43)",
-  },
-];
+import { mockAdminPapers, mockAdminComments, mockAdminUsers, mockAdminCitations } from "@odd-academia/db";
 
 // ---------------------------------------------------------------------------
 // Inline Calendar
@@ -361,8 +331,8 @@ export default function PaperDetailPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {USERS.map(u => (
-                <tr key={u.name} className="hover:bg-gray-50 transition-colors">
+              {mockAdminUsers.map(u => (
+                <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 font-medium text-gray-900">{u.name}</td>
                   <td className="px-4 py-3 text-gray-500">{u.registered}</td>
                   <td className="px-4 py-3 text-gray-500">{u.papers}</td>
@@ -391,16 +361,16 @@ export default function PaperDetailPage() {
           <h3 className="text-base font-semibold text-gray-800">Citations</h3>
         </div>
         <div className="space-y-4">
-          {CITATIONS.map((c, i) => (
-            <div key={i} className="border border-gray-100 rounded-lg p-4">
+          {mockAdminCitations.filter(c => c.paperIndex === paperIndex).map(c => (
+            <div key={c.id} className="border border-gray-100 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-1">
                 <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">
-                  {c.author[0]}
+                  {c.citingAuthor[0]}
                 </div>
-                <span className="text-xs font-semibold text-gray-700">{c.author}</span>
+                <span className="text-xs font-semibold text-gray-700">{c.citingAuthor}</span>
               </div>
-              <p className="text-xs font-semibold text-gray-800 mb-1">{c.title}</p>
-              <p className="text-xs text-gray-600 leading-relaxed mb-2">{c.text}</p>
+              <p className="text-xs font-semibold text-gray-800 mb-1">{c.citingTitle}</p>
+              <p className="text-xs text-gray-600 leading-relaxed mb-2">{c.quoteText}</p>
               <button className="text-xs text-[#0066ff] hover:underline">View Paper</button>
             </div>
           ))}

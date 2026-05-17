@@ -286,6 +286,33 @@ export const papers = [
   },
 ]
 
+// ── Citations ─────────────────────────────────────────────────────────────────
+// paperIndex = the paper being cited (0-indexed into papers[])
+// citingAuthorUsername = author of the citing paper
+// citingTitle = title of the citing paper
+export const citations = [
+  { paperIndex: 0, citingAuthorUsername: "jamesb",    citingTitle: "Biofuel Production Methods and Environmental Impact",          quoteText: "\"According to Harper, the implementation of rooftop solar panel installations in urban environments can lead to a significant reduction in carbon emissions. This is particularly crucial in the face of the growing demand for energy in urban areas.\" (Harper, 2024, p. 43)" },
+  { paperIndex: 0, citingAuthorUsername: "stevensam", citingTitle: "Revolutionising Wind Energy Practices in Urban Settings",      quoteText: "\"Urban heat islands and passive cooling, as analysed by Smith (2025), reveal that passive strategies can reduce peak cooling loads by up to 30%, creating opportunities for integrated solar and passive design.\" (Smith, 2025, p. 67)" },
+  { paperIndex: 0, citingAuthorUsername: "ev_harper", citingTitle: "Innovative Solar Power Solutions for Urban Communities",        quoteText: "\"The deployment of community solar micro-grids, highlighted in Smith (2025), demonstrates measurable reductions in grid dependency for mid-density residential zones.\" (Smith, 2025, p. 21)" },
+  { paperIndex: 1, citingAuthorUsername: "ricksmith", citingTitle: "Urban Heat Islands and Passive Cooling Strategies",            quoteText: "\"Harper (2025) demonstrates that high-efficiency solar panels with optimal tilt angles achieve 22% greater energy generation compared to traditional rooftop placements.\" (Harper, 2025, p. 18)" },
+  { paperIndex: 1, citingAuthorUsername: "tanyaross", citingTitle: "Green Hydrogen: The Future of Clean Energy Storage",           quoteText: "\"The modular solar approach proposed by Harper (2025) is particularly applicable to hydrogen production facilities co-located with urban solar farms.\" (Harper, 2025, p. 34)" },
+  { paperIndex: 2, citingAuthorUsername: "joerash",   citingTitle: "The Role of AI in Accelerating Renewable Energy Adoption",    quoteText: "\"Samuel (2025) identifies wind energy variability as the principal barrier to urban adoption, a problem AI-driven forecasting directly addresses.\" (Samuel, 2025, p. 29)" },
+]
+
+// ── Reported Papers ───────────────────────────────────────────────────────────
+export const reportedPapers = [
+  { paperIndex: 0, reportedByUsername: "ricksmith", reason: "Contains misleading citations and unverified claims.", reportedAt: new Date("2025-02-10") },
+  { paperIndex: 4, reportedByUsername: "joerash",   reason: "Plagiarised content from a 2023 journal article.",    reportedAt: new Date("2025-02-08") },
+  { paperIndex: 7, reportedByUsername: "tcrady",    reason: "Inappropriate language in the abstract.",             reportedAt: new Date("2025-02-05") },
+]
+
+// ── Reported Users ────────────────────────────────────────────────────────────
+export const reportedUsers = [
+  { reportedUsername: "jamesb",  reportedByUsername: "ev_harper", reason: "Repeated harassment in comment sections.", reportedAt: new Date("2025-02-12") },
+  { reportedUsername: "chrisjr", reportedByUsername: "stevensam", reason: "Posting spam links in comments.",          reportedAt: new Date("2025-02-07") },
+  { reportedUsername: "sulee",   reportedByUsername: "ricksmith", reason: "Impersonating a real researcher.",         reportedAt: new Date("2025-02-03") },
+]
+
 // ── Comments ─────────────────────────────────────────────────────────────────
 // paperIndex = index into papers[] above.
 // isFlagged = true means shown in admin notification bell (Pending Review).
@@ -296,9 +323,12 @@ export const comments = [
     content:        "The paper offers some insightful perspectives on sustainable energy, but I feel like it underestimates the challenges of implementing these practices in older urban infrastructures. How can cities retrofit without massive costs or disruptions?",
     replies: [
       {
-        authorUsername: "tcrady",
-        content:        "That's a valid point. The paper does touch on retrofitting but focuses more on policy frameworks. Maybe the authors could have explored case studies on cities that have successfully integrated these changes without major disruptions?",
-        isFlagged:      true,  // reported — appears in admin bell
+        authorUsername:     "tcrady",
+        content:            "That's a valid point. The paper does touch on retrofitting but focuses more on policy frameworks. Maybe the authors could have explored case studies on cities that have successfully integrated these changes without major disruptions?",
+        isFlagged:          true,
+        reportedByUsername: "ricksmith",
+        reason:             "Misleading technical claims.",
+        reportedAt:         new Date("2025-02-09"),
       },
       {
         authorUsername: "joerash",
@@ -313,9 +343,12 @@ export const comments = [
     content:        "While I appreciate the paper's approach to sustainable energy in urban settings, it seems to overlook some critical aspects of energy storage. How does this paper address those concerns?",
     replies: [
       {
-        authorUsername: "tcrady",
-        content:        "Thank you for bringing up QA — Urban Landscape Transformations! We do acknowledge the importance of energy storage, though it wasn't a focal point in this paper. Our intention was to first address foundational energy distribution and consumption patterns.",
-        isFlagged:      true,  // reported — appears in admin bell
+        authorUsername:     "tcrady",
+        content:            "Thank you for bringing up QA — Urban Landscape Transformations! We do acknowledge the importance of energy storage, though it wasn't a focal point in this paper. Our intention was to first address foundational energy distribution and consumption patterns.",
+        isFlagged:          true,
+        reportedByUsername: "ev_harper",
+        reason:             "Off-topic personal attacks.",
+        reportedAt:         new Date("2025-02-06"),
       },
     ],
   },
@@ -325,9 +358,12 @@ export const comments = [
     content:        "While I appreciate the paper's approach, it seems to overlook some critical aspects of energy storage. As referenced in the study by Patel et al. (2022), energy storage systems are key to mitigating intermittent renewable energy supply.",
     replies: [
       {
-        authorUsername: "jamesb",
-        content:        "While I appreciate the paper's approach to sustainable energy in urban environments, it seems to overlook some critical aspects of energy storage.",
-        isFlagged:      true,  // reported — appears in admin bell
+        authorUsername:     "jamesb",
+        content:            "While I appreciate the paper's approach to sustainable energy in urban environments, it seems to overlook some critical aspects of energy storage.",
+        isFlagged:          true,
+        reportedByUsername: "joerash",
+        reason:             "Copy-pasted content without attribution.",
+        reportedAt:         new Date("2025-02-04"),
       },
     ],
   },
