@@ -269,10 +269,19 @@ export default function UploadPage() {
         {/* ── Keywords (multi-select) ── */}
         <div className="relative mt-6 space-y-2">
           <div className="text-sm font-semibold text-zinc-900">Keywords</div>
-          <button
-            type="button"
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={kwOpen}
+            aria-haspopup="listbox"
             onClick={() => setKwOpen((v) => !v)}
-            className="flex h-11 w-full items-center justify-between rounded-xl border border-black/[0.08] bg-white px-4 text-sm outline-none focus:border-black/20"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setKwOpen((v) => !v);
+              }
+            }}
+            className="flex h-11 w-full cursor-pointer items-center justify-between rounded-xl border border-black/[0.08] bg-white px-4 text-sm outline-none focus:border-black/20 focus-visible:ring-2 focus-visible:ring-[var(--brand)]/25"
           >
             <span className="flex flex-wrap items-center gap-2">
               {selectedKeywords.length === 0 ? (
@@ -286,8 +295,12 @@ export default function UploadPage() {
                     {kw}
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); removeKeyword(kw); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeKeyword(kw);
+                      }}
                       className="ml-0.5 text-[var(--brand)] hover:text-[var(--brand)]/70"
+                      aria-label={`Remove ${kw}`}
                     >
                       ×
                     </button>
@@ -296,7 +309,7 @@ export default function UploadPage() {
               )}
             </span>
             <svg className="h-4 w-4 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
-          </button>
+          </div>
           {kwOpen && (
             <div className="absolute z-20 mt-1 w-full rounded-xl border border-black/[0.08] bg-white py-1 shadow-lg">
               {KEYWORDS.map((kw) => (
