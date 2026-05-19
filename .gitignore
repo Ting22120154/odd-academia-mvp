@@ -1,7 +1,12 @@
 # dependencies
 node_modules/
+packages/
 .pnp
 .pnp.*
+
+#Next.js
+.next/
+out/
 
 # pnpm
 .pnpm-debug.log*

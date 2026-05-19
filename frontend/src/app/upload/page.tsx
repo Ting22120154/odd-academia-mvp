@@ -1,440 +1,336 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { CATEGORIES, type PostCategory } from "@/data/mockPosts";
-import { mockUser } from "@/data/mockUser";
 
-type ContributorTag = {
+type Keyword =
+  | "AI infrastructure"
+  | "Computer science"
+  | "Biohacking"
+  | "Maths"
+  | "Sustainability"
+  | "Business";
+
+const KEYWORDS: Keyword[] = [
+  "AI infrastructure",
+  "Computer science",
+  "Biohacking",
+  "Maths",
+  "Sustainability",
+  "Business",
+];
+
+const MOCK_REFERENCES = [
+  {
+    id: "ref-1",
+    title: "Sustainable Energy Practices in Urban Environments",
+    desc: "Introducing our latest paper description, exploring...",
+    author: "James B.",
+    tags: ["AI infrastructure", "Computer science"],
+    thumb: "/thumbs/energy.jpg",
+  },
+  {
+    id: "ref-2",
+    title: "Optimising Energy Consumption in Smart Cities",
+    desc: "Presenting a comprehensive study on optimising energy...",
+    author: "Alex C.",
+    tags: ["Smart grids", "Renewable energy sources"],
+    thumb: "/thumbs/smart-city.jpg",
+  },
+  {
+    id: "ref-3",
+    title: "Sustainable Energy Practices in Urban Environments",
+    desc: "Introducing our latest paper description, exploring...",
+    author: "James B.",
+    tags: ["AI infrastructure", "Computer science"],
+    thumb: "/thumbs/energy2.jpg",
+  },
+];
+
+type UploadState = "idle" | "uploading" | "completed";
+
+interface Citation {
+  id: string;
   label: string;
-  href?: string;
-};
-
-function formatFileSize(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 KB";
-  const kb = Math.round(bytes / 1024);
-  if (kb < 1024) return `${kb} KB`;
-  const mb = Math.round((kb / 1024) * 10) / 10;
-  return `${mb} MB`;
-}
-
-function isPdfFile(file: File): boolean {
-  const nameOk = file.name.toLowerCase().endsWith(".pdf");
-  const typeOk = file.type === "application/pdf" || file.type === "";
-  return nameOk && typeOk;
-}
-
-function parseCitation(input: string): string | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-
-  const yearMatch = trimmed.match(/\b(19|20)\d{2}\b/);
-  const year = yearMatch?.[0];
-
-  const firstToken = trimmed.split(/\s+/)[0] ?? "";
-  const lastName = firstToken.replace(/[^\p{L}\p{N}-]/gu, "");
-
-  if (!lastName || !year) return `(${trimmed})`;
-  return `(${lastName}, ${year})`;
 }
 
 export default function UploadPage() {
-  const { isLoggedIn, user } = useAuth();
+  const { isLoggedIn } = useAuth();
   const router = useRouter();
 
+  useEffect(() => {
+    if (!isLoggedIn) router.replace("/login");
+  }, [isLoggedIn, router]);
+
   const inputRef = useRef<HTMLInputElement | null>(null);
+
   const [file, setFile] = useState<File | null>(null);
-  const [fileProgress, setFileProgress] = useState(0);
+  const [uploadState, setUploadState] = useState<UploadState>("idle");
+  const [uploadProgress, setUploadProgress] = useState(0);
+
   const [title, setTitle] = useState("");
   const [published, setPublished] = useState("");
-  const [categoryQuery, setCategoryQuery] = useState("");
-  const [categoryOpen, setCategoryOpen] = useState(false);
-  const [categories, setCategories] = useState<PostCategory[]>([]);
+  const [selectedKeywords, setSelectedKeywords] = useState<Keyword[]>([]);
+  const [kwOpen, setKwOpen] = useState(false);
   const [abstract, setAbstract] = useState("");
   const [anonymous, setAnonymous] = useState(false);
-  const [contributorsInput, setContributorsInput] = useState("");
-  const [contributors, setContributors] = useState<ContributorTag[]>([]);
+  const [contributors, setContributors] = useState("");
   const [doi, setDoi] = useState("");
-  const [referenceInput, setReferenceInput] = useState("");
-  const [references, setReferences] = useState<string[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successUrl, setSuccessUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Keep the page publicly viewable (UI preview without login).
-    // Submission itself remains disabled unless logged in.
-    if (successUrl && !isLoggedIn) setSuccessUrl(null);
-  }, [isLoggedIn, successUrl]);
+  const [refQuery, setRefQuery] = useState("");
+  const [refOpen, setRefOpen] = useState(false);
+  const [citations, setCitations] = useState<Citation[]>([]);
+
+  const [successOpen, setSuccessOpen] = useState(false);
+  const mockLink = "https://oddacademia.com/paper/f7/mongodb-637x9287b5-cslv9";
 
   const abstractCount = useMemo(() => Math.min(abstract.length, 200), [abstract]);
 
-  function pickFile() {
-    inputRef.current?.click();
-  }
+  const simulateUpload = useCallback((f: File) => {
+    setFile(f);
+    setUploadState("uploading");
+    setUploadProgress(0);
+    let progress = 0;
+    const iv = setInterval(() => {
+      progress += Math.random() * 25 + 10;
+      if (progress >= 100) {
+        progress = 100;
+        clearInterval(iv);
+        setUploadState("completed");
+      }
+      setUploadProgress(Math.min(100, Math.round(progress)));
+    }, 300);
+  }, []);
 
   function onChooseFile(f: File | null) {
-    if (!f) {
-      setFile(null);
-      setFileProgress(0);
-      return;
-    }
-    if (!isPdfFile(f)) {
-      setError("Please upload a PDF file only.");
-      setFile(null);
-      setFileProgress(0);
-      return;
-    }
-    setError(null);
-    setFile(f);
-    setFileProgress(100);
+    if (!f) return;
+    simulateUpload(f);
   }
 
-  const availableCategories = useMemo(() => {
-    const q = categoryQuery.trim().toLowerCase();
-    const remaining = CATEGORIES.filter((c) => !categories.includes(c));
-    if (!q) return remaining;
-    return remaining.filter((c) => c.toLowerCase().includes(q));
-  }, [categoryQuery, categories]);
-
-  const knownProfiles = useMemo(() => {
-    const current = user
-      ? [{ id: user.id, fullName: user.fullName, href: "/profile" }]
-      : [];
-    const fallback = [{ id: mockUser.id, fullName: mockUser.fullName, href: "/profile" }];
-    const all = [...current, ...fallback];
-    const dedup = new Map<string, { fullName: string; href: string }>();
-    for (const p of all) dedup.set(p.fullName.toLowerCase(), { fullName: p.fullName, href: p.href });
-    return [...dedup.values()];
-  }, [user]);
-
-  function addCategory(cat: PostCategory) {
-    setCategories((prev) => (prev.includes(cat) ? prev : [...prev, cat]));
-    setCategoryQuery("");
-    setCategoryOpen(false);
+  function removeFile() {
+    setFile(null);
+    setUploadState("idle");
+    setUploadProgress(0);
   }
 
-  function removeCategory(cat: PostCategory) {
-    setCategories((prev) => prev.filter((c) => c !== cat));
+  function toggleKeyword(kw: Keyword) {
+    setSelectedKeywords((prev) =>
+      prev.includes(kw) ? prev.filter((k) => k !== kw) : [...prev, kw],
+    );
   }
 
-  function addReference(raw: string) {
-    const citation = parseCitation(raw);
-    if (!citation) return;
-    setReferences((prev) => (prev.includes(citation) ? prev : [...prev, citation]));
-    setReferenceInput("");
+  function removeKeyword(kw: Keyword) {
+    setSelectedKeywords((prev) => prev.filter((k) => k !== kw));
   }
 
-  function removeReference(citation: string) {
-    setReferences((prev) => prev.filter((c) => c !== citation));
+  const filteredRefs = MOCK_REFERENCES.filter(
+    (r) => refQuery.trim() && r.title.toLowerCase().includes(refQuery.toLowerCase()),
+  );
+
+  function addCitation(ref: (typeof MOCK_REFERENCES)[number]) {
+    if (citations.some((c) => c.id === ref.id)) return;
+    setCitations((prev) => [
+      ...prev,
+      { id: ref.id, label: `${ref.author.replace(/\.$/, "")}, et al. (2022). ${ref.title}. Urban Landscape Transformations.` },
+    ]);
+    setRefQuery("");
+    setRefOpen(false);
   }
 
-  function addContributor(raw: string) {
-    const trimmed = raw.trim();
-    if (!trimmed) return;
-    const match = knownProfiles.find((p) => p.fullName.toLowerCase() === trimmed.toLowerCase());
-    const tag: ContributorTag = match ? { label: match.fullName, href: match.href } : { label: trimmed };
-    setContributors((prev) => (prev.some((c) => c.label.toLowerCase() === tag.label.toLowerCase()) ? prev : [...prev, tag]));
-    setContributorsInput("");
+  function removeCitation(id: string) {
+    setCitations((prev) => prev.filter((c) => c.id !== id));
   }
 
-  function removeContributor(label: string) {
-    setContributors((prev) => prev.filter((c) => c.label !== label));
+  function onSubmit() {
+    setSuccessOpen(true);
   }
 
-  async function shareToSocials(url: string) {
-    try {
-      if (typeof navigator !== "undefined" && "share" in navigator) {
-        await (navigator as any).share({ title: "ODD Academia paper", url });
-        return;
-      }
-    } catch {
-      // fall through to share links
-    }
+  const canSubmit = Boolean(file) && uploadState === "completed" && title.trim().length > 0;
 
-    const encoded = encodeURIComponent(url);
-    const shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encoded}`;
-    window.open(shareUrl, "_blank", "noopener,noreferrer");
-  }
-
-  async function copyLink(url: string) {
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      // ignore
-    }
-  }
-
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
-    setSuccessUrl(null);
-
-    if (!title.trim()) {
-      setError("Please enter a title.");
-      return;
-    }
-    if (!abstract.trim()) {
-      setError("Please enter an abstract.");
-      return;
-    }
-    if (!file) {
-      setError("Please attach a paper file.");
-      return;
-    }
-    if (!isPdfFile(file)) {
-      setError("Please upload a PDF file only.");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      setFileProgress(20);
-      const progressTimer = window.setInterval(() => {
-        setFileProgress((p) => (p >= 90 ? 90 : p + 7));
-      }, 120);
-
-      const res = await fetch("/api/posts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          content: abstract.trim(),
-          keywords: categories,
-          categories,
-          publishedDate: published || undefined,
-          doi: doi.trim() || undefined,
-          references,
-          contributors,
-          author: {
-            name: anonymous ? "Anonymous" : user?.fullName || "User",
-            bio: "",
-            avatar: "/avatars/profile.svg",
-          },
-          attachment: {
-            fileName: file.name,
-            mimeType: "application/pdf",
-            sizeBytes: file.size,
-          },
-        }),
-      });
-
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? "Could not upload paper");
-      }
-
-      const created = (await res.json().catch(() => null)) as { id?: number } | null;
-      window.clearInterval(progressTimer);
-      setFileProgress(100);
-
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-      const url = created?.id ? `${origin}/posts/${created.id}` : `${origin}/`;
-      setSuccessUrl(url);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-      setFileProgress(file ? 100 : 0);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const canSubmit =
-    Boolean(file) &&
-    title.trim().length > 0 &&
-    abstract.trim().length > 0 &&
-    categories.length > 0 &&
-    isLoggedIn &&
-    !submitting;
+  if (!isLoggedIn) return null;
 
   return (
     <section className="mx-auto w-full max-w-[var(--page-max)]">
-      <div className="text-base font-semibold text-zinc-900">
-        Submit New Paper
-      </div>
-
-      <form
-        onSubmit={onSubmit}
-        className="mt-5 rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]"
+      <button
+        type="button"
+        onClick={() => router.back()}
+        className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-900"
       >
-        {!isLoggedIn ? (
-          <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            You can preview this page without logging in, but you’ll need to log in to submit a paper.
-          </div>
-        ) : null}
-        {/* Paper upload */}
+        <span>←</span> Back
+      </button>
+
+      <div className="text-base font-semibold text-zinc-900">Submit New Paper</div>
+
+      <div className="mt-5 rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
+        {/* ── Paper upload ── */}
         <div className="text-sm font-semibold text-zinc-900">Paper</div>
-        {file ? (
-          <div className="mt-3 rounded-2xl border border-black/[0.08] bg-white p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-50 text-xs font-semibold text-red-700">
-                  PDF
-                </div>
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-zinc-900">{file.name}</div>
-                  <div className="mt-0.5 text-xs text-zinc-500">
-                    {formatFileSize(file.size)} • {submitting ? "Uploading..." : "Completed"}
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => onChooseFile(null)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-50 hover:text-zinc-700"
-                aria-label="Remove file"
-              >
-                ×
-              </button>
-            </div>
-            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
-              <div
-                className="h-full rounded-full bg-[var(--brand)] transition-[width]"
-                style={{ width: `${Math.max(0, Math.min(100, fileProgress))}%` }}
-              />
-            </div>
-          </div>
-        ) : (
+
+        {uploadState === "idle" ? (
           <div
             className="mt-3 flex min-h-[148px] flex-col items-center justify-center rounded-2xl border border-dashed border-black/[0.12] bg-zinc-50 px-6 py-6 text-center"
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
-              const f = e.dataTransfer.files?.[0] ?? null;
-              onChooseFile(f);
+              onChooseFile(e.dataTransfer.files?.[0] ?? null);
             }}
           >
-            <div className="text-xs text-zinc-500">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-zinc-500 shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 16V4m0 0-4 4m4-4 4 4" />
+                <path d="M4 20h16" />
+              </svg>
+            </div>
+            <div className="mt-3 text-sm font-medium text-zinc-700">
               Drag file here to upload or{" "}
-              <button
-                type="button"
-                onClick={pickFile}
-                className="font-medium text-zinc-900 underline underline-offset-2"
-              >
+              <button type="button" onClick={() => inputRef.current?.click()} className="font-semibold text-zinc-900 underline underline-offset-2">
                 choose file
               </button>
             </div>
-            <div className="mt-1 text-[11px] text-zinc-400">PDF formats, up to 3 MB.</div>
-            <div className="mt-4">
+            <div className="mt-1 text-xs text-zinc-400">PNG or Docx formats, up to 3 MB.</div>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              className="mt-4 inline-flex h-9 items-center rounded-lg border border-black/[0.08] bg-white px-4 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
+            >
+              Browse File
+            </button>
+            <input
+              ref={inputRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => onChooseFile(e.target.files?.[0] ?? null)}
+              accept=".pdf,.doc,.docx,.png,.zip"
+            />
+          </div>
+        ) : (
+          <div className="mt-3 rounded-xl border border-black/[0.08] bg-white px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50">
+                <span className="text-xs font-bold text-red-500">PDF</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-zinc-900">{file?.name}</div>
+                <div className="mt-0.5 text-xs text-zinc-400">
+                  {uploadState === "uploading"
+                    ? `0 KB of ${file ? Math.round(file.size / 1024) : 120} KB • ⚙ Uploading...`
+                    : `0 KB of ${file ? Math.round(file.size / 1024) : 120} KB • ✅ Completed`}
+                </div>
+              </div>
               <button
                 type="button"
-                onClick={pickFile}
-                className="inline-flex h-9 items-center rounded-lg border border-black/[0.08] bg-white px-4 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
+                onClick={removeFile}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+                aria-label="Remove file"
               >
-                Browse File
+                {uploadState === "completed" ? (
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  </svg>
+                ) : (
+                  <span className="text-lg">×</span>
+                )}
               </button>
-              <input
-                ref={inputRef}
-                type="file"
-                className="hidden"
-                onChange={(e) => onChooseFile(e.target.files?.[0] ?? null)}
-                accept=".pdf"
-              />
             </div>
+            {uploadState === "uploading" && (
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+                <div
+                  className="h-full rounded-full bg-[var(--brand)] transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            )}
           </div>
         )}
 
-        {/* Title + published */}
+        {/* ── Title + Published ── */}
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="space-y-2">
             <div className="text-sm font-semibold text-zinc-900">Title</div>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="What would you name this title if you weren't constrained by Academic Publishing Rules"
+              placeholder="Title"
               className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-black/20"
             />
           </div>
-
           <div className="space-y-2">
             <div className="text-sm font-semibold text-zinc-900">Published</div>
             <input
               type="date"
               value={published}
               onChange={(e) => setPublished(e.target.value)}
+              placeholder="YYYY-MM-DD"
               className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-900 outline-none focus:border-black/20"
             />
           </div>
         </div>
 
-        {/* Category (searchable + multi select) */}
-        <div className="mt-6 space-y-2">
-          <div className="text-sm font-semibold text-zinc-900">Categories</div>
-          <div className="relative">
-            <input
-              value={categoryQuery}
-              onChange={(e) => {
-                setCategoryQuery(e.target.value);
-                setCategoryOpen(true);
-              }}
-              onFocus={() => setCategoryOpen(true)}
-              onBlur={() => {
-                window.setTimeout(() => setCategoryOpen(false), 120);
-              }}
-              placeholder="Select Category"
-              className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 pr-10 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-black/20"
-            />
-            <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400">
-              ▾
-            </div>
-
-            {categoryOpen ? (
-              <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-black/[0.08] bg-white shadow-[0_12px_30px_rgba(0,0,0,0.10)]">
-                <div className="max-h-56 overflow-auto p-1">
-                  {availableCategories.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-zinc-500">No matches</div>
-                  ) : (
-                    availableCategories.map((cat) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => addCategory(cat)}
-                        className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-zinc-900 hover:bg-zinc-50"
-                      >
-                        <span>{cat}</span>
-                        <span className="text-xs text-zinc-400">Add</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {categories.length ? (
-            <div className="flex flex-wrap gap-2 pt-1">
-              {categories.map((cat) => (
-                <span
-                  key={cat}
-                  className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-1 text-xs text-zinc-700"
-                >
-                  {cat}
-                  <button
-                    type="button"
-                    onClick={() => removeCategory(cat)}
-                    className="text-zinc-500 hover:text-zinc-900"
-                    aria-label={`Remove ${cat}`}
+        {/* ── Keywords (multi-select) ── */}
+        <div className="relative mt-6 space-y-2">
+          <div className="text-sm font-semibold text-zinc-900">Keywords</div>
+          <button
+            type="button"
+            onClick={() => setKwOpen((v) => !v)}
+            className="flex h-11 w-full items-center justify-between rounded-xl border border-black/[0.08] bg-white px-4 text-sm outline-none focus:border-black/20"
+          >
+            <span className="flex flex-wrap items-center gap-2">
+              {selectedKeywords.length === 0 ? (
+                <span className="text-zinc-400">Select Keyword</span>
+              ) : (
+                selectedKeywords.map((kw) => (
+                  <span
+                    key={kw}
+                    className="inline-flex items-center gap-1 rounded-full bg-[var(--brand)]/10 px-3 py-0.5 text-xs font-medium text-[var(--brand)]"
                   >
-                    ×
-                  </button>
-                </span>
+                    {kw}
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); removeKeyword(kw); }}
+                      className="ml-0.5 text-[var(--brand)] hover:text-[var(--brand)]/70"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))
+              )}
+            </span>
+            <svg className="h-4 w-4 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
+          </button>
+          {kwOpen && (
+            <div className="absolute z-20 mt-1 w-full rounded-xl border border-black/[0.08] bg-white py-1 shadow-lg">
+              {KEYWORDS.map((kw) => (
+                <button
+                  key={kw}
+                  type="button"
+                  onClick={() => toggleKeyword(kw)}
+                  className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-zinc-50 ${
+                    selectedKeywords.includes(kw) ? "font-medium text-[var(--brand)]" : "text-zinc-700"
+                  }`}
+                >
+                  <span className={`flex h-4 w-4 items-center justify-center rounded border text-xs ${
+                    selectedKeywords.includes(kw)
+                      ? "border-[var(--brand)] bg-[var(--brand)] text-white"
+                      : "border-zinc-300"
+                  }`}>
+                    {selectedKeywords.includes(kw) && "✓"}
+                  </span>
+                  {kw}
+                </button>
               ))}
             </div>
-          ) : null}
+          )}
         </div>
 
-        {/* Abstract */}
+        {/* ── Abstract ── */}
         <div className="mt-6 space-y-2">
           <div className="text-sm font-semibold text-zinc-900">Abstract</div>
           <div className="rounded-2xl border border-black/[0.08] bg-white p-3">
             <textarea
               value={abstract}
               onChange={(e) => setAbstract(e.target.value.slice(0, 200))}
-              placeholder="Explain your research to your audience in a simple way so anyone without assumed knowledge can understand"
-              className="min-h-[164px] w-full resize-none bg-transparent px-1 py-1 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none"
+              placeholder="Abstract"
+              className="min-h-[140px] w-full resize-none bg-transparent px-1 py-1 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none"
             />
             <div className="text-right text-[11px] text-zinc-400">
               {abstractCount}/200
@@ -442,75 +338,33 @@ export default function UploadPage() {
           </div>
         </div>
 
+        {/* ── Paper Author + Contributors + DOI ── */}
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-3">
           <div className="space-y-2">
             <div className="text-sm font-semibold text-zinc-900">Paper Author</div>
-            <div className="flex h-11 items-center justify-between rounded-xl border border-black/[0.08] bg-white px-4">
-              <div className="text-sm text-zinc-700">Publish Anonymously</div>
+            <label className="flex h-11 items-center gap-3 rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-700">
+              <span className="flex-1">Submit Anonymously</span>
               <button
                 type="button"
                 onClick={() => setAnonymous((v) => !v)}
-                className={[
-                  "relative inline-flex h-5 w-9 items-center rounded-full border border-black/[0.08] p-0.5 transition",
-                  anonymous ? "bg-[var(--brand)]" : "bg-zinc-100",
-                ].join(" ")}
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border border-black/[0.08] p-0.5 transition ${
+                  anonymous ? "bg-[var(--brand)]" : "bg-zinc-100"
+                }`}
                 aria-pressed={anonymous}
               >
-                <span
-                  className={[
-                    "h-4 w-4 rounded-full bg-white shadow-sm transition",
-                    anonymous ? "translate-x-4" : "translate-x-0",
-                  ].join(" ")}
-                />
+                <span className={`h-4 w-4 rounded-full bg-white shadow-sm transition ${anonymous ? "translate-x-4" : "translate-x-0"}`} />
               </button>
-            </div>
-            {!anonymous ? (
-              <div className="text-xs text-zinc-500">Publishing as {user?.fullName ?? "User"}.</div>
-            ) : null}
+            </label>
           </div>
-
           <div className="space-y-2">
             <div className="text-sm font-semibold text-zinc-900">Contributors</div>
             <input
-              value={contributorsInput}
-              onChange={(e) => setContributorsInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addContributor(contributorsInput);
-                }
-              }}
+              value={contributors}
+              onChange={(e) => setContributors(e.target.value)}
               placeholder="Optional"
               className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-black/20"
             />
-            {contributors.length ? (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {contributors.map((c) => (
-                  <span
-                    key={c.label}
-                    className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-1 text-xs text-zinc-700"
-                  >
-                    {c.href ? (
-                      <a href={c.href} className="hover:underline">
-                        {c.label}
-                      </a>
-                    ) : (
-                      c.label
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => removeContributor(c.label)}
-                      className="text-zinc-500 hover:text-zinc-900"
-                      aria-label={`Remove ${c.label}`}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : null}
           </div>
-
           <div className="space-y-2">
             <div className="text-sm font-semibold text-zinc-900">DOI</div>
             <input
@@ -522,105 +376,131 @@ export default function UploadPage() {
           </div>
         </div>
 
-        {/* References */}
-        <div className="mt-6 space-y-2">
-          <div className="text-sm font-semibold text-zinc-900">References</div>
-          <input
-            value={referenceInput}
-            onChange={(e) => setReferenceInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addReference(referenceInput);
-              }
-            }}
-            placeholder="Search papers"
-            className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-black/20"
-          />
-        </div>
+        {/* ── Citation / References ── */}
+        <div className="relative mt-6 space-y-2">
+          <div className="text-sm font-semibold text-zinc-900">Citation</div>
 
-        {references.length ? (
-          <div className="mt-4 space-y-2">
-            <div className="text-sm font-semibold text-zinc-900">Citation</div>
+          {citations.length > 0 && (
             <div className="space-y-2">
-              {references.map((c) => (
-                <div
-                  key={c}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-black/[0.06] bg-zinc-50 px-4 py-3"
-                >
-                  <div className="text-sm text-blue-700 underline underline-offset-2">{c}</div>
+              {citations.map((c) => (
+                <div key={c.id} className="flex items-start gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-2.5">
+                  <a href="#" className="flex-1 text-sm font-medium text-[var(--brand)] hover:underline">
+                    {c.label}
+                  </a>
                   <button
                     type="button"
-                    onClick={() => removeReference(c)}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-white text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
-                    aria-label="Remove reference"
+                    onClick={() => removeCitation(c.id)}
+                    className="shrink-0 text-zinc-400 hover:text-zinc-600"
                   >
                     ×
                   </button>
                 </div>
               ))}
             </div>
+          )}
+
+          <div className="relative">
+            <input
+              value={refQuery}
+              onChange={(e) => { setRefQuery(e.target.value); setRefOpen(true); }}
+              onFocus={() => refQuery.trim() && setRefOpen(true)}
+              placeholder="Search papers"
+              className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-black/20"
+            />
           </div>
-        ) : null}
 
-        {error ? <div className="mt-4 text-sm text-red-600">{error}</div> : null}
+          {refOpen && filteredRefs.length > 0 && (
+            <div className="absolute z-20 mt-1 w-full rounded-xl border border-black/[0.08] bg-white shadow-lg">
+              {filteredRefs.map((ref) => (
+                <button
+                  key={ref.id}
+                  type="button"
+                  onClick={() => addCitation(ref)}
+                  className="flex w-full items-start gap-3 border-b border-black/[0.04] px-4 py-3 text-left hover:bg-zinc-50 last:border-0"
+                >
+                  <div className="h-14 w-20 shrink-0 overflow-hidden rounded-lg bg-zinc-200" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-zinc-900">{ref.title}</div>
+                    <div className="mt-0.5 text-xs text-zinc-500">{ref.desc}</div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      {ref.tags.map((t) => (
+                        <span key={t} className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-[10px] font-medium text-zinc-600">{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5 pt-1">
+                    <div className="h-6 w-6 rounded-full bg-zinc-200" />
+                    <span className="text-xs text-zinc-500">{ref.author}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
+        {/* ── Submit ── */}
         <div className="mt-6 flex justify-end">
           <button
-            type="submit"
+            type="button"
+            onClick={onSubmit}
             disabled={!canSubmit}
-            className={[
-              "inline-flex h-10 items-center rounded-xl px-10 text-sm font-medium text-white",
-              canSubmit
-                ? "bg-[var(--brand)] hover:opacity-95"
-                : "bg-zinc-300 text-white/80",
-            ].join(" ")}
+            className={`inline-flex h-10 items-center rounded-xl px-10 text-sm font-medium text-white ${
+              canSubmit ? "bg-[var(--brand)] hover:opacity-95" : "bg-zinc-300 text-white/80"
+            }`}
           >
-            {submitting ? "Submitting..." : "Submit"}
+            Submit
           </button>
         </div>
-      </form>
+      </div>
 
-      {successUrl ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-[0_30px_80px_rgba(0,0,0,0.25)]">
+      {/* ── Success modal ── */}
+      {successOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-xl">
             <button
               type="button"
-              onClick={() => setSuccessUrl(null)}
-              className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-50 hover:text-zinc-700"
-              aria-label="Close"
+              onClick={() => setSuccessOpen(false)}
+              className="absolute right-4 top-4 text-zinc-400 hover:text-zinc-600"
             >
               ×
             </button>
-
-            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-              ✓
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
+              <svg className="h-7 w-7 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
             </div>
-            <div className="mt-4 text-center text-xl font-semibold text-zinc-900">Success</div>
-            <div className="mt-1 text-center text-sm text-zinc-500">Your paper has been submitted!</div>
+            <h2 className="mt-4 text-xl font-semibold text-zinc-900">Success</h2>
+            <p className="mt-1 text-sm text-zinc-500">Your paper has been submitted!</p>
 
-            <div className="mt-4 flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2">
-              <div className="min-w-0 flex-1 truncate text-sm text-zinc-700">{successUrl}</div>
+            <div className="mt-5 flex items-center gap-2 rounded-xl border border-black/[0.08] bg-zinc-50 px-4 py-3">
+              <span className="min-w-0 flex-1 truncate text-sm text-zinc-600">{mockLink}</span>
               <button
                 type="button"
-                onClick={() => copyLink(successUrl)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-50 text-zinc-600 hover:bg-zinc-100"
+                onClick={() => navigator.clipboard.writeText(mockLink)}
+                className="shrink-0 text-zinc-400 hover:text-zinc-600"
                 aria-label="Copy link"
               >
-                ⧉
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
               </button>
             </div>
 
             <button
               type="button"
-              onClick={() => shareToSocials(successUrl)}
-              className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-[var(--brand)] text-sm font-medium text-white hover:opacity-95"
+              onClick={() => setSuccessOpen(false)}
+              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-medium text-white hover:bg-emerald-700"
             >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2" />
+              </svg>
               Share to Socials
             </button>
           </div>
         </div>
-      ) : null}
+      )}
     </section>
   );
 }
