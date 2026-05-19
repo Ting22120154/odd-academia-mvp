@@ -10,7 +10,7 @@
  *   Frontend   → mockFrontendPosts, mockFrontendViewerPosts, mockFrontendCurrentUser
  */
 
-import { users as _rawUsers, papers, comments, citations, reportedPapers, reportedUsers } from "./data"
+import { users as _rawUsers, papers, comments, citations } from "./data"
 
 // Not all users in data.ts have bio/githubUrl/linkedinUrl (they're optional).
 // TypeScript infers a union type for the array, so we widen to a common shape here.
@@ -356,6 +356,33 @@ export interface FrontendUser {
 
 const _rick = users[0]  // Rick Smith — logged-in user for all frontend mock screens
 
+// ── Admin: Reported Comments (mock — swap for API when DB is connected) ───────
+
+export interface AdminReportedComment {
+  id:         string
+  author:     string
+  content:    string
+  paperTitle: string
+  reportedBy: string
+  reason:     string
+  reportedAt: Date
+}
+
+export const mockAdminReportedComments: AdminReportedComment[] = comments.flatMap((c, ci) =>
+  c.replies
+    .map((r, ri) => ({ r, ri }))
+    .filter(({ r }) => r.isFlagged)
+    .map(({ r, ri }) => ({
+      id:         `rc${ci + 1}r${ri + 1}`,
+      author:     lookupUser(r.authorUsername),
+      content:    r.content,
+      paperTitle: papers[c.paperIndex]?.title ?? "",
+      reportedBy: lookupUser(r.reportedByUsername ?? ""),
+      reason:     r.reason ?? "",
+      reportedAt: r.reportedAt ?? new Date(),
+    }))
+).sort((a, b) => b.reportedAt.getTime() - a.reportedAt.getTime())
+
 // ── Admin: Citations ──────────────────────────────────────────────────────────
 
 export interface AdminCitation {
@@ -373,101 +400,6 @@ export const mockAdminCitations: AdminCitation[] = citations.map((c, i) => ({
   citingTitle:  c.citingTitle,
   quoteText:    c.quoteText,
 }))
-
-// ── Admin: Reports ────────────────────────────────────────────────────────────
-
-export interface AdminReportedComment {
-  id:         string
-  type:       "comment"
-  author:     string
-  content:    string
-  paperTitle: string
-  reportedBy: string
-  reason:     string
-  reportedAt: Date
-}
-
-export interface AdminReportedPaper {
-  id:         string
-  type:       "paper"
-  title:      string
-  author:     string
-  category:   string
-  reportedBy: string
-  reason:     string
-  reportedAt: Date
-}
-
-export interface AdminReportedUser {
-  id:         string
-  type:       "user"
-  name:       string
-  email:      string
-  reportedBy: string
-  reason:     string
-  reportedAt: Date
-}
-
-export type AdminReport = AdminReportedComment | AdminReportedPaper | AdminReportedUser
-
-type FlaggedReply = {
-  authorUsername:     string
-  content:            string
-  isFlagged:          boolean
-  reportedByUsername: string
-  reason:             string
-  reportedAt:         Date
-}
-
-export const mockAdminReportedComments: AdminReportedComment[] = comments.flatMap((c, ci) =>
-  c.replies
-    .map((r, ri) => ({ r, ri }))
-    .filter(({ r }) => r.isFlagged)
-    .map(({ r, ri }) => {
-      const fr = r as unknown as FlaggedReply
-      return {
-        id:         `rc${ci + 1}r${ri + 1}`,
-        type:       "comment" as const,
-        author:     lookupUser(r.authorUsername),
-        content:    r.content,
-        paperTitle: papers[c.paperIndex]?.title ?? "",
-        reportedBy: lookupUser(fr.reportedByUsername),
-        reason:     fr.reason,
-        reportedAt: fr.reportedAt,
-      }
-    })
-).sort((a, b) => b.reportedAt.getTime() - a.reportedAt.getTime())
-
-export const mockAdminReportedPapers: AdminReportedPaper[] = reportedPapers
-  .map((rp, i) => ({
-    id:         `rp${i + 1}`,
-    type:       "paper" as const,
-    title:      papers[rp.paperIndex]?.title ?? "",
-    author:     lookupUser(papers[rp.paperIndex]?.authorUsername ?? ""),
-    category:   papers[rp.paperIndex]?.categories[0] ?? "",
-    reportedBy: lookupUser(rp.reportedByUsername),
-    reason:     rp.reason,
-    reportedAt: rp.reportedAt,
-  }))
-  .sort((a, b) => b.reportedAt.getTime() - a.reportedAt.getTime())
-
-export const mockAdminReportedUsers: AdminReportedUser[] = reportedUsers
-  .map((ru, i) => ({
-    id:         `ru${i + 1}`,
-    type:       "user" as const,
-    name:       lookupUser(ru.reportedUsername),
-    email:      users.find(u => u.username === ru.reportedUsername)?.email ?? "",
-    reportedBy: lookupUser(ru.reportedByUsername),
-    reason:     ru.reason,
-    reportedAt: ru.reportedAt,
-  }))
-  .sort((a, b) => b.reportedAt.getTime() - a.reportedAt.getTime())
-
-export const mockAdminAllReports: AdminReport[] = [
-  ...mockAdminReportedComments,
-  ...mockAdminReportedPapers,
-  ...mockAdminReportedUsers,
-].sort((a, b) => b.reportedAt.getTime() - a.reportedAt.getTime())
 
 // ── Frontend: Current user (profile shape) ────────────────────────────────────
 

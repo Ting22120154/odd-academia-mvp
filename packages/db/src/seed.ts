@@ -152,13 +152,15 @@ async function main() {
       })
       commentCount++
 
-      // Flagged replies get a CommentReport (drives the admin notification bell)
+      // Flagged replies get a CommentReport using the exact reporter + reason from data.ts
       if (r.isFlagged) {
+        const reporter = byUsername[r.reportedByUsername!]
+        if (!reporter) throw new Error(`Unknown reportedByUsername: ${r.reportedByUsername}`)
         await prisma.commentReport.create({
           data: {
             commentId:  reply.id,
-            reporterId: author.id, // the top-level commenter is the "reporter" in seed
-            reason:     "Reported as inappropriate or off-topic.",
+            reporterId: reporter.id,
+            reason:     r.reason!,
           },
         })
         reportCount++

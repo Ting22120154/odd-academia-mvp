@@ -299,24 +299,25 @@ export const citations = [
   { paperIndex: 2, citingAuthorUsername: "joerash",   citingTitle: "The Role of AI in Accelerating Renewable Energy Adoption",    quoteText: "\"Samuel (2025) identifies wind energy variability as the principal barrier to urban adoption, a problem AI-driven forecasting directly addresses.\" (Samuel, 2025, p. 29)" },
 ]
 
-// ── Reported Papers ───────────────────────────────────────────────────────────
-export const reportedPapers = [
-  { paperIndex: 0, reportedByUsername: "ricksmith", reason: "Contains misleading citations and unverified claims.", reportedAt: new Date("2025-02-10") },
-  { paperIndex: 4, reportedByUsername: "joerash",   reason: "Plagiarised content from a 2023 journal article.",    reportedAt: new Date("2025-02-08") },
-  { paperIndex: 7, reportedByUsername: "tcrady",    reason: "Inappropriate language in the abstract.",             reportedAt: new Date("2025-02-05") },
-]
-
-// ── Reported Users ────────────────────────────────────────────────────────────
-export const reportedUsers = [
-  { reportedUsername: "jamesb",  reportedByUsername: "ev_harper", reason: "Repeated harassment in comment sections.", reportedAt: new Date("2025-02-12") },
-  { reportedUsername: "chrisjr", reportedByUsername: "stevensam", reason: "Posting spam links in comments.",          reportedAt: new Date("2025-02-07") },
-  { reportedUsername: "sulee",   reportedByUsername: "ricksmith", reason: "Impersonating a real researcher.",         reportedAt: new Date("2025-02-03") },
-]
-
 // ── Comments ─────────────────────────────────────────────────────────────────
 // paperIndex = index into papers[] above.
 // isFlagged = true means shown in admin notification bell (Pending Review).
-export const comments = [
+
+export type ReplyRow = {
+  authorUsername:      string
+  content:             string
+  isFlagged:           boolean
+  reportedByUsername?: string
+  reason?:             string
+  reportedAt?:         Date
+}
+
+export const comments: Array<{
+  paperIndex:     number
+  authorUsername: string
+  content:        string
+  replies:        ReplyRow[]
+}> = [
   {
     paperIndex:     0,
     authorUsername: "jamesb",
