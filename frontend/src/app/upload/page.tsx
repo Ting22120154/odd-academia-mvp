@@ -56,7 +56,7 @@ interface Citation {
 }
 
 export default function UploadPage() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -83,7 +83,9 @@ export default function UploadPage() {
   const [citations, setCitations] = useState<Citation[]>([]);
 
   const [successOpen, setSuccessOpen] = useState(false);
-  const mockLink = "https://oddacademia.com/paper/f7/mongodb-637x9287b5-cslv9";
+  const [successUrl, setSuccessUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const abstractCount = useMemo(() => Math.min(abstract.length, 200), [abstract]);
 
@@ -142,8 +144,90 @@ export default function UploadPage() {
     setCitations((prev) => prev.filter((c) => c.id !== id));
   }
 
-  function onSubmit() {
-    setSuccessOpen(true);
+  async function onSubmit() {
+    setError(null);
+    setSuccessUrl(null);
+
+    if (!title.trim()) {
+      setError("Please enter a title.");
+      return;
+    }
+    if (!abstract.trim()) {
+      setError("Please enter an abstract.");
+      return;
+    }
+    if (!file || uploadState !== "completed") {
+      setError("Please finish uploading your paper file.");
+      return;
+    }
+
+    const contributorList = contributors
+      .split(",")
+      .map((name) => name.trim())
+      .filter(Boolean)
+      .map((label) => ({ label }));
+
+    const publishedDate =
+      published.trim() || new Date().toLocaleDateString("en-CA");
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          content: abstract.trim(),
+          keywords: selectedKeywords,
+          categories: selectedKeywords,
+          publishedDate,
+          doi: doi.trim() || undefined,
+          references: citations.map((c) => c.label),
+          contributors: contributorList,
+          author: {
+            name: anonymous ? "Anonymous" : user?.fullName || "User",
+            bio: "",
+            avatar: "/avatars/profile.svg",
+          },
+          attachment: {
+            fileName: file.name,
+            mimeType: file.type || "application/pdf",
+            sizeBytes: file.size,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? "Could not submit paper");
+      }
+
+      const created = (await res.json()) as { id: number };
+      const url = `${window.location.origin}/posts/${created.id}`;
+      setSuccessUrl(url);
+      setSuccessOpen(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not submit paper");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function shareToSocials(url: string) {
+    try {
+      if (typeof navigator !== "undefined" && "share" in navigator) {
+        await navigator.share({ title: "ODD Academia paper", url });
+        return;
+      }
+    } catch {
+      // fall through
+    }
+    const encoded = encodeURIComponent(url);
+    window.open(
+      `https://www.linkedin.com/sharing/share-offsite/?url=${encoded}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
   }
 
   const canSubmit = Boolean(file) && uploadState === "completed" && title.trim().length > 0;
@@ -269,10 +353,19 @@ export default function UploadPage() {
         {/* ── Keywords (multi-select) ── */}
         <div className="relative mt-6 space-y-2">
           <div className="text-sm font-semibold text-zinc-900">Keywords</div>
-          <button
-            type="button"
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={kwOpen}
+            aria-haspopup="listbox"
             onClick={() => setKwOpen((v) => !v)}
-            className="flex h-11 w-full items-center justify-between rounded-xl border border-black/[0.08] bg-white px-4 text-sm outline-none focus:border-black/20"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setKwOpen((v) => !v);
+              }
+            }}
+            className="flex h-11 w-full cursor-pointer items-center justify-between rounded-xl border border-black/[0.08] bg-white px-4 text-sm outline-none focus:border-black/20 focus-visible:ring-2 focus-visible:ring-[var(--brand)]/25"
           >
             <span className="flex flex-wrap items-center gap-2">
               {selectedKeywords.length === 0 ? (
@@ -286,8 +379,12 @@ export default function UploadPage() {
                     {kw}
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); removeKeyword(kw); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeKeyword(kw);
+                      }}
                       className="ml-0.5 text-[var(--brand)] hover:text-[var(--brand)]/70"
+                      aria-label={`Remove ${kw}`}
                     >
                       ×
                     </button>
@@ -296,7 +393,7 @@ export default function UploadPage() {
               )}
             </span>
             <svg className="h-4 w-4 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
-          </button>
+          </div>
           {kwOpen && (
             <div className="absolute z-20 mt-1 w-full rounded-xl border border-black/[0.08] bg-white py-1 shadow-lg">
               {KEYWORDS.map((kw) => (
@@ -438,23 +535,31 @@ export default function UploadPage() {
           )}
         </div>
 
+        {error ? (
+          <p className="mt-4 text-sm text-red-600" role="alert">
+            {error}
+          </p>
+        ) : null}
+
         {/* ── Submit ── */}
         <div className="mt-6 flex justify-end">
           <button
             type="button"
             onClick={onSubmit}
-            disabled={!canSubmit}
+            disabled={!canSubmit || submitting}
             className={`inline-flex h-10 items-center rounded-xl px-10 text-sm font-medium text-white ${
-              canSubmit ? "bg-[var(--brand)] hover:opacity-95" : "bg-zinc-300 text-white/80"
+              canSubmit && !submitting
+                ? "bg-[var(--brand)] hover:opacity-95"
+                : "bg-zinc-300 text-white/80"
             }`}
           >
-            Submit
+            {submitting ? "Submitting…" : "Submit"}
           </button>
         </div>
       </div>
 
       {/* ── Success modal ── */}
-      {successOpen && (
+      {successOpen && successUrl && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="relative w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-xl">
             <button
@@ -473,10 +578,10 @@ export default function UploadPage() {
             <p className="mt-1 text-sm text-zinc-500">Your paper has been submitted!</p>
 
             <div className="mt-5 flex items-center gap-2 rounded-xl border border-black/[0.08] bg-zinc-50 px-4 py-3">
-              <span className="min-w-0 flex-1 truncate text-sm text-zinc-600">{mockLink}</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-zinc-600">{successUrl}</span>
               <button
                 type="button"
-                onClick={() => navigator.clipboard.writeText(mockLink)}
+                onClick={() => navigator.clipboard.writeText(successUrl)}
                 className="shrink-0 text-zinc-400 hover:text-zinc-600"
                 aria-label="Copy link"
               >
@@ -489,7 +594,7 @@ export default function UploadPage() {
 
             <button
               type="button"
-              onClick={() => setSuccessOpen(false)}
+              onClick={() => shareToSocials(successUrl)}
               className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-medium text-white hover:bg-emerald-700"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

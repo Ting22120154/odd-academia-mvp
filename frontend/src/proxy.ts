@@ -6,7 +6,6 @@ const PUBLIC_ROUTES = ["/login"];
 
 // Routes guests cannot access (logged-in users only)
 const AUTH_ONLY_PREFIXES = [
-  "/upload",
   "/profile",
   "/notifications",
 ];
