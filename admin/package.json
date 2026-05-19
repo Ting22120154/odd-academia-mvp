@@ -10,6 +10,7 @@
     "create-admin": "tsx --env-file .env scripts/create-admin.ts"
   },
   "dependencies": {
+    "@odd-academia/db": "workspace:*",
     "@neondatabase/serverless": "^0.10.4",
     "@prisma/adapter-neon": "^6.6.0",
     "@prisma/client": "^6.6.0",

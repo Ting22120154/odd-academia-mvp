@@ -1,6 +1,5 @@
 # dependencies
 node_modules/
-packages/
 .pnp
 .pnp.*
 
@@ -17,10 +16,15 @@ build/
 .next/
 out/
 
-# env files
+# env files (but allow .env.example templates)
 .env*
+!.env.example
 
 # misc
 .DS_Store
 *.pem
 *.tsbuildinfo
+
+
+#claude
+.claude
