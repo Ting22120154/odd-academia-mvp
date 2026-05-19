@@ -17,36 +17,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-interface Paper {
-  id:         string;
-  title:      string;
-  author:     string;
-  category:   string;
-  published:  string;
-  views:      number;
-  cited:      number;
-  downloaded: number;
-  comments:   number;
-}
-
-// ---------------------------------------------------------------------------
-// Hardcoded placeholder data — replace with API response once backend is ready
-// ---------------------------------------------------------------------------
-const ALL_PAPERS: Paper[] = Array.from({ length: 10 }, (_, i) => ({
-  id:         String(i + 1),
-  title:      "Sustainable Energy Practices in Urban Environments",
-  author:     "James B.",
-  category:   "Sustainable Energy",
-  published:  "29/01/2025",
-  views:      3023,
-  cited:      33,
-  downloaded: i % 3 === 0 ? 0 : 343 - i * 10, // varied sample data
-  comments:   i % 4 === 0 ? 0 : 67 - i,
-}));
+import { mockAdminPapers, type AdminPaper as Paper } from "@odd-academia/db";
 
 // ---------------------------------------------------------------------------
 // Inline Calendar (same pattern used across all admin pages)
@@ -108,7 +79,8 @@ const INITIAL_ROWS = 5;
 export default function PapersPage() {
   const router = useRouter();
 
-  const [papers] = useState<Paper[]>(ALL_PAPERS);
+  // TODO (backend): replace with fetch to GET /api/papers?page=&limit=&search=
+  const [papers] = useState<Paper[]>(mockAdminPapers);
   const [search,       setSearch]       = useState("");
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [showAll,      setShowAll]      = useState(false);

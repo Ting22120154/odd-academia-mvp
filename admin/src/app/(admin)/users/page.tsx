@@ -14,39 +14,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-type Status = "Active" | "Inactive" | "Suspended";
-
-interface User {
-  id:         string;
-  name:       string;
-  registered: string;
-  papers:     number;
-  following:  number;
-  followers:  number;
-  status:     Status;
-}
-
-// ---------------------------------------------------------------------------
-// Hardcoded placeholder data — replace with API response once backend is ready
-// ---------------------------------------------------------------------------
-const HARDCODED_USERS: User[] = [
-  { id: "1",  name: "Rick Smith",    registered: "29/01/2025", papers: 5, following: 500, followers: 330, status: "Active"    },
-  { id: "2",  name: "Evelyn Harper", registered: "29/01/2025", papers: 1, following: 10,  followers: 298, status: "Inactive"  },
-  { id: "3",  name: "James B",       registered: "29/01/2025", papers: 1, following: 999, followers: 999, status: "Suspended" },
-  { id: "4",  name: "Steven Sam",    registered: "29/01/2025", papers: 2, following: 213, followers: 11,  status: "Active"    },
-  { id: "5",  name: "Joe Rash",      registered: "29/01/2025", papers: 3, following: 22,  followers: 245, status: "Active"    },
-  { id: "6",  name: "Will Copper",   registered: "29/01/2025", papers: 0, following: 0,   followers: 9,   status: "Inactive"  },
-  { id: "7",  name: "Chris Jr",      registered: "29/01/2025", papers: 3, following: 111, followers: 45,  status: "Inactive"  },
-  { id: "8",  name: "Trisha Crady",  registered: "29/01/2025", papers: 1, following: 123, followers: 67,  status: "Active"    },
-  { id: "9",  name: "Reuben Max",    registered: "29/01/2025", papers: 2, following: 32,  followers: 45,  status: "Inactive"  },
-  { id: "10", name: "Tanya Ross",    registered: "29/01/2025", papers: 3, following: 2,   followers: 100, status: "Active"    },
-  { id: "11", name: "Betty B",       registered: "29/01/2025", papers: 2, following: 234, followers: 112, status: "Active"    },
-  { id: "12", name: "Sue Lee",       registered: "29/01/2025", papers: 0, following: 0,   followers: 0,   status: "Suspended" },
-];
+import { mockAdminUsers, type AdminUser as User } from "@odd-academia/db";
 
 // ---------------------------------------------------------------------------
 // Inline Calendar (same pattern as Dashboard and Papers pages)
@@ -95,6 +63,8 @@ function Calendar() {
 // ---------------------------------------------------------------------------
 // Sort icon
 // ---------------------------------------------------------------------------
+type Status = User["status"];
+
 function SortIcon() {
   return (
     <svg className="inline ml-1 w-3 h-3 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -123,8 +93,8 @@ const INITIAL_ROWS = 5;
 export default function UsersPage() {
   const router = useRouter();
 
-  // Users list — hardcoded data; swap for API fetch once backend is ready
-  const [users]        = useState<User[]>(HARDCODED_USERS);
+  // TODO (backend): replace with fetch to GET /api/users?page=&limit=&search=
+  const [users]        = useState<User[]>(mockAdminUsers);
   const [search,       setSearch]       = useState("");
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [showAll,      setShowAll]      = useState(false);

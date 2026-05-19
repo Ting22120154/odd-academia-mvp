@@ -2,73 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-
-// ---------------------------------------------------------------------------
-// Hardcoded paper data
-// ---------------------------------------------------------------------------
-const PAPER = {
-  title:         "Sustainable Energy Practices in Urban Environments",
-  subtitle:      "Exploring the latest advancements in Sustainable Energy Practices in Urban Environments.",
-  author:        "Evelyn Harper",
-  contributions: "Dr. Katherine Johnson",
-  date:          "10-11-2024",
-  tags:          ["Sustainable energy", "AI infrastructure"],
-  analytics: [
-    { icon: "👁",  label: "Views",                     value: 120, pct: "+10%" },
-    { icon: "👤",  label: "People Following this Paper", value: 100, pct: "+8%"  },
-    { icon: "💬",  label: "Comments",                   value: 24,  pct: "+8%"  },
-    { icon: "⬇",  label: "Downloads",                  value: 101, pct: "+18%" },
-    { icon: "↗",  label: "Shares",                     value: 35,  pct: "+2%"  },
-    { icon: "📎",  label: "Citations",                  value: 6,   pct: "+3%"  },
-  ],
-};
-
-const USERS = [
-  { name: "Rick Smith",    registered: "29/01/2025", papers: 5, following: 500, followers: 330, status: "Active"    },
-  { name: "Evelyn Harper", registered: "29/01/2025", papers: 1, following: 10,  followers: 298, status: "Inactive"  },
-  { name: "Olivia Jr",    registered: "29/01/2025", papers: 3, following: 18,  followers: 45,  status: "Inactive"  },
-  { name: "Reuben Hiles", registered: "29/01/2025", papers: 2, following: 22,  followers: 45,  status: "Inactive"  },
-  { name: "Berry B",      registered: "24/01/2025", papers: 2, following: 234, followers: 170, status: "Active"    },
-  { name: "Sue Lee",      registered: "21/01/2025", papers: 0, following: 0,   followers: 10,  status: "Suspended" },
-];
-
-const CITATIONS = [
-  {
-    author:  "Alexander",
-    title:   "Biofuel Production Methods and Environmental Impact",
-    text:    "\"According to Harper, the implementation of rooftop solar panel installations in urban environments can lead to a significant reduction in carbon emissions. This is particularly crucial in the face of the growing demand for energy in urban areas.\" (Harper, 2024, p. 43)",
-  },
-  {
-    author:  "Alexander",
-    title:   "Biofuel Production Methods and Environmental Impact",
-    text:    "\"According to Harper, the implementation of rooftop solar panel installations in urban environments can lead to a significant reduction in carbon emissions. This is particularly crucial in the face of the growing demand for energy in urban areas.\" (Harper, 2024, p. 43)",
-  },
-  {
-    author:  "Sophia",
-    title:   "Innovative Solar Panel Designs for Sustainable Energy",
-    text:    "\"According to Harper, the implementation of rooftop solar panel installations in urban environments can lead to a significant reduction in carbon emissions. This is particularly crucial in the face of the growing demand for energy in a future.\" (Harper, 2024, p. 43)",
-  },
-];
-
-const COMMENTS = [
-  {
-    id:      1,
-    author:  "Alexander",
-    text:    "The paper offers some insightful perspectives on sustainable energy, but I feel like it underestimates the challenges of implementing these practices in older urban infrastructures. How can cities retrofit without massive costs or disruptions?",
-    replies: [
-      { id: 11, author: "Sophia", badge: "Pending Review", text: "That's a valid point. The paper does touch on retrofitting but focuses more on policy frameworks. Maybe the authors could have explored case studies on cities that have successfully integrated these changes without major disruptions?" },
-      { id: 12, author: "Nathan", badge: null,             text: "Agreed, that would have been helpful. I'd be interested to see more specific examples of how financial incentives or new technologies are making retrofits more feasible for ageing cities." },
-    ],
-  },
-  {
-    id:      2,
-    author:  "Alexander",
-    text:    "While I appreciate the paper's approach to sustainable energy in urban settings, it seems to overlook some critical aspects of energy storage. As referenced in the study by Patel et al. (2022), energy storage systems are key to mitigating intermittent renewable energy supply in cities. How does this paper address those concerns?",
-    replies: [
-      { id: 21, author: "Sophia", badge: "Pending Review", text: "Thank you for bringing up QA — Urban Landscape Transformations! We do acknowledge the importance of energy storage, though it wasn't a focal point in this paper. Our intention was to first address foundational energy distribution and consumption patterns. However, future work will definitely dive deeper into storage solutions, as it's crucial for grid stability in urban settings." },
-    ],
-  },
-];
+import { useParams } from "next/navigation";
+import { mockAdminPapers, mockAdminComments, mockAdminUsers, mockAdminCitations } from "@odd-academia/db";
 
 // ---------------------------------------------------------------------------
 // Inline Calendar
@@ -201,14 +136,23 @@ function StatusBadge({ status }: { status: string }) {
 const USER_TABS = ["Views", "Followers", "Shares", "Downloads"] as const;
 
 export default function PaperDetailPage() {
+  const params  = useParams();
+  const id      = typeof params.id === "string" ? params.id : "1";
+  const paper   = mockAdminPapers.find(p => p.id === id) ?? mockAdminPapers[0];
+
+  // paperIndex is 0-based; mockAdminComments.paperId is also 0-based
+  const paperIndex = Number(id) - 1;
+
   const [calendarOpen,  setCalendarOpen]  = useState(false);
   const [activeTab,     setActiveTab]     = useState<typeof USER_TABS[number]>("Views");
   const [userPage,      setUserPage]      = useState(1);
 
   // reportTarget holds the id of the reply whose "Pending Review" badge was clicked.
   // null means the modal is closed.
-  const [reportTarget,  setReportTarget]  = useState<number | null>(null);
-  const [comments,      setComments]      = useState(COMMENTS);
+  const [reportTarget,  setReportTarget]  = useState<string | null>(null);
+  const [comments,      setComments]      = useState(
+    mockAdminComments.filter(c => c.paperId === paperIndex)
+  );
 
   return (
     <div className="space-y-8">
@@ -223,33 +167,29 @@ export default function PaperDetailPage() {
 
       {/* ── Paper header ── */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">{PAPER.title}</h1>
-        <p className="text-sm text-gray-500 mb-4">{PAPER.subtitle}</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">{paper.title}</h1>
+        <p className="text-sm text-gray-500 mb-4">Exploring the latest advancements in {paper.category}.</p>
 
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-6 flex-wrap">
             {/* Author */}
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">
-                {PAPER.author[0]}
+                {paper.author[0]}
               </div>
-              <span className="text-sm text-gray-700">Authored by <strong>{PAPER.author}</strong></span>
+              <span className="text-sm text-gray-700">Authored by <strong>{paper.author}</strong></span>
             </div>
-            {/* Contributions */}
-            <span className="text-sm text-gray-500">Contributions by {PAPER.contributions}</span>
           </div>
         </div>
 
-        {/* Date + tags */}
+        {/* Date + category tag */}
         <div className="flex items-center gap-2 mt-3 flex-wrap">
           <span className="text-xs text-gray-500 border border-gray-200 rounded px-2 py-0.5 flex items-center gap-1">
-            📅 {PAPER.date}
+            📅 {paper.published}
           </span>
-          {PAPER.tags.map(t => (
-            <span key={t} className="text-xs border border-gray-200 rounded px-2 py-0.5 text-gray-600 flex items-center gap-1">
-              🔖 {t}
-            </span>
-          ))}
+          <span className="text-xs border border-gray-200 rounded px-2 py-0.5 text-gray-600 flex items-center gap-1">
+            🔖 {paper.category}
+          </span>
         </div>
       </div>
 
@@ -281,7 +221,14 @@ export default function PaperDetailPage() {
 
         {/* Stat cards — 1 col mobile, 2 col sm, 3 col lg */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {PAPER.analytics.map(stat => (
+          {[
+            { icon: "👁",  label: "Views",                     value: paper.views,      pct: "+10%" },
+            { icon: "👤",  label: "People Following this Paper", value: 100,              pct: "+8%"  },
+            { icon: "💬",  label: "Comments",                   value: paper.comments,   pct: "+8%"  },
+            { icon: "⬇",  label: "Downloads",                  value: paper.downloaded, pct: "+18%" },
+            { icon: "↗",  label: "Shares",                     value: 35,               pct: "+2%"  },
+            { icon: "📎",  label: "Citations",                  value: paper.cited,      pct: "+3%"  },
+          ].map(stat => (
             <div key={stat.label} className="border border-gray-100 rounded-lg p-4">
               <div className="text-xl mb-1">{stat.icon}</div>
               <p className="text-xs text-gray-500 mb-1">{stat.label}</p>
@@ -305,7 +252,7 @@ export default function PaperDetailPage() {
 
         {/* Content */}
         <div className="p-6 max-h-80 overflow-y-auto">
-          <h3 className="text-lg font-bold text-gray-900 mb-3">{PAPER.title}</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-3">{paper.title}</h3>
           <p className="text-sm text-gray-700 mb-3">
             As urban populations continue to grow, the need for sustainable energy practices in cities becomes increasingly urgent.
             Urban areas account for over 70% of global energy consumption and a significant share of greenhouse gas emissions.
@@ -384,8 +331,8 @@ export default function PaperDetailPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {USERS.map(u => (
-                <tr key={u.name} className="hover:bg-gray-50 transition-colors">
+              {mockAdminUsers.map(u => (
+                <tr key={u.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 font-medium text-gray-900">{u.name}</td>
                   <td className="px-4 py-3 text-gray-500">{u.registered}</td>
                   <td className="px-4 py-3 text-gray-500">{u.papers}</td>
@@ -414,16 +361,16 @@ export default function PaperDetailPage() {
           <h3 className="text-base font-semibold text-gray-800">Citations</h3>
         </div>
         <div className="space-y-4">
-          {CITATIONS.map((c, i) => (
-            <div key={i} className="border border-gray-100 rounded-lg p-4">
+          {mockAdminCitations.filter(c => c.paperIndex === paperIndex).map(c => (
+            <div key={c.id} className="border border-gray-100 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-1">
                 <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600">
-                  {c.author[0]}
+                  {c.citingAuthor[0]}
                 </div>
-                <span className="text-xs font-semibold text-gray-700">{c.author}</span>
+                <span className="text-xs font-semibold text-gray-700">{c.citingAuthor}</span>
               </div>
-              <p className="text-xs font-semibold text-gray-800 mb-1">{c.title}</p>
-              <p className="text-xs text-gray-600 leading-relaxed mb-2">{c.text}</p>
+              <p className="text-xs font-semibold text-gray-800 mb-1">{c.citingTitle}</p>
+              <p className="text-xs text-gray-600 leading-relaxed mb-2">{c.quoteText}</p>
               <button className="text-xs text-[#0066ff] hover:underline">View Paper</button>
             </div>
           ))}
