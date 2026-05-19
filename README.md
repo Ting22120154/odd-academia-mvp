@@ -97,7 +97,7 @@ This uses Turborepo to start:
 | Field | Value |
 |---|---|
 | Email | `admin@oddacademia.com` |
-| Password | `Admin@123` |
+| Password | `Admin@1234` |
 
 ---
 
