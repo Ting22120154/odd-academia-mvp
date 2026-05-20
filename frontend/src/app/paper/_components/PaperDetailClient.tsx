@@ -6,6 +6,7 @@ import type { MockPost } from "@/lib/mockPosts";
 import { GuestTracker } from "@/app/paper/_components/GuestTracker";
 import { mockPosts } from "@/lib/mockPosts";
 import { mockUser } from "@/data/mockUser";
+import { useAuth } from "@/context/AuthContext";
 
 type Props = {
   post: MockPost;
@@ -133,10 +134,12 @@ function ReportModal({
   open,
   onClose,
   onSubmit,
+  title = "Report comment",
 }: {
   open: boolean;
   onClose: () => void;
   onSubmit: (draft: ReportDraft) => void;
+  title?: string;
 }) {
   const [draft, setDraft] = useState<ReportDraft>({ subject: "", description: "" });
 
@@ -153,7 +156,7 @@ function ReportModal({
         <div className="flex items-start justify-between gap-4">
           <div>
             <div id="report-title" className="text-base font-semibold text-zinc-900">
-              Report comment
+              {title}
             </div>
             <div className="mt-1 text-sm text-zinc-500">
               Help us understand what went wrong.
@@ -216,6 +219,7 @@ function ReportModal({
 
 export function PaperDetailClient({ post }: Props) {
   const citation = useMemo(() => buildApaLikeCitation(post), [post]);
+  const { user } = useAuth();
 
   // For this frontend-only MVP we infer login state from the same storage keys as the auth PR.
   // This keeps the paper viewer compatible once AuthContext is merged, without hard-coupling.
@@ -245,6 +249,7 @@ export function PaperDetailClient({ post }: Props) {
   const [activeReplyFor, setActiveReplyFor] = useState<string | null>(null);
   const [replyDraft, setReplyDraft] = useState("");
   const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
+  const [reportingPaper, setReportingPaper] = useState(false);
   const [contribTab, setContribTab] = useState<"all" | "cited">("all");
 
   const related = useMemo(() => {
@@ -286,34 +291,36 @@ export function PaperDetailClient({ post }: Props) {
     setActiveReplyFor(null);
   }
 
-  function submitReport(draft: ReportDraft) {
+  async function submitReport(draft: ReportDraft) {
     const commentId = reportingCommentId;
-    if (!commentId) return;
-
-    // Frontend-only stub: store reports locally so an admin UI can be wired later.
-    // Replace with a POST to your backend/admin endpoint once available.
-    const key = "mockCommentReports";
-    const current = (() => {
-      try {
-        const raw = localStorage.getItem(key);
-        const parsed: unknown = raw ? JSON.parse(raw) : [];
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    })();
-
-    const payload = {
-      id: `rep_${Date.now()}`,
-      paperId: post.id,
-      commentId,
-      subject: draft.subject.trim(),
-      description: draft.description.trim(),
-      createdAt: new Date().toISOString(),
-    };
-
-    localStorage.setItem(key, JSON.stringify([payload, ...current]));
+    if (!commentId || !user) return;
+    await fetch("/api/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "comment",
+        commentId,
+        reporterId: user.id,
+        reason: draft.subject ? `${draft.subject}: ${draft.description}` : draft.description,
+      }),
+    });
     setReportingCommentId(null);
+  }
+
+  async function submitPaperReport(draft: ReportDraft) {
+    if (!user) return;
+    await fetch("/api/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "paper",
+        paperId: post.id,
+        reporterId: user.id,
+        subject: draft.subject,
+        reason: draft.description,
+      }),
+    });
+    setReportingPaper(false);
   }
 
   return (
@@ -405,6 +412,16 @@ export function PaperDetailClient({ post }: Props) {
               <Chip icon="🏷️">{post.subject}</Chip>
               <Chip icon="＋">{(post.tags ?? [])[0] ?? "AI infrastructure"}</Chip>
             </div>
+
+            {isLoggedIn && (
+              <button
+                type="button"
+                onClick={() => setReportingPaper(true)}
+                className="text-xs text-zinc-400 hover:text-red-500 underline-offset-2 hover:underline"
+              >
+                Report this paper
+              </button>
+            )}
 
             {/* Follow row is only visible after login (per Figma). */}
             {isLoggedIn ? (
@@ -649,6 +666,12 @@ export function PaperDetailClient({ post }: Props) {
         open={reportingCommentId !== null}
         onClose={() => setReportingCommentId(null)}
         onSubmit={submitReport}
+      />
+      <ReportModal
+        open={reportingPaper}
+        onClose={() => setReportingPaper(false)}
+        onSubmit={submitPaperReport}
+        title="Report paper"
       />
     </div>
   );

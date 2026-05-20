@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { mockPosts } from "@/data/mockPosts";
+import { useAuth } from "@/context/AuthContext";
 
 const MOCK_OTHER_USER = {
   fullName: "Evelyn Harper",
@@ -18,6 +20,28 @@ const MOCK_OTHER_USER = {
 export default function UserProfilePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
+
+  const [reportingUser,  setReportingUser]  = useState(false);
+  const [reportDraft,    setReportDraft]    = useState({ subject: "", description: "" });
+  const [reportStatus,   setReportStatus]   = useState<"idle" | "sending" | "done">("idle");
+
+  async function submitUserReport() {
+    if (!user) return;
+    setReportStatus("sending");
+    await fetch("/api/reports", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type:        "user",
+        reportedId:  id,
+        reporterId:  user.id,
+        subject:     reportDraft.subject,
+        reason:      reportDraft.description,
+      }),
+    });
+    setReportStatus("done");
+  }
 
   return (
     <section className="mx-auto w-full max-w-[var(--page-max)] space-y-6">
@@ -49,6 +73,15 @@ export default function UserProfilePage() {
               >
                 Follow Author
               </button>
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => setReportingUser(true)}
+                  className="inline-flex h-9 items-center rounded-lg border border-black/[0.08] px-4 text-xs font-semibold text-zinc-600 hover:bg-zinc-50"
+                >
+                  Report
+                </button>
+              )}
             </div>
           </div>
 
@@ -125,6 +158,81 @@ export default function UserProfilePage() {
           ))}
         </div>
       </div>
+
+      {/* Report User modal */}
+      {reportingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-[var(--shadow-md)]">
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <div>
+                <div className="text-base font-semibold text-zinc-900">Report user</div>
+                <div className="mt-1 text-sm text-zinc-500">Help us understand what went wrong.</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setReportingUser(false); setReportStatus("idle"); }}
+                className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {reportStatus === "done" ? (
+              <div className="py-4 text-center">
+                <div className="text-sm font-medium text-green-600">Report submitted. Thank you.</div>
+                <button
+                  type="button"
+                  onClick={() => { setReportingUser(false); setReportStatus("idle"); setReportDraft({ subject: "", description: "" }); }}
+                  className="mt-4 text-sm text-zinc-500 hover:underline"
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-zinc-700">Subject</label>
+                    <input
+                      value={reportDraft.subject}
+                      onChange={e => setReportDraft(p => ({ ...p, subject: e.target.value }))}
+                      placeholder="Short summary"
+                      className="h-11 w-full rounded-xl border border-black/[0.08] px-4 text-sm outline-none focus:border-black/20"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-zinc-700">Description</label>
+                    <textarea
+                      value={reportDraft.description}
+                      onChange={e => setReportDraft(p => ({ ...p, description: e.target.value }))}
+                      placeholder="Describe the issue"
+                      className="min-h-[110px] w-full resize-none rounded-xl border border-black/[0.08] px-4 py-3 text-sm outline-none focus:border-black/20"
+                    />
+                  </div>
+                </div>
+                <div className="mt-6 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setReportingUser(false)}
+                    className="flex-1 h-11 rounded-xl border border-black/[0.08] text-sm font-medium text-zinc-600 hover:bg-zinc-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void submitUserReport()}
+                    disabled={!reportDraft.subject.trim() || !reportDraft.description.trim() || reportStatus === "sending"}
+                    className="flex-1 h-11 rounded-xl bg-[var(--brand)] text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+                  >
+                    {reportStatus === "sending" ? "Sending…" : "Submit"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

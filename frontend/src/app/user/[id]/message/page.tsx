@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 const MOCK_AUTHOR = {
   fullName: "Evelyn Harper",
@@ -11,17 +12,72 @@ const MOCK_AUTHOR = {
 };
 
 export default function MessageAuthorPage() {
-  const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+  const { id }   = useParams<{ id: string }>();
+  const router   = useRouter();
+  const { user } = useAuth();
 
-  const [subject, setSubject] = useState("");
-  const [message, setMessage] = useState("");
+  const [subject,     setSubject]     = useState("");
+  const [message,     setMessage]     = useState("");
   const [linkToPaper, setLinkToPaper] = useState("");
+  const [status,      setStatus]      = useState<"idle" | "sending" | "success" | "error">("idle");
+  const [errorMsg,    setErrorMsg]    = useState("");
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    window.alert("Message sent (mock)!");
-    router.back();
+    if (!user) {
+      setErrorMsg("You must be logged in to send a message.");
+      setStatus("error");
+      return;
+    }
+
+    setStatus("sending");
+    setErrorMsg("");
+
+    try {
+      const res = await fetch("/api/contact", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          senderId:    user.id,
+          recipientId: id,
+          subject,
+          body:        message,
+          linkToPaper: linkToPaper.trim() || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null) as { error?: string } | null;
+        throw new Error(data?.error ?? "Failed to send message.");
+      }
+
+      setStatus("success");
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
+      setStatus("error");
+    }
+  }
+
+  if (status === "success") {
+    return (
+      <section className="mx-auto w-full max-w-[var(--page-max)]">
+        <div className="mt-16 flex flex-col items-center gap-4 text-center">
+          <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-bold text-zinc-900">Message sent!</h2>
+          <p className="text-sm text-zinc-500">Your message has been delivered to {MOCK_AUTHOR.fullName}.</p>
+          <button
+            onClick={() => router.back()}
+            className="mt-2 inline-flex h-10 items-center rounded-xl bg-[var(--brand)] px-8 text-sm font-medium text-white hover:opacity-95"
+          >
+            Go back
+          </button>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -40,7 +96,7 @@ export default function MessageAuthorPage() {
         onSubmit={onSubmit}
         className="mt-4 rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-sm)]"
       >
-        {/* Author banner card */}
+        {/* Author banner */}
         <div className="h-28 rounded-t-2xl bg-gradient-to-r from-pink-200 via-rose-200 to-amber-200" />
         <div className="px-6 pb-6">
           <div className="-mt-10 flex items-end gap-4">
@@ -51,9 +107,7 @@ export default function MessageAuthorPage() {
             </div>
           </div>
 
-          <p className="mt-3 text-sm text-zinc-500">
-            A message will be sent to their email
-          </p>
+          <p className="mt-3 text-sm text-zinc-500">A message will be sent to their email</p>
 
           <div className="mt-3 flex items-center gap-4 text-sm">
             <span>
@@ -66,11 +120,17 @@ export default function MessageAuthorPage() {
             </span>
           </div>
 
-          {/* Form fields */}
+          {status === "error" && (
+            <div className="mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600">
+              {errorMsg}
+            </div>
+          )}
+
           <div className="mt-6 space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-semibold text-zinc-700">Subject</label>
               <input
+                required
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="Enter subject"
@@ -81,6 +141,7 @@ export default function MessageAuthorPage() {
             <div className="space-y-2">
               <label className="text-sm font-semibold text-zinc-700">Message</label>
               <textarea
+                required
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Enter your message"
@@ -89,7 +150,10 @@ export default function MessageAuthorPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-zinc-700">Link To Paper</label>
+              <label className="text-sm font-semibold text-zinc-700">
+                Link To Paper{" "}
+                <span className="font-normal text-zinc-400">(optional)</span>
+              </label>
               <input
                 value={linkToPaper}
                 onChange={(e) => setLinkToPaper(e.target.value)}
@@ -102,9 +166,10 @@ export default function MessageAuthorPage() {
           <div className="mt-6 flex justify-end">
             <button
               type="submit"
-              className="inline-flex h-10 items-center rounded-xl bg-[var(--brand)] px-8 text-sm font-medium text-white hover:opacity-95"
+              disabled={status === "sending"}
+              className="inline-flex h-10 items-center rounded-xl bg-[var(--brand)] px-8 text-sm font-medium text-white hover:opacity-95 disabled:opacity-60"
             >
-              Submit
+              {status === "sending" ? "Sending…" : "Submit"}
             </button>
           </div>
         </div>
