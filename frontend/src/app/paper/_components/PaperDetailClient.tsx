@@ -1,14 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MockPost } from "@/lib/mockPosts";
 import { GuestTracker } from "@/app/paper/_components/GuestTracker";
 import { mockPosts } from "@/lib/mockPosts";
 import { mockUser } from "@/data/mockUser";
+import { useAuth } from "@/context/AuthContext";
+import {
+  deleteComment as deleteCommentApi,
+  fetchCommentsForPaper,
+  updateComment as updateCommentApi,
+} from "@/lib/comments-client";
+import type { CommentResponse } from "@/modules/comments/types";
 
 type Props = {
   post: MockPost;
+  /** Neon `papers.id` for comments API (mock route ids like `1` resolved on server). */
+  commentsPaperId: string | null;
 };
 
 function buildApaLikeCitation(post: MockPost) {
@@ -19,45 +28,126 @@ function buildApaLikeCitation(post: MockPost) {
 
 type UiReply = {
   id: string;
-  name: string;
-  time: string;
-  text: string;
-};
-
-type UiComment = {
-  id: string;
+  authorId: string;
   name: string;
   time: string;
   text: string;
   likes: number;
+  likedByMe: boolean;
+};
+
+type UiComment = {
+  id: string;
+  authorId: string;
+  name: string;
+  time: string;
+  text: string;
+  likes: number;
+  likedByMe: boolean;
   replies: UiReply[];
 };
 
-const seededComments: UiComment[] = [
-  {
-    id: "c1",
-    name: "Alexander",
-    time: "3 hr. ago",
-    text: "This paper offers some insightful perspectives on sustainable energy, but I feel like it underestimates the challenges of implementing these practices in older urban infrastructures. How can cities retrofit without massive costs or disruptions?",
-    likes: 2,
-    replies: [
-      {
-        id: "r1",
-        name: "Sophia",
-        time: "14 min ago",
-        text: "That's a valid point. The paper does touch on retrofitting but focuses more on policy frameworks. Maybe the authors could have explored case studies on cities that have successfully integrated these changes without major disruptions?",
-      },
-    ],
-  },
-  {
-    id: "c2",
-    name: "Jordan",
-    time: "1 day ago",
-    text: "Would love to see a comparison against a real-world city that has measured emissions savings from these interventions.",
-    likes: 0,
-    replies: [],
-  },
-];
+const COMMENT_LIKES_STORAGE_KEY = "comment-liked-ids";
+
+function readStoredLikedIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(COMMENT_LIKES_STORAGE_KEY);
+    if (!raw) return new Set();
+    const ids = JSON.parse(raw) as string[];
+    return new Set(Array.isArray(ids) ? ids : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeStoredLikedIds(ids: Set<string>) {
+  localStorage.setItem(COMMENT_LIKES_STORAGE_KEY, JSON.stringify([...ids]));
+}
+
+function applyStoredLikes(comments: UiComment[]): UiComment[] {
+  const liked = readStoredLikedIds();
+  return comments.map((c) => {
+    const cLiked = liked.has(c.id);
+    return {
+      ...c,
+      likedByMe: cLiked,
+      likes: c.likes + (cLiked ? 1 : 0),
+      replies: c.replies.map((r) => {
+        const rLiked = liked.has(r.id);
+        return { ...r, likedByMe: rLiked, likes: r.likes + (rLiked ? 1 : 0) };
+      }),
+    };
+  });
+}
+
+function getDbUserIdFromCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  for (const part of document.cookie.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name === "auth-user-id") {
+      return decodeURIComponent(rest.join("=")) || null;
+    }
+  }
+  return null;
+}
+
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hr. ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function mapComment(c: CommentResponse): UiComment {
+  return {
+    id: c.id,
+    authorId: c.user.id,
+    name: c.user.fullName,
+    time: formatRelativeTime(c.createdAt),
+    text: c.content,
+    likes: c.likesCount,
+    likedByMe: false,
+    replies: c.replies.map((r) => ({
+      id: r.id,
+      authorId: r.user.id,
+      name: r.user.fullName,
+      time: formatRelativeTime(r.createdAt),
+      text: r.content,
+      likes: r.likesCount,
+      likedByMe: false,
+    })),
+  };
+}
+
+function CommentLikeButton({
+  count,
+  liked,
+  disabled,
+  onClick,
+}: {
+  count: number;
+  liked: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  const label = count > 0 ? `${count} Like${count === 1 ? "" : "s"}` : "Like";
+  return (
+    <button
+      type="button"
+      className={liked ? "font-medium text-[var(--brand)] hover:opacity-80" : "hover:text-zinc-600"}
+      onClick={onClick}
+      disabled={disabled}
+      title={disabled ? "Login to like comments" : liked ? "Unlike" : "Like"}
+    >
+      {label}
+    </button>
+  );
+}
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -214,21 +304,9 @@ function ReportModal({
   );
 }
 
-export function PaperDetailClient({ post }: Props) {
+export function PaperDetailClient({ post, commentsPaperId }: Props) {
   const citation = useMemo(() => buildApaLikeCitation(post), [post]);
-
-  // For this frontend-only MVP we infer login state from the same storage keys as the auth PR.
-  // This keeps the paper viewer compatible once AuthContext is merged, without hard-coupling.
-  const isLoggedIn = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    const sessionCookie = document.cookie
-      .split(";")
-      .map((c) => c.trim())
-      .find((c) => c.startsWith("auth-session="))
-      ?.split("=")[1];
-    if (sessionCookie === "user") return true;
-    return Boolean(localStorage.getItem("authUser"));
-  }, []);
+  const { isLoggedIn } = useAuth();
 
   const shareUrl =
     typeof window !== "undefined" ? window.location.href : `/paper/${post.id}`;
@@ -239,13 +317,47 @@ export function PaperDetailClient({ post }: Props) {
 
   const [followPaper, setFollowPaper] = useState(false);
   const [followAuthor, setFollowAuthor] = useState(false);
-  const [comments, setComments] = useState<UiComment[]>(seededComments);
+  const [comments, setComments] = useState<UiComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
   const [composer, setComposer] = useState("");
   const [composerCitation, setComposerCitation] = useState("");
   const [activeReplyFor, setActiveReplyFor] = useState<string | null>(null);
   const [replyDraft, setReplyDraft] = useState("");
   const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
   const [contribTab, setContribTab] = useState<"all" | "cited">("all");
+  const [dbUserId, setDbUserId] = useState<string | null>(null);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+
+  useEffect(() => {
+    if (isLoggedIn) setDbUserId(getDbUserIdFromCookie());
+    else setDbUserId(null);
+  }, [isLoggedIn]);
+
+  const loadComments = useCallback(async () => {
+    if (!commentsPaperId) {
+      setComments([]);
+      return;
+    }
+    setCommentsLoading(true);
+    setCommentsError(null);
+    if (isLoggedIn) setDbUserId(getDbUserIdFromCookie());
+    try {
+      const rows = await fetchCommentsForPaper(commentsPaperId);
+      setComments(applyStoredLikes(rows.map(mapComment)));
+    } catch {
+      setCommentsError("Could not load comments.");
+      setComments([]);
+    } finally {
+      setCommentsLoading(false);
+    }
+  }, [commentsPaperId, isLoggedIn]);
+
+  useEffect(() => {
+    void loadComments();
+  }, [loadComments]);
 
   const related = useMemo(() => {
     // Related papers are mocked by "same subject OR shared tag", excluding current post.
@@ -259,7 +371,16 @@ export function PaperDetailClient({ post }: Props) {
     const trimmed = composer.trim();
     if (!trimmed) return;
     setComments((prev) => [
-      { id: `u_${Date.now()}`, name: "You", time: "Just now", text: trimmed, likes: 0, replies: [] },
+      {
+        id: `u_${Date.now()}`,
+        authorId: mockUser.id,
+        name: "You",
+        time: "Just now",
+        text: trimmed,
+        likes: 0,
+        likedByMe: false,
+        replies: [],
+      },
       ...prev,
     ]);
     setComposer("");
@@ -276,7 +397,15 @@ export function PaperDetailClient({ post }: Props) {
               ...c,
               replies: [
                 ...c.replies,
-                { id: `r_${Date.now()}`, name: "You", time: "Just now", text: trimmed },
+                {
+                  id: `r_${Date.now()}`,
+                  authorId: mockUser.id,
+                  name: "You",
+                  time: "Just now",
+                  text: trimmed,
+                  likes: 0,
+                  likedByMe: false,
+                },
               ],
             }
           : c
@@ -284,6 +413,93 @@ export function PaperDetailClient({ post }: Props) {
     );
     setReplyDraft("");
     setActiveReplyFor(null);
+  }
+
+  function isOwnComment(authorId: string) {
+    return Boolean(dbUserId && authorId === dbUserId);
+  }
+
+  function startEdit(commentId: string, currentText: string) {
+    setEditingCommentId(commentId);
+    setEditDraft(currentText);
+    setActiveReplyFor(null);
+  }
+
+  function cancelEdit() {
+    setEditingCommentId(null);
+    setEditDraft("");
+  }
+
+  async function saveEdit(commentId: string) {
+    const trimmed = editDraft.trim();
+    if (!trimmed || actionLoading) return;
+    setActionLoading(true);
+    setCommentsError(null);
+    const result = await updateCommentApi(commentId, trimmed);
+    setActionLoading(false);
+    if (!result.ok) {
+      setCommentsError(result.error);
+      return;
+    }
+    cancelEdit();
+    await loadComments();
+  }
+
+  async function removeComment(commentId: string) {
+    if (!window.confirm("Delete this comment? This cannot be undone.")) return;
+    setActionLoading(true);
+    setCommentsError(null);
+    const result = await deleteCommentApi(commentId);
+    setActionLoading(false);
+    if (!result.ok) {
+      setCommentsError(result.error);
+      return;
+    }
+    if (editingCommentId === commentId) cancelEdit();
+    await loadComments();
+  }
+
+  function toggleCommentLike(commentId: string) {
+    if (!isLoggedIn) {
+      setCommentsError("Login to like comments.");
+      return;
+    }
+    setCommentsError(null);
+
+    setComments((prev) => {
+      let currentLiked: boolean | null = null;
+      for (const c of prev) {
+        if (c.id === commentId) {
+          currentLiked = c.likedByMe;
+          break;
+        }
+        const reply = c.replies.find((r) => r.id === commentId);
+        if (reply) {
+          currentLiked = reply.likedByMe;
+          break;
+        }
+      }
+      if (currentLiked === null) return prev;
+
+      const nowLiked = !currentLiked;
+      const stored = readStoredLikedIds();
+      if (nowLiked) stored.add(commentId);
+      else stored.delete(commentId);
+      writeStoredLikedIds(stored);
+
+      return prev.map((c) => {
+        if (c.id === commentId) {
+          return { ...c, likedByMe: nowLiked, likes: c.likes + (nowLiked ? 1 : -1) };
+        }
+        return {
+          ...c,
+          replies: c.replies.map((r) => {
+            if (r.id !== commentId) return r;
+            return { ...r, likedByMe: nowLiked, likes: r.likes + (nowLiked ? 1 : -1) };
+          }),
+        };
+      });
+    });
   }
 
   function submitReport(draft: ReportDraft) {
@@ -558,6 +774,26 @@ export function PaperDetailClient({ post }: Props) {
             <div className="space-y-4">
               <div className="text-lg font-semibold text-zinc-900">Comments</div>
 
+              {!commentsPaperId ? (
+                <p className="text-sm text-zinc-500">
+                  Comments are unavailable for this paper until it is linked to the database.
+                </p>
+              ) : null}
+
+              {commentsError ? (
+                <p className="text-sm text-red-600" role="alert">
+                  {commentsError}
+                </p>
+              ) : null}
+
+              {commentsLoading ? (
+                <p className="text-sm text-zinc-500">Loading comments…</p>
+              ) : null}
+
+              {!commentsLoading && commentsPaperId && comments.length === 0 ? (
+                <p className="text-sm text-zinc-500">No comments yet.</p>
+              ) : null}
+
               <ul className="space-y-6">
                 {comments.map((c) => (
                   <li key={c.id} id={`comment-${c.id}`} className="space-y-3">
@@ -570,9 +806,37 @@ export function PaperDetailClient({ post }: Props) {
                           <div className="text-sm font-semibold text-zinc-900">{c.name}</div>
                           <div className="text-xs text-zinc-400">{c.time}</div>
                         </div>
-                        <p className="mt-2 text-sm leading-7 text-zinc-700">{c.text}</p>
+                        {editingCommentId === c.id ? (
+                          <div className="mt-2 space-y-2">
+                            <textarea
+                              value={editDraft}
+                              onChange={(e) => setEditDraft(e.target.value)}
+                              className="min-h-[80px] w-full resize-none rounded-xl border border-black/[0.08] px-4 py-3 text-sm outline-none focus:border-black/20"
+                            />
+                            <div className="flex gap-2">
+                              <PrimaryButton
+                                onClick={() => void saveEdit(c.id)}
+                                disabled={actionLoading || !editDraft.trim()}
+                              >
+                                Save
+                              </PrimaryButton>
+                              <OutlineButton onClick={cancelEdit} disabled={actionLoading}>
+                                Cancel
+                              </OutlineButton>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-sm leading-7 text-zinc-700">{c.text}</p>
+                        )}
 
-                        <div className="mt-3 flex items-center gap-4 text-xs text-zinc-400">
+                        <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-zinc-400">
+                          <CommentLikeButton
+                            count={c.likes}
+                            liked={c.likedByMe}
+                            disabled={!isLoggedIn}
+                            onClick={() => toggleCommentLike(c.id)}
+                          />
+
                           <button
                             type="button"
                             className="hover:text-zinc-600"
@@ -583,6 +847,27 @@ export function PaperDetailClient({ post }: Props) {
                           >
                             {c.replies.length > 0 ? `${c.replies.length} Reply` : "Reply"}
                           </button>
+
+                          {isOwnComment(c.authorId) && editingCommentId !== c.id ? (
+                            <>
+                              <button
+                                type="button"
+                                className="hover:text-zinc-600"
+                                onClick={() => startEdit(c.id, c.text)}
+                                disabled={actionLoading}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="hover:text-red-600"
+                                onClick={() => void removeComment(c.id)}
+                                disabled={actionLoading}
+                              >
+                                Delete
+                              </button>
+                            </>
+                          ) : null}
 
                           <button
                             type="button"
@@ -631,7 +916,58 @@ export function PaperDetailClient({ post }: Props) {
                                 <div className="text-sm font-semibold text-zinc-900">{r.name}</div>
                                 <div className="text-xs text-zinc-400">{r.time}</div>
                               </div>
-                              <p className="mt-2 text-sm leading-7 text-zinc-700">{r.text}</p>
+                              {editingCommentId === r.id ? (
+                                <div className="mt-2 space-y-2">
+                                  <textarea
+                                    value={editDraft}
+                                    onChange={(e) => setEditDraft(e.target.value)}
+                                    className="min-h-[64px] w-full resize-none rounded-xl border border-black/[0.08] px-4 py-3 text-sm outline-none focus:border-black/20"
+                                  />
+                                  <div className="flex gap-2">
+                                    <PrimaryButton
+                                      onClick={() => void saveEdit(r.id)}
+                                      disabled={actionLoading || !editDraft.trim()}
+                                    >
+                                      Save
+                                    </PrimaryButton>
+                                    <OutlineButton onClick={cancelEdit} disabled={actionLoading}>
+                                      Cancel
+                                    </OutlineButton>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="mt-2 text-sm leading-7 text-zinc-700">{r.text}</p>
+                              )}
+
+                              <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-zinc-400">
+                                <CommentLikeButton
+                                  count={r.likes}
+                                  liked={r.likedByMe}
+                                  disabled={!isLoggedIn}
+                                  onClick={() => toggleCommentLike(r.id)}
+                                />
+
+                                {isOwnComment(r.authorId) && editingCommentId !== r.id ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="hover:text-zinc-600"
+                                      onClick={() => startEdit(r.id, r.text)}
+                                      disabled={actionLoading}
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="hover:text-red-600"
+                                      onClick={() => void removeComment(r.id)}
+                                      disabled={actionLoading}
+                                    >
+                                      Delete
+                                    </button>
+                                  </>
+                                ) : null}
+                              </div>
                             </div>
                           </li>
                         ))}
