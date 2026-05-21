@@ -30,8 +30,22 @@ packages/db/prisma/schema.prisma    — PaperSave model (coordinate with DB lead
 docs/api-saved-papers.md
 ```
 
+## Notifications API
+
+```
+app/api/notifications/route.ts
+app/api/notifications/[id]/read/route.ts
+app/api/notifications/read-all/route.ts
+modules/notifications/
+lib/notifications-client.ts
+docs/api-notifications.md
+```
+
+Comment/reply creation triggers notification rows via `comment.service.ts`.
+
 ## Not in this PR
 
-- Notifications, paper like APIs (later)
+- Paper like APIs (later)
+- Notification settings persisted to DB (UI still local)
 - UI pages (`home`, `paper`) — still use mock on `main` until frontend wires `/api/comments`
 - `schema.prisma` edits (DB lead only)

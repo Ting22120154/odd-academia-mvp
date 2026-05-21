@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { createNotificationsForNewComment } from "@/modules/notifications/notification.service";
 import type { CommentResponse, CreateCommentRequest, UpdateCommentRequest } from "./types";
 
 type CommentWithAuthor = {
@@ -68,6 +69,17 @@ export async function createComment(authorId: string, body: CreateCommentRequest
     },
     include: { author: { select: authorSelect } },
   });
+
+  try {
+    await createNotificationsForNewComment({
+      commentId: created.id,
+      paperId: created.paperId,
+      authorId: created.authorId,
+      parentId: created.parentId,
+    });
+  } catch {
+    // Comment succeeds even if notification insert fails
+  }
 
   return toCommentResponse(created, []);
 }
