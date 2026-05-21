@@ -76,7 +76,7 @@ function LoginPageInner() {
     setSignupErrors({});
   }
 
-  function handleLogin() {
+  async function handleLogin() {
     const errs: { email?: string; password?: string } = {};
     if (!email.trim()) errs.email = "Email is required.";
     if (!password.trim()) errs.password = "Password is required.";
@@ -85,12 +85,24 @@ function LoginPageInner() {
       return;
     }
     setLoginErrors({});
-    login({
-      id: mockUser.id,
-      fullName: mockUser.fullName,
-      email: email.trim(),
-      avatarUrl: mockUser.avatarUrl,
-    });
+
+    // Resolve real DB user by email — no fallback to mock IDs
+    try {
+      const res = await fetch(`/api/auth/me?email=${encodeURIComponent(email.trim())}`);
+      if (!res.ok) {
+        setLoginErrors({ email: "No account found with that email." });
+        return;
+      }
+      const dbUser = await res.json() as { id: string; fullName: string; avatarUrl: string | null };
+      login({
+        id:        dbUser.id,
+        fullName:  dbUser.fullName,
+        email:     email.trim(),
+        avatarUrl: dbUser.avatarUrl ?? mockUser.avatarUrl,
+      });
+    } catch {
+      setLoginErrors({ email: "Could not reach the server. Please try again." });
+    }
   }
 
   function handleSignup() {
@@ -190,7 +202,7 @@ function LoginPageInner() {
               </div>
 
               <form
-                onSubmit={(e) => { e.preventDefault(); handleLogin(); }}
+                onSubmit={(e) => { e.preventDefault(); void handleLogin(); }}
                 className="space-y-4"
               >
                 <div>

@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
+import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
 import { mockPosts } from "@/data/mockPosts";
 import { useAuth } from "@/context/AuthContext";
+import { ChatModal } from "@/components/ChatModal";
 
 const MOCK_OTHER_USER = {
   fullName: "Evelyn Harper",
   username: "Ev_Harper",
+  email: "evharper@gmail.com",
   workStatus: "Open for Work",
   bio: "Dr. Evelyn Harper is a passionate advocate for sustainable energy, with a strong focus on renewable technologies. She has written extensively on the subject and is a sought-after speaker at events promoting green energy solutions.",
   followers: "1.2k",
@@ -19,9 +20,18 @@ const MOCK_OTHER_USER = {
 
 export default function UserProfilePage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const { user } = useAuth();
 
+  const [chatOpen,       setChatOpen]       = useState(false);
+  const [realRecipientId, setRealRecipientId] = useState<string | null>(null);
+
+  // Resolve the mock profile user's real DB UUID so chat messages save correctly
+  useEffect(() => {
+    fetch(`/api/auth/me?email=${encodeURIComponent(MOCK_OTHER_USER.email)}`)
+      .then(r => r.ok ? r.json() as Promise<{ id: string }> : Promise.reject())
+      .then(data => setRealRecipientId(data.id))
+      .catch(() => null);
+  }, []);
   const [reportingUser,  setReportingUser]  = useState(false);
   const [reportDraft,    setReportDraft]    = useState({ subject: "", description: "" });
   const [reportStatus,   setReportStatus]   = useState<"idle" | "sending" | "done">("idle");
@@ -61,12 +71,16 @@ export default function UserProfilePage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Link
-                href={`/user/${id}/message`}
-                className="inline-flex h-9 items-center rounded-lg border border-[var(--brand)] px-4 text-xs font-semibold text-[var(--brand)] hover:bg-blue-50"
+              <button
+                type="button"
+                onClick={() => setChatOpen(true)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--brand)] px-4 text-xs font-semibold text-[var(--brand)] hover:bg-blue-50"
               >
-                Contact
-              </Link>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                Message
+              </button>
               <button
                 type="button"
                 className="inline-flex h-9 items-center rounded-lg bg-[var(--brand)] px-4 text-xs font-semibold text-white hover:opacity-95"
@@ -158,6 +172,15 @@ export default function UserProfilePage() {
           ))}
         </div>
       </div>
+
+      {/* Chat modal */}
+      {chatOpen && realRecipientId && (
+        <ChatModal
+          recipientId={realRecipientId}
+          recipientName={MOCK_OTHER_USER.fullName}
+          onClose={() => setChatOpen(false)}
+        />
+      )}
 
       {/* Report User modal */}
       {reportingUser && (
