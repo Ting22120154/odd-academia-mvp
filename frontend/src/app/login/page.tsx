@@ -2,8 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
-import { mockUser } from "@/data/mockUser";
+import { useAuth, type AuthUser } from "@/context/AuthContext";
 
 type Mode = "login" | "signup";
 
@@ -42,13 +41,15 @@ function LeftPanel() {
 }
 
 function LoginPageInner() {
-  const { login, continueAsGuest } = useAuth();
+  const { applySession, continueAsGuest } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const isGuestLimit = searchParams.get("reason") === "guest_limit";
 
   const [mode, setMode] = useState<Mode>("login");
   const [linkedinNotice, setLinkedinNotice] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState("");
 
   // Login fields + errors
   const [email, setEmail] = useState("");
@@ -76,7 +77,23 @@ function LoginPageInner() {
     setSignupErrors({});
   }
 
-  function handleLogin() {
+  function toAuthUser(u: {
+    id: string;
+    fullName: string;
+    email: string;
+    avatarUrl?: string;
+    role?: AuthUser["role"];
+  }): AuthUser {
+    return {
+      id: u.id,
+      fullName: u.fullName,
+      email: u.email,
+      avatarUrl: u.avatarUrl,
+      role: u.role,
+    };
+  }
+
+  async function handleLogin() {
     const errs: { email?: string; password?: string } = {};
     if (!email.trim()) errs.email = "Email is required.";
     if (!password.trim()) errs.password = "Password is required.";
@@ -85,15 +102,30 @@ function LoginPageInner() {
       return;
     }
     setLoginErrors({});
-    login({
-      id: mockUser.id,
-      fullName: mockUser.fullName,
-      email: email.trim(),
-      avatarUrl: mockUser.avatarUrl,
-    });
+    setFormError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setFormError(json.error ?? "Login failed.");
+        return;
+      }
+      applySession(toAuthUser(json.data.user));
+      router.push("/");
+    } catch {
+      setFormError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handleSignup() {
+  async function handleSignup() {
     const errs: typeof signupErrors = {};
     if (!fullName.trim()) errs.fullName = "Full name is required.";
     if (!username.trim()) errs.username = "Username is required.";
@@ -109,18 +141,40 @@ function LoginPageInner() {
       return;
     }
     setSignupErrors({});
-    if (typeof window !== "undefined") {
+    setFormError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          fullName: fullName.trim(),
+          username: username.trim(),
+          email: signupEmail.trim(),
+          password: signupPassword,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setFormError(json.error ?? "Sign up failed.");
+        return;
+      }
+      applySession(toAuthUser(json.data.user));
       localStorage.setItem(
         "pendingUser",
         JSON.stringify({
           fullName: fullName.trim(),
           username: username.trim(),
           email: signupEmail.trim(),
-          password: signupPassword,
         })
       );
+      router.push("/onboarding/interests");
+    } catch {
+      setFormError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    router.push("/onboarding/interests");
   }
 
   const inputClass =
@@ -161,6 +215,12 @@ function LoginPageInner() {
               You&apos;ve reached your 5 free article limit. Sign up or log in to keep reading.
             </div>
           )}
+
+          {formError ? (
+            <div className="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              {formError}
+            </div>
+          ) : null}
 
           {/* ===== LOGIN MODE ===== */}
           {mode === "login" && (
@@ -225,8 +285,8 @@ function LoginPageInner() {
                     <p className="mt-1 text-xs text-red-600">{loginErrors.password}</p>
                   )}
                 </div>
-                <button type="submit" className={primaryBtnClass}>
-                  Login
+                <button type="submit" disabled={loading} className={primaryBtnClass}>
+                  {loading ? "Signing in…" : "Login"}
                 </button>
               </form>
 
@@ -366,8 +426,8 @@ function LoginPageInner() {
                   )}
                 </div>
 
-                <button type="submit" className={primaryBtnClass}>
-                  Create Account
+                <button type="submit" disabled={loading} className={primaryBtnClass}>
+                  {loading ? "Creating account…" : "Create Account"}
                 </button>
               </form>
 

@@ -43,7 +43,7 @@ function LinkedInIcon() {
 
 export default function DetailsPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { refreshSession } = useAuth();
   const [ready, setReady] = useState(false);
 
   // Form state
@@ -95,12 +95,9 @@ export default function DetailsPage() {
       localStorage.removeItem("userInterests");
     }
 
-    login({
-      id: "u_" + Date.now(),
-      fullName: fullName.trim(),
-      email: contactEmail.trim(),
-      avatarUrl: undefined,
-    });
+    // Profile fields saved in a later step; user is already logged in from register.
+    void refreshSession();
+    router.push("/");
   }
 
   const inputClass =
