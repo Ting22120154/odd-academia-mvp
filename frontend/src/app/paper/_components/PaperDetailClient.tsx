@@ -7,10 +7,14 @@ import { GuestTracker } from "@/app/paper/_components/GuestTracker";
 import { mockPosts } from "@/lib/mockPosts";
 import { mockUser } from "@/data/mockUser";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
+import { notifySavedPapersChanged } from "@/lib/saved-papers-events";
 import {
   createComment as createCommentApi,
   deleteComment as deleteCommentApi,
   fetchCommentsForPaper,
+  likeComment as likeCommentApi,
+  unlikeComment as unlikeCommentApi,
   updateComment as updateCommentApi,
 } from "@/lib/comments-client";
 import {
@@ -53,40 +57,6 @@ type UiComment = {
   replies: UiReply[];
 };
 
-const COMMENT_LIKES_STORAGE_KEY = "comment-liked-ids";
-
-function readStoredLikedIds(): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const raw = localStorage.getItem(COMMENT_LIKES_STORAGE_KEY);
-    if (!raw) return new Set();
-    const ids = JSON.parse(raw) as string[];
-    return new Set(Array.isArray(ids) ? ids : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function writeStoredLikedIds(ids: Set<string>) {
-  localStorage.setItem(COMMENT_LIKES_STORAGE_KEY, JSON.stringify([...ids]));
-}
-
-function applyStoredLikes(comments: UiComment[]): UiComment[] {
-  const liked = readStoredLikedIds();
-  return comments.map((c) => {
-    const cLiked = liked.has(c.id);
-    return {
-      ...c,
-      likedByMe: cLiked,
-      likes: c.likes + (cLiked ? 1 : 0),
-      replies: c.replies.map((r) => {
-        const rLiked = liked.has(r.id);
-        return { ...r, likedByMe: rLiked, likes: r.likes + (rLiked ? 1 : 0) };
-      }),
-    };
-  });
-}
-
 function getDbUserIdFromCookie(): string | null {
   if (typeof document === "undefined") return null;
   for (const part of document.cookie.split(";")) {
@@ -117,7 +87,7 @@ function mapComment(c: CommentResponse): UiComment {
     time: formatRelativeTime(c.createdAt),
     text: c.content,
     likes: c.likesCount,
-    likedByMe: false,
+    likedByMe: c.likedByMe ?? false,
     replies: c.replies.map((r) => ({
       id: r.id,
       authorId: r.user.id,
@@ -125,7 +95,7 @@ function mapComment(c: CommentResponse): UiComment {
       time: formatRelativeTime(r.createdAt),
       text: r.content,
       likes: r.likesCount,
-      likedByMe: false,
+      likedByMe: r.likedByMe ?? false,
     })),
   };
 }
@@ -223,94 +193,8 @@ function OutlineButton({
   );
 }
 
-type ReportDraft = { subject: string; description: string };
-
-function ReportModal({
-  open,
-  onClose,
-  onSubmit,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onSubmit: (draft: ReportDraft) => void;
-}) {
-  const [draft, setDraft] = useState<ReportDraft>({ subject: "", description: "" });
-
-  if (!open) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="report-title"
-    >
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-[var(--shadow-md)]">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div id="report-title" className="text-base font-semibold text-zinc-900">
-              Report comment
-            </div>
-            <div className="mt-1 text-sm text-zinc-500">
-              Help us understand what went wrong.
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="mt-5 space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-zinc-700" htmlFor="report-subject">
-              Subject
-            </label>
-            <input
-              id="report-subject"
-              value={draft.subject}
-              onChange={(e) => setDraft((p) => ({ ...p, subject: e.target.value }))}
-              placeholder="Short summary"
-              className="h-11 w-full rounded-xl border border-black/[0.08] px-4 text-sm outline-none focus:border-black/20"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-zinc-700" htmlFor="report-description">
-              Description
-            </label>
-            <textarea
-              id="report-description"
-              value={draft.description}
-              onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
-              placeholder="Describe the issue"
-              className="min-h-[110px] w-full resize-none rounded-xl border border-black/[0.08] px-4 py-3 text-sm outline-none focus:border-black/20"
-            />
-          </div>
-        </div>
-
-        <div className="mt-6 flex gap-3">
-          <OutlineButton onClick={onClose} className="flex-1">
-            Cancel
-          </OutlineButton>
-          <PrimaryButton
-            onClick={() => onSubmit(draft)}
-            className="flex-1"
-            disabled={!draft.subject.trim() || !draft.description.trim()}
-          >
-            Submit
-          </PrimaryButton>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function PaperDetailClient({ post, commentsPaperId }: Props) {
+  const { showToast } = useToast();
   const citation = useMemo(() => buildApaLikeCitation(post), [post]);
   const { isLoggedIn } = useAuth();
 
@@ -335,7 +219,6 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
   const [composerCitation, setComposerCitation] = useState("");
   const [activeReplyFor, setActiveReplyFor] = useState<string | null>(null);
   const [replyDraft, setReplyDraft] = useState("");
-  const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
   const [contribTab, setContribTab] = useState<"all" | "cited">("all");
   const [dbUserId, setDbUserId] = useState<string | null>(null);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
@@ -356,7 +239,7 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
     if (isLoggedIn) setDbUserId(getDbUserIdFromCookie());
     try {
       const rows = await fetchCommentsForPaper(commentsPaperId);
-      setComments(applyStoredLikes(rows.map(mapComment)));
+      setComments(rows.map(mapComment));
     } catch {
       setCommentsError("Could not load comments.");
       setComments([]);
@@ -368,6 +251,28 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
   useEffect(() => {
     void loadComments();
   }, [loadComments]);
+
+  useEffect(() => {
+    if (commentsLoading || comments.length === 0) return;
+    const hash = typeof window !== "undefined" ? window.location.hash : "";
+    if (!hash.startsWith("#comment-")) return;
+
+    const targetId = hash.slice(1);
+    const scrollToComment = () => {
+      const el = document.getElementById(targetId);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("ring-2", "ring-[var(--brand)]", "ring-offset-2", "rounded-xl");
+        window.setTimeout(() => {
+          el.classList.remove("ring-2", "ring-[var(--brand)]", "ring-offset-2", "rounded-xl");
+        }, 2500);
+      }
+    };
+
+    scrollToComment();
+    const retry = window.setTimeout(scrollToComment, 400);
+    return () => window.clearTimeout(retry);
+  }, [commentsLoading, comments]);
 
   const loadSaveStatus = useCallback(async () => {
     if (!commentsPaperId || !isLoggedIn) {
@@ -387,11 +292,15 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
 
   async function toggleSavePaper() {
     if (!commentsPaperId) {
-      setSaveError("Save is not available for this paper yet.");
+      const msg = "Save is not available for this paper yet.";
+      setSaveError(msg);
+      showToast(msg, "error");
       return;
     }
     if (!isLoggedIn) {
-      setSaveError("Login to save papers.");
+      const msg = "Login to save papers.";
+      setSaveError(msg);
+      showToast(msg, "error");
       return;
     }
     setSaveActionLoading(true);
@@ -402,9 +311,16 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
     setSaveActionLoading(false);
     if (!result.ok) {
       setSaveError(result.error);
+      showToast(result.error, "error");
       return;
     }
     setPaperSaved(result.saved);
+    setSaveError(null);
+    notifySavedPapersChanged();
+    showToast(
+      result.saved ? "Paper saved to your library" : "Removed from saved papers",
+      "success",
+    );
   }
 
   const related = useMemo(() => {
@@ -513,77 +429,38 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
     await loadComments();
   }
 
-  function toggleCommentLike(commentId: string) {
+  async function toggleCommentLike(commentId: string) {
     if (!isLoggedIn) {
       setCommentsError("Login to like comments.");
       return;
     }
+
+    let currentlyLiked = false;
+    for (const c of comments) {
+      if (c.id === commentId) {
+        currentlyLiked = c.likedByMe;
+        break;
+      }
+      const reply = c.replies.find((r) => r.id === commentId);
+      if (reply) {
+        currentlyLiked = reply.likedByMe;
+        break;
+      }
+    }
+
+    setActionLoading(true);
     setCommentsError(null);
+    const result = currentlyLiked
+      ? await unlikeCommentApi(commentId)
+      : await likeCommentApi(commentId);
+    setActionLoading(false);
 
-    setComments((prev) => {
-      let currentLiked: boolean | null = null;
-      for (const c of prev) {
-        if (c.id === commentId) {
-          currentLiked = c.likedByMe;
-          break;
-        }
-        const reply = c.replies.find((r) => r.id === commentId);
-        if (reply) {
-          currentLiked = reply.likedByMe;
-          break;
-        }
-      }
-      if (currentLiked === null) return prev;
+    if (!result.ok) {
+      setCommentsError(result.error);
+      return;
+    }
 
-      const nowLiked = !currentLiked;
-      const stored = readStoredLikedIds();
-      if (nowLiked) stored.add(commentId);
-      else stored.delete(commentId);
-      writeStoredLikedIds(stored);
-
-      return prev.map((c) => {
-        if (c.id === commentId) {
-          return { ...c, likedByMe: nowLiked, likes: c.likes + (nowLiked ? 1 : -1) };
-        }
-        return {
-          ...c,
-          replies: c.replies.map((r) => {
-            if (r.id !== commentId) return r;
-            return { ...r, likedByMe: nowLiked, likes: r.likes + (nowLiked ? 1 : -1) };
-          }),
-        };
-      });
-    });
-  }
-
-  function submitReport(draft: ReportDraft) {
-    const commentId = reportingCommentId;
-    if (!commentId) return;
-
-    // Frontend-only stub: store reports locally so an admin UI can be wired later.
-    // Replace with a POST to your backend/admin endpoint once available.
-    const key = "mockCommentReports";
-    const current = (() => {
-      try {
-        const raw = localStorage.getItem(key);
-        const parsed: unknown = raw ? JSON.parse(raw) : [];
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    })();
-
-    const payload = {
-      id: `rep_${Date.now()}`,
-      paperId: post.id,
-      commentId,
-      subject: draft.subject.trim(),
-      description: draft.description.trim(),
-      createdAt: new Date().toISOString(),
-    };
-
-    localStorage.setItem(key, JSON.stringify([payload, ...current]));
-    setReportingCommentId(null);
+    await loadComments();
   }
 
   return (
@@ -917,7 +794,7 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
                             count={c.likes}
                             liked={c.likedByMe}
                             disabled={!isLoggedIn}
-                            onClick={() => toggleCommentLike(c.id)}
+                            onClick={() => void toggleCommentLike(c.id)}
                           />
 
                           <button
@@ -961,16 +838,6 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
                           >
                             Share
                           </button>
-
-                          <button
-                            type="button"
-                            className="hover:text-zinc-600"
-                            onClick={() => setReportingCommentId(c.id)}
-                            disabled={!isLoggedIn}
-                            title={!isLoggedIn ? "Login required" : "Report comment"}
-                          >
-                            Report
-                          </button>
                         </div>
 
                         {activeReplyFor === c.id && isLoggedIn ? (
@@ -995,7 +862,7 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
                     {c.replies.length > 0 ? (
                       <ul className="ml-12 space-y-4 border-l border-black/[0.06] pl-6">
                         {c.replies.map((r) => (
-                          <li key={r.id} className="flex gap-3">
+                          <li key={r.id} id={`comment-${r.id}`} className="flex gap-3">
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-200 text-sm font-semibold text-zinc-700">
                               {initials(r.name)}
                             </div>
@@ -1032,7 +899,7 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
                                   count={r.likes}
                                   liked={r.likedByMe}
                                   disabled={!isLoggedIn}
-                                  onClick={() => toggleCommentLike(r.id)}
+                                  onClick={() => void toggleCommentLike(r.id)}
                                 />
 
                                 {isOwnComment(r.authorId) && editingCommentId !== r.id ? (
@@ -1068,12 +935,6 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
           </section>
         </div>
       </div>
-
-      <ReportModal
-        open={reportingCommentId !== null}
-        onClose={() => setReportingCommentId(null)}
-        onSubmit={submitReport}
-      />
     </div>
   );
 }

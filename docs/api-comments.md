@@ -37,7 +37,8 @@ Create a top-level comment or a reply.
     "paperId": "uuid",
     "user": { "id": "uuid", "fullName": "string", "avatarUrl": "string?" },
     "content": "string",
-    "likesCount": 0,
+    "likesCount": 2,
+    "likedByMe": false,
     "replies": [],
     "createdAt": "ISO-8601",
     "updatedAt": "ISO-8601",
@@ -48,7 +49,7 @@ Create a top-level comment or a reply.
 
 **Errors:** `400` validation · `401` unauthorized · `404` paper or parent not found · `500` server
 
-**Data source:** all comment fields come from PostgreSQL (`comments` + `users`). No mock arrays. `likesCount` is `0` until a `CommentLike` table exists in schema.
+**Data source:** all comment fields come from PostgreSQL (`comments` + `users` + `comment_likes`). No mock arrays. `likedByMe` is included when the request sends `auth-user-id` (cookie or `X-User-Id`).
 
 ---
 
@@ -91,6 +92,26 @@ Edit own comment.
 **Success `200`:** `{ "success": true, "comment": CommentResponse }`
 
 **Errors:** `400` · `401` · `403` not owner · `404` · `500`
+
+---
+
+## POST `/api/comments/:id/like`
+
+Like a comment (idempotent).
+
+**Auth:** required
+
+**Success `201`:** `{ "success": true, "commentId": "uuid", "liked": true, "likesCount": 1 }`
+
+---
+
+## DELETE `/api/comments/:id/like`
+
+Remove your like.
+
+**Auth:** required
+
+**Success `200`:** `{ "success": true, "commentId": "uuid", "liked": false, "likesCount": 0 }`
 
 ---
 

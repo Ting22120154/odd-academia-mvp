@@ -70,6 +70,7 @@ model User {
   interests            UserInterest[]
   papers               Paper[]               @relation("AuthoredPapers")
   comments             Comment[]
+  commentLikes         CommentLike[]
   reports              CommentReport[]       @relation("Reporter")
   followers            Follow[]              @relation("Following")
   following            Follow[]              @relation("Follower")
@@ -187,7 +188,7 @@ model PaperReference {
   @@index([citedPaperId])
   @@map("paper_references")
 }
-
+ 
 model Comment {
   id        String   @id @default(uuid())
   paperId   String   @map("paper_id")
@@ -203,12 +204,26 @@ model Comment {
   author  User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
   parent  Comment?        @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies Comment[]       @relation("CommentReplies")
+  likes   CommentLike[]
   reports CommentReport[]
 
   @@index([paperId])
   @@index([authorId])
   @@index([parentId])
   @@map("comments")
+}
+
+model CommentLike {
+  userId    String   @map("user_id")
+  commentId String   @map("comment_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, commentId])
+  @@index([commentId])
+  @@map("comment_likes")
 }
 
 model CommentReport {

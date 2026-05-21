@@ -12,8 +12,9 @@ export type CommentResponse = {
   };
   content: string;
   citation?: string;
-  /** Always 0 until CommentLike exists in schema (not mock — no table yet). */
   likesCount: number;
+  /** Set when the request includes an authenticated viewer. */
+  likedByMe?: boolean;
   replies: CommentResponse[];
   createdAt: string;
   updatedAt: string;

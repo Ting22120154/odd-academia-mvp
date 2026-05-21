@@ -43,6 +43,14 @@ docs/api-notifications.md
 
 Comment/reply creation triggers notification rows via `comment.service.ts`.
 
+## Comment likes
+
+```
+comment_likes table in schema.prisma
+POST/DELETE /api/comments/:id/like
+likesCount + likedByMe on GET comments (when logged in)
+```
+
 ## Not in this PR
 
 - Paper like APIs (later)
