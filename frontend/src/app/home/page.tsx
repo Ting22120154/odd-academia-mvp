@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { SearchIcon } from "@/components/icons";
-import { SuggestedPaperCard } from "@/components/SuggestedPaperCard";
+import { HomeSuggestedPapers } from "@/components/HomeSuggestedPapers";
 import { mockPosts as suggestedPosts } from "@/lib/mockPosts";
 
 const CATEGORY_TABS = ["For You", "Following", "Biohacking", "Maths", "Sustainability"] as const;
@@ -80,20 +80,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Suggested papers */}
-      <div className="mt-4 rounded-2xl border border-black/[0.06] bg-white p-4 shadow-[var(--shadow-sm)]">
-        <div className="flex items-center justify-between">
-          <div className="text-sm font-semibold text-zinc-900">Suggested Paper For You</div>
-          <button type="button" className="text-sm font-medium text-[var(--brand)] hover:underline">
-            View More
-          </button>
-        </div>
-        <ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {filtered.slice(0, 4).map((p) => (
-            <SuggestedPaperCard key={p.id} post={p} />
-          ))}
-        </ul>
-      </div>
+      <HomeSuggestedPapers posts={filtered} />
     </section>
   );
 }

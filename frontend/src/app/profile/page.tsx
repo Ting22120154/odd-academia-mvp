@@ -6,8 +6,8 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { mockUser } from "@/data/mockUser";
 import { mockPosts } from "@/data/mockPosts";
+import { SavedPapersList } from "@/components/SavedPapersList";
 import { fetchSavedPapers } from "@/lib/saved-papers-client";
-import type { SavedPaperResponse } from "@/modules/saved-papers/types";
 
 type Tab = "papers" | "saved-papers" | "cited-comments";
 
@@ -35,11 +35,10 @@ const MOCK_CITED_COMMENTS = [
 ];
 
 export default function ProfilePage() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, logout } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("papers");
   const [savedCount, setSavedCount] = useState(0);
-  const [savedPapers, setSavedPapers] = useState<SavedPaperResponse[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
 
   useEffect(() => {
@@ -50,15 +49,23 @@ export default function ProfilePage() {
     if (!isLoggedIn) return;
     let cancelled = false;
     setSavedLoading(true);
-    void fetchSavedPapers().then(({ papers, count }) => {
+    void fetchSavedPapers().then(({ count }) => {
       if (cancelled) return;
-      setSavedPapers(papers);
       setSavedCount(count);
       setSavedLoading(false);
     });
     return () => {
       cancelled = true;
     };
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    const onChanged = () => {
+      if (!isLoggedIn) return;
+      void fetchSavedPapers().then(({ count }) => setSavedCount(count));
+    };
+    window.addEventListener("odd:saved-papers-changed", onChanged);
+    return () => window.removeEventListener("odd:saved-papers-changed", onChanged);
   }, [isLoggedIn]);
 
   if (!isLoggedIn) return null;
@@ -86,12 +93,21 @@ export default function ProfilePage() {
                 </span>
               </div>
             </div>
-            <Link
-              href="/profile/edit"
-              className="inline-flex h-9 items-center rounded-lg bg-[var(--brand)] px-5 text-xs font-semibold text-white hover:opacity-95"
-            >
-              Edit
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/profile/edit"
+                className="inline-flex h-9 items-center rounded-lg bg-[var(--brand)] px-5 text-xs font-semibold text-white hover:opacity-95"
+              >
+                Edit
+              </Link>
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex h-9 items-center rounded-lg border border-black/[0.08] px-5 text-xs font-semibold text-zinc-600 hover:bg-zinc-50"
+              >
+                Log out
+              </button>
+            </div>
           </div>
 
           <p className="mt-4 text-sm text-zinc-600">{mockUser.bio}</p>
@@ -128,18 +144,20 @@ export default function ProfilePage() {
         <div className="mt-4 grid grid-cols-2 gap-4">
           <MetricCard icon="papers" label="Papers" value={String(MOCK_STATS.papers)} />
           <MetricCard icon="followers" label="Followers" value={MOCK_STATS.followers} />
-          <MetricCard
-            icon="saved"
-            label="Saved Papers"
-            value={savedLoading ? "…" : String(savedCount)}
-          />
+          <Link href="/saved-papers" className="block">
+            <MetricCard
+              icon="saved"
+              label="Saved Papers"
+              value={savedLoading ? "…" : String(savedCount)}
+            />
+          </Link>
           <MetricCard icon="comments" label="Cited Comments" value={String(MOCK_STATS.citedComments)} />
         </div>
       </div>
 
       {/* Papers / Cited Comments tabs */}
       <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
-        <div className="flex items-center gap-3 border-b border-black/[0.06] pb-3">
+        <div className="flex flex-wrap items-center gap-3 border-b border-black/[0.06] pb-3">
           <TabButton active={tab === "papers"} onClick={() => setTab("papers")}>
             Papers
           </TabButton>
@@ -149,6 +167,14 @@ export default function ProfilePage() {
           <TabButton active={tab === "cited-comments"} onClick={() => setTab("cited-comments")}>
             Your Cited Comments
           </TabButton>
+          {tab === "saved-papers" ? (
+            <Link
+              href="/saved-papers"
+              className="ml-auto text-xs font-medium text-[var(--brand)] hover:underline"
+            >
+              View all →
+            </Link>
+          ) : null}
         </div>
 
         {tab === "papers" && (
@@ -167,27 +193,10 @@ export default function ProfilePage() {
 
         {tab === "saved-papers" && (
           <div className="mt-4">
-            {savedLoading ? (
-              <p className="text-sm text-zinc-500">Loading saved papers…</p>
-            ) : savedPapers.length === 0 ? (
-              <p className="text-sm text-zinc-500">
-                No saved papers yet. Save papers from the paper page to see them here.
-              </p>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {savedPapers.map((p) => (
-                  <Link key={p.paperId} href={`/paper/${p.paperId}`} className="block">
-                    <PaperCard
-                      title={p.title}
-                      desc={p.abstract ?? ""}
-                      tags={[]}
-                      image=""
-                      author={p.author.fullName}
-                    />
-                  </Link>
-                ))}
-              </div>
-            )}
+            <SavedPapersList
+              active={tab === "saved-papers"}
+              onCountChange={setSavedCount}
+            />
           </div>
         )}
 

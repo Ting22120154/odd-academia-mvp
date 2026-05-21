@@ -59,3 +59,13 @@ export async function fetchSavedPapers(): Promise<{
   if (!data.success) return { papers: [], count: 0 };
   return { papers: data.papers, count: data.count };
 }
+
+/** GET /api/papers/routes — mock route id → Neon paper id */
+export async function fetchPaperRoutes(): Promise<Record<string, string>> {
+  const res = await fetch("/api/papers/routes", { cache: "no-store" });
+  const data = await parseJson<
+    ApiSuccess<{ routes: { routeId: string; paperId: string }[] }>
+  >(res);
+  if (!data.success) return {};
+  return Object.fromEntries(data.routes.map((r) => [r.routeId, r.paperId]));
+}

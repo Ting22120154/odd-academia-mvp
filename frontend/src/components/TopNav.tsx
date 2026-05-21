@@ -2,10 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-type Props = {
-  isLoggedIn?: boolean;
-};
+import { useAuth } from "@/context/AuthContext";
 
 function IconButton({
   children,
@@ -40,8 +37,9 @@ function IconButton({
   );
 }
 
-export function TopNav({ isLoggedIn }: Props) {
+export function TopNav() {
   const pathname = usePathname();
+  const { isLoggedIn, user, logout } = useAuth();
 
   if (pathname === "/login") return null;
   if (pathname?.startsWith("/paper")) return null;
@@ -50,6 +48,7 @@ export function TopNav({ isLoggedIn }: Props) {
   const isFollowing = pathname?.startsWith("/following");
   const isNotifications = pathname?.startsWith("/notifications");
   const isProfile = pathname === "/profile" || pathname?.startsWith("/profile/") || pathname?.startsWith("/user/");
+  const isSavedPapers = pathname === "/saved-papers";
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-black/[0.06] bg-white/80 backdrop-blur">
@@ -97,27 +96,67 @@ export function TopNav({ isLoggedIn }: Props) {
               <path d="M9.5 19a2.5 2.5 0 0 0 5 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
             </svg>
           </IconButton>
-          <Link
-            href="/profile"
-            aria-label="Profile"
-            className={[
-              "inline-flex h-10 w-10 items-center justify-center rounded-full text-xs font-semibold transition",
-              isProfile
-                ? "ring-2 ring-[var(--brand)] ring-offset-2 bg-zinc-200 text-zinc-700"
-                : "bg-zinc-200 text-zinc-700 hover:bg-zinc-300",
-            ].join(" ")}
-            title="Profile"
-          >
-            <img
-              src="/avatar-placeholder.png"
-              alt=""
-              className="h-full w-full rounded-full object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
-                (e.target as HTMLImageElement).parentElement!.textContent = "G";
-              }}
-            />
-          </Link>
+          {isLoggedIn ? (
+            <IconButton href="/saved-papers" label="Saved papers" active={isSavedPapers}>
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path
+                  d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </IconButton>
+          ) : null}
+          {isLoggedIn ? (
+            <div className="flex items-center gap-2 border-l border-black/[0.06] pl-3">
+              <Link
+                href="/profile"
+                aria-label="Profile"
+                className={[
+                  "inline-flex h-10 items-center gap-2 rounded-full pr-1 transition",
+                  isProfile ? "text-[var(--brand)]" : "text-zinc-700 hover:text-zinc-900",
+                ].join(" ")}
+                title={user?.fullName ?? "Profile"}
+              >
+                <span
+                  className={[
+                    "inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold",
+                    isProfile
+                      ? "ring-2 ring-[var(--brand)] ring-offset-2 bg-zinc-200 text-zinc-700"
+                      : "bg-zinc-200 text-zinc-700",
+                  ].join(" ")}
+                >
+                  {user?.avatarUrl ? (
+                    <img
+                      src={user.avatarUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    (user?.fullName?.[0] ?? "U").toUpperCase()
+                  )}
+                </span>
+                <span className="hidden max-w-[120px] truncate text-sm font-medium sm:inline">
+                  {user?.fullName ?? "Profile"}
+                </span>
+              </Link>
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex h-10 items-center rounded-xl border border-black/[0.06] px-3 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900"
+              >
+                Log out
+              </button>
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              className="inline-flex h-10 items-center rounded-xl border border-black/[0.06] px-3 text-sm font-medium text-zinc-600 hover:bg-zinc-50"
+            >
+              Log in
+            </Link>
+          )}
         </div>
       </div>
     </header>

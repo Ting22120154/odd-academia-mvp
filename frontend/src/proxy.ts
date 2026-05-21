@@ -8,6 +8,7 @@ const PUBLIC_ROUTES = ["/login"];
 const AUTH_ONLY_PREFIXES = [
   "/profile",
   "/notifications",
+  "/saved-papers",
 ];
 
 export function proxy(request: NextRequest) {
