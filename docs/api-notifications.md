@@ -35,7 +35,7 @@ List notifications for the current user.
       "type": "Comment",
       "date": "2025-01-29",
       "isRead": false,
-      "href": "/paper/uuid",
+      "href": "/paper/1#comment-uuid",
       "createdAt": "ISO-8601"
     }
   ],

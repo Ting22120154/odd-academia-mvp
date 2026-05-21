@@ -1,4 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import {
+  getSeededPaperIds,
+  paperIdToRouteId,
+} from "@/modules/papers/paper-route.service";
 import type { SavedPaperResponse, SaveStatusResponse } from "./types";
 
 const authorSelect = {
@@ -23,17 +27,22 @@ function assertPaperExists(
   }
 }
 
-function toSavedPaperResponse(row: {
-  createdAt: Date;
-  paper: {
-    id: string;
-    title: string;
-    abstract: string | null;
-    author: { id: string; fullName: string; avatarUrl: string | null };
-  };
-}): SavedPaperResponse {
+function toSavedPaperResponse(
+  row: {
+    createdAt: Date;
+    paper: {
+      id: string;
+      title: string;
+      abstract: string | null;
+      author: { id: string; fullName: string; avatarUrl: string | null };
+    };
+  },
+  seededIds: string[],
+): SavedPaperResponse {
+  const routeId = paperIdToRouteId(row.paper.id, seededIds) ?? undefined;
   return {
     paperId: row.paper.id,
+    routeId,
     title: row.paper.title,
     abstract: row.paper.abstract ?? undefined,
     author: {
@@ -90,16 +99,19 @@ export async function getSaveStatus(userId: string, paperId: string): Promise<Sa
 }
 
 export async function listSavedPapers(userId: string): Promise<SavedPaperResponse[]> {
-  const rows = await prisma.paperSave.findMany({
-    where: {
-      userId,
-      paper: { status: { not: "removed" } },
-    },
-    include: { paper: { select: paperSelect } },
-    orderBy: { createdAt: "desc" },
-  });
+  const [rows, seededIds] = await Promise.all([
+    prisma.paperSave.findMany({
+      where: {
+        userId,
+        paper: { status: { not: "removed" } },
+      },
+      include: { paper: { select: paperSelect } },
+      orderBy: { createdAt: "desc" },
+    }),
+    getSeededPaperIds(),
+  ]);
 
-  return rows.map(toSavedPaperResponse);
+  return rows.map((row) => toSavedPaperResponse(row, seededIds));
 }
 
 export async function countSavedPapers(userId: string): Promise<number> {

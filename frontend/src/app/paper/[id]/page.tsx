@@ -1,50 +1,73 @@
 import { getMockPostById } from "@/lib/mockPosts";
+import type { MockPost } from "@/lib/mockPosts";
 import { prisma } from "@/lib/prisma";
+import {
+  getSeededPaperIds,
+  paperIdToRouteId,
+  resolveRouteToPaperId,
+} from "@/modules/papers/paper-route.service";
 import { PaperDetailClient } from "@/app/paper/_components/PaperDetailClient";
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DUMMY_PDF = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf";
 
-/** Map `/paper/1` mock ids to seeded Neon papers (same order as seed). */
-async function resolveCommentsPaperId(routeId: string): Promise<string | null> {
-  if (UUID_RE.test(routeId)) {
-    const paper = await prisma.paper.findUnique({
-      where: { id: routeId },
-      select: { id: true },
-    });
-    return paper?.id ?? null;
-  }
+function resolveMockPost(routeId: string, paperUuid: string | null, seededIds: string[]): MockPost | null {
+  const direct = getMockPostById(routeId);
+  if (direct) return direct;
 
-  const index = Number.parseInt(routeId, 10);
-  if (!Number.isInteger(index) || index < 1) return null;
+  if (!paperUuid) return null;
 
-  const papers = await prisma.paper.findMany({
-    orderBy: { createdAt: "asc" },
-    select: { id: true },
-    take: 20,
+  const mockId = paperIdToRouteId(paperUuid, seededIds);
+  if (mockId) return getMockPostById(mockId);
+
+  return null;
+}
+
+/** Fallback when the paper exists in Neon but is not in the seed/mock list. */
+async function buildPostFromDb(paperUuid: string): Promise<MockPost | null> {
+  const paper = await prisma.paper.findUnique({
+    where: { id: paperUuid },
+    select: {
+      id: true,
+      title: true,
+      abstract: true,
+      status: true,
+      author: { select: { fullName: true } },
+      categories: { take: 1, select: { category: true } },
+      keywords: { take: 2, select: { keyword: true } },
+    },
   });
-  return papers[index - 1]?.id ?? null;
+
+  if (!paper || paper.status === "removed") return null;
+
+  const abstract = paper.abstract ?? "";
+  return {
+    id: paper.id,
+    title: paper.title,
+    summary: abstract.length > 120 ? `${abstract.slice(0, 120)}…` : abstract,
+    authorName: paper.author.fullName,
+    subject: paper.categories[0]?.category ?? "",
+    tags: paper.keywords.map((k) => k.keyword),
+    fileUrl: DUMMY_PDF,
+    fileType: "pdf",
+    headerGradientClass: "bg-gradient-to-br from-indigo-300 via-blue-200 to-sky-200",
+  };
 }
 
 export default async function PaperDetailPage({
   params,
 }: {
-  /**
-   * Dynamic route: `/paper/:id`
-   *
-   * Requirement from client docs: generate a unique URL per paper so it can be shared.
-   *
-   * Note for reviewers:
-   * - This server component only resolves the data (mock for now) and delegates UI
-   *   to `PaperDetailClient` which matches the Figma layout.
-   */
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const post = getMockPostById(id);
-  const commentsPaperId = await resolveCommentsPaperId(id);
+  const seededIds = await getSeededPaperIds();
+  const commentsPaperId = resolveRouteToPaperId(id, seededIds);
 
-  if (!post) {
+  let post = resolveMockPost(id, commentsPaperId, seededIds);
+  if (!post && commentsPaperId) {
+    post = await buildPostFromDb(commentsPaperId);
+  }
+
+  if (!post || !commentsPaperId) {
     return (
       <div className="mx-auto w-full max-w-[var(--page-max)]">
         <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">

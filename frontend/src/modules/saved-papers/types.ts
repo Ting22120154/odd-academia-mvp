@@ -8,6 +8,8 @@ export type SavedPaperAuthor = {
 
 export type SavedPaperResponse = {
   paperId: string;
+  /** Mock UI route id (`1`, `2`, …) when paper matches seed order. */
+  routeId?: string;
   title: string;
   abstract?: string;
   author: SavedPaperAuthor;

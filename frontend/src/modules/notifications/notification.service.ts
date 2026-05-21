@@ -1,5 +1,9 @@
 import type { NotificationType, ReferenceType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  getSeededPaperIds,
+  paperPathForId,
+} from "@/modules/papers/paper-route.service";
 import type {
   ListNotificationsQuery,
   NotificationDisplayType,
@@ -38,6 +42,15 @@ function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+function paperCommentHref(
+  paperId: string,
+  commentId: string | null,
+  seededPaperIds: string[],
+): string {
+  const base = paperPathForId(paperId, seededPaperIds);
+  return commentId ? `${base}#comment-${commentId}` : base;
+}
+
 async function resolvePaperTitle(paperId: string): Promise<string> {
   const paper = await prisma.paper.findUnique({
     where: { id: paperId },
@@ -46,32 +59,46 @@ async function resolvePaperTitle(paperId: string): Promise<string> {
   return paper?.title ?? "Paper";
 }
 
-async function resolveCommentPaperId(commentId: string): Promise<string | null> {
+async function resolveVisibleComment(commentId: string): Promise<{
+  paperId: string;
+} | null> {
   const comment = await prisma.comment.findUnique({
     where: { id: commentId },
-    select: { paperId: true },
+    select: { paperId: true, isHidden: true },
   });
-  return comment?.paperId ?? null;
+  if (!comment || comment.isHidden) return null;
+  return { paperId: comment.paperId };
 }
 
-async function toNotificationResponse(row: NotificationRow): Promise<NotificationResponse> {
+async function toNotificationResponse(
+  row: NotificationRow,
+  seededPaperIds: string[],
+): Promise<NotificationResponse> {
   let text = "New notification";
   let href = "/notifications";
 
   if (row.type === "paper" && row.referenceType === "paper" && row.referenceId) {
     const title = await resolvePaperTitle(row.referenceId);
     text = `New paper published: ${title}`;
-    href = `/paper/${row.referenceId}`;
+    href = paperPathForId(row.referenceId, seededPaperIds);
+  } else if (row.type === "comment" && row.referenceType === "comment" && row.referenceId) {
+    const comment = await resolveVisibleComment(row.referenceId);
+    if (comment) {
+      const title = await resolvePaperTitle(comment.paperId);
+      text = `New comment on your paper: ${title}`;
+      href = paperCommentHref(comment.paperId, row.referenceId, seededPaperIds);
+    }
   } else if (row.type === "comment" && row.referenceType === "paper" && row.referenceId) {
+    // Legacy rows: reference was paper id only — open paper comments section
     const title = await resolvePaperTitle(row.referenceId);
     text = `New comment on your paper: ${title}`;
-    href = `/paper/${row.referenceId}`;
+    href = paperPathForId(row.referenceId, seededPaperIds);
   } else if (row.type === "reply" && row.referenceType === "comment" && row.referenceId) {
-    const paperId = await resolveCommentPaperId(row.referenceId);
-    if (paperId) {
-      const title = await resolvePaperTitle(paperId);
+    const comment = await resolveVisibleComment(row.referenceId);
+    if (comment) {
+      const title = await resolvePaperTitle(comment.paperId);
       text = `New reply to your comment on ${title}`;
-      href = `/paper/${paperId}`;
+      href = paperCommentHref(comment.paperId, row.referenceId, seededPaperIds);
     } else {
       text = "New reply to your comment";
     }
@@ -80,14 +107,14 @@ async function toNotificationResponse(row: NotificationRow): Promise<Notificatio
     if (row.referenceType === "paper" && row.referenceId) {
       const title = await resolvePaperTitle(row.referenceId);
       text = `Your work was cited: ${title}`;
-      href = `/paper/${row.referenceId}`;
+      href = paperPathForId(row.referenceId, seededPaperIds);
     }
   } else if (row.type === "contact") {
     text = "Someone contacted you — check your email";
     href = "/notifications";
   } else if (row.type === "follow" && row.referenceType === "user" && row.referenceId) {
     text = "You have a new follower";
-    href = `/profile/${row.referenceId}`;
+    href = `/user/${row.referenceId}`;
   }
 
   return {
@@ -127,7 +154,10 @@ export async function listNotifications(userId: string, query: ListNotifications
     },
   });
 
-  const notifications = await Promise.all(rows.map(toNotificationResponse));
+  const seededPaperIds = await getSeededPaperIds();
+  const notifications = await Promise.all(
+    rows.map((row) => toNotificationResponse(row, seededPaperIds)),
+  );
   const unreadCount = await prisma.notification.count({
     where: { userId, isRead: false },
   });
@@ -188,8 +218,8 @@ export async function createNotificationsForNewComment(input: {
       data: {
         userId: paper.authorId,
         type: "comment",
-        referenceId: paper.id,
-        referenceType: "paper",
+        referenceId: input.commentId,
+        referenceType: "comment",
       },
     });
   }

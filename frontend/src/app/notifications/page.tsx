@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { fetchNotifications } from "@/lib/notifications-client";
+import { fetchNotifications, markNotificationRead } from "@/lib/notifications-client";
 import type {
   NotificationResponse,
   NotificationSortDir,
@@ -70,6 +70,19 @@ export default function NotificationsPage() {
       setSortKey(key);
       setSortDir("desc");
     }
+  }
+
+  async function handleNotificationClick(n: NotificationResponse) {
+    if (!n.isRead) {
+      const result = await markNotificationRead(n.id);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setItems((prev) => prev.filter((item) => item.id !== n.id));
+      setUnreadCount((c) => Math.max(0, c - 1));
+    }
+    router.push(n.href);
   }
 
   return (
@@ -161,12 +174,13 @@ export default function NotificationsPage() {
                   ].join(" ")}
                 >
                   <td className="px-4 py-3">
-                    <Link
-                      href={n.href}
-                      className="font-medium text-zinc-900 hover:text-[var(--brand)] hover:underline"
+                    <button
+                      type="button"
+                      onClick={() => void handleNotificationClick(n)}
+                      className="text-left font-medium text-zinc-900 hover:text-[var(--brand)] hover:underline"
                     >
                       {n.text}
-                    </Link>
+                    </button>
                   </td>
                   <td className="px-4 py-3 text-zinc-500">{n.type}</td>
                   <td className="px-4 py-3 text-zinc-500">{n.date}</td>
