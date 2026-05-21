@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
       ? { status: status as "pending" | "reviewed" | "dismissed" }
       : {};
 
+  // SORT: Always ORDER BY createdAt DESC — newest reports surface first
   const [paperReports, commentReports, userReports] = await Promise.all([
     type === "all" || type === "paper"
       ? prisma.paperReport.findMany({

@@ -154,8 +154,18 @@ function ReportsBarChart() {
 }
 
 // ── Report card ───────────────────────────────────────────────────────────────
+// TIMEZONE: All report timestamps must render in Australia/Sydney (AEST/AEDT)
 function fmt(date: Date): string {
-  return date.toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" });
+  return date.toLocaleString("en-AU", {
+    timeZone:       "Australia/Sydney",
+    day:            "numeric",
+    month:          "short",
+    year:           "numeric",
+    hour:           "numeric",
+    minute:         "2-digit",
+    hour12:         true,
+    timeZoneName:   "short",
+  });
 }
 
 const STATUS_COLOURS: Record<string, string> = {

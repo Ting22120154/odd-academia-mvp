@@ -114,16 +114,26 @@ export default function AdminTopNav() {
         <div className="flex items-center gap-3">
           <nav className="flex items-center gap-1">
             {NAV.map(item => {
-              const active = pathname === item.href || pathname.startsWith(item.href + "/");
+              const active     = pathname === item.href || pathname.startsWith(item.href + "/");
+              const isReports  = item.href === "/reports";
+              // BADGE: Unreviewed report count must be live, not hardcoded
+              const reportBadge = isReports ? pendingCount : 0;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  className={`relative inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
                     active ? "bg-[#0066ff] text-white" : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
                   }`}
                 >
                   {item.label}
+                  {reportBadge > 0 && (
+                    <span className={`min-w-[18px] h-[18px] text-[10px] font-bold rounded-full inline-flex items-center justify-center px-1 leading-none ${
+                      active ? "bg-white text-[#0066ff]" : "bg-red-500 text-white"
+                    }`}>
+                      {reportBadge > 99 ? "99+" : reportBadge}
+                    </span>
+                  )}
                 </Link>
               );
             })}
