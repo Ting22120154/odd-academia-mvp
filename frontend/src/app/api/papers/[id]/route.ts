@@ -1,0 +1,48 @@
+import prisma from "../../../../../../packages/db/src/client";
+
+const paperInclude = {
+  author: {
+    select: {
+      id: true,
+      fullName: true,
+      avatarUrl: true,
+      bio: true,
+    },
+  },
+  keywords: true,
+  categories: true,
+  contributors: true,
+  references: true,
+} as const;
+
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+
+    const existing = await prisma.paper.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
+
+    if (!existing || existing.status === "removed") {
+      return Response.json({ error: "Paper not found" }, { status: 404 });
+    }
+
+    const paper = await prisma.paper.update({
+      where: { id },
+      data: { viewCount: { increment: 1 } },
+      include: paperInclude,
+    });
+
+    return Response.json(paper);
+  } catch (error) {
+    console.error("GET /api/papers/[id] failed:", error);
+    return Response.json(
+      { error: "Failed to fetch paper" },
+      { status: 500 },
+    );
+  }
+}
