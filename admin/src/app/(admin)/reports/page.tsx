@@ -10,6 +10,7 @@ type CommentReportRow = {
   reason:        string;
   status:        string;
   createdAt:     string;
+  commentId:     string | null;
   commentBody:   string | null;
   commentAuthor: string | null;
   comment: {
@@ -51,6 +52,7 @@ type ReportCardData = {
   reportedBy: string;
   reason:     string;
   status:     string;
+  commentId?: string;
 };
 
 function toCommentCardData(r: CommentReportRow): ReportCardData {
@@ -63,6 +65,7 @@ function toCommentCardData(r: CommentReportRow): ReportCardData {
     reportedBy: r.reporter.fullName,
     reason:     r.reason,
     status:     r.status,
+    commentId:  r.commentId ?? undefined,
   };
 }
 
@@ -161,15 +164,20 @@ const STATUS_COLOURS: Record<string, string> = {
   dismissed: "bg-gray-100 text-gray-500 border-gray-200",
 };
 
+const OUTCOMES = ["No Violation", "Misleading", "Hate Speech", "Spam", "Other"] as const;
+
 function ReportCard({
   report,
   typeTab,
   onAction,
 }: {
-  report:  ReportCardData;
-  typeTab: TypeTab;
-  onAction: (id: string, action: "review" | "dismiss") => void;
+  report:   ReportCardData;
+  typeTab:  TypeTab;
+  onAction: (id: string, action: "review" | "dismiss" | "delete_comment", note: string, outcome: string) => void;
 }) {
+  const [note,    setNote]    = useState("");
+  const [outcome, setOutcome] = useState("No Violation");
+
   return (
     <div className="bg-white rounded-xl border border-red-200 shadow-sm overflow-hidden">
       <div className="px-5 py-4">
@@ -209,19 +217,44 @@ function ReportCard({
         <p className="text-xs text-gray-500 mt-1 italic">"{report.reason}"</p>
 
         {report.status === "pending" && (
-          <div className="flex gap-2 mt-3">
-            <button
-              onClick={() => onAction(report.id, "review")}
-              className="px-3 py-1 text-xs font-medium rounded bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
+          <div className="mt-3 space-y-2">
+            {/* MODERATION: Admin notes and outcome must be persisted on the report record */}
+            <select
+              value={outcome}
+              onChange={e => setOutcome(e.target.value)}
+              className="w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 bg-white focus:outline-none focus:border-gray-400"
             >
-              Mark Reviewed
-            </button>
-            <button
-              onClick={() => onAction(report.id, "dismiss")}
-              className="px-3 py-1 text-xs font-medium rounded bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 transition-colors"
-            >
-              Dismiss
-            </button>
+              {OUTCOMES.map(o => <option key={o}>{o}</option>)}
+            </select>
+            <textarea
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              placeholder="Review notes (optional)…"
+              rows={2}
+              className="w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 resize-none focus:outline-none focus:border-gray-400"
+            />
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => onAction(report.id, "review", note, outcome)}
+                className="px-3 py-1 text-xs font-medium rounded bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
+              >
+                Mark Reviewed
+              </button>
+              <button
+                onClick={() => onAction(report.id, "dismiss", note, outcome)}
+                className="px-3 py-1 text-xs font-medium rounded bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 transition-colors"
+              >
+                Dismiss
+              </button>
+              {typeTab === "comments" && (
+                <button
+                  onClick={() => onAction(report.id, "delete_comment", note, outcome)}
+                  className="px-3 py-1 text-xs font-medium rounded bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"
+                >
+                  Delete Comment
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -282,12 +315,17 @@ export default function ReportsPage() {
 
   useEffect(() => { void fetchReports(typeTab, statusTab); }, [typeTab, statusTab, fetchReports]);
 
-  const handleAction = useCallback(async (id: string, action: "review" | "dismiss") => {
+  const handleAction = useCallback(async (
+    id:      string,
+    action:  "review" | "dismiss" | "delete_comment",
+    note:    string,
+    outcome: string,
+  ) => {
     const apiType = typeTab === "comments" ? "comment" : typeTab === "papers" ? "paper" : "user";
     await fetch(`/api/reports/${apiType}/${id}`, {
       method:  "PATCH",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ action }),
+      body:    JSON.stringify({ action, adminNote: note, outcome }),
     });
     void fetchReports(typeTab, statusTab);
   }, [typeTab, statusTab, fetchReports]);

@@ -32,11 +32,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Rehydrate from localStorage — only runs client-side (SSR-safe)
-    const storedUser = localStorage.getItem("authUser");
+    const storedUser  = localStorage.getItem("authUser");
     const storedGuest = localStorage.getItem("isGuest");
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser) as AuthUser);
+        const parsed = JSON.parse(storedUser) as AuthUser;
+        // SESSION CLEANUP: Revoke existing tokens when suspension is applied by admin
+        // Check ban status on every app load so active sessions are invalidated immediately
+        fetch(`/api/auth/status?userId=${parsed.id}`)
+          .then(r => {
+            if (r.status === 403 || r.status === 404) {
+              // Account was banned or deleted — clear stale session
+              localStorage.removeItem("authUser");
+              localStorage.removeItem("isGuest");
+              document.cookie = "auth-session=; path=/; max-age=0";
+            } else {
+              setUser(parsed);
+            }
+          })
+          .catch(() => {
+            // Network error — allow session to persist (fail open, not closed)
+            setUser(parsed);
+          })
+          .finally(() => setHydrated(true));
+        return; // hydrated is set inside the fetch chain above
       } catch {
         localStorage.removeItem("authUser");
       }

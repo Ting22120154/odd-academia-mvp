@@ -54,6 +54,8 @@ function LoginPageInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginErrors, setLoginErrors] = useState<{ email?: string; password?: string }>({});
+  // APPEAL INFO: Admin contact email must be surfaced in both email and UI error message
+  const [suspensionInfo, setSuspensionInfo] = useState<{ message: string; appealEmail: string } | null>(null);
 
   // Signup fields + errors
   const [fullName, setFullName] = useState("");
@@ -85,12 +87,26 @@ function LoginPageInner() {
       return;
     }
     setLoginErrors({});
+    setSuspensionInfo(null);
 
-    // Resolve real DB user by email — no fallback to mock IDs
+    // Validate credentials against DB — no fallback to mock IDs
     try {
-      const res = await fetch(`/api/auth/me?email=${encodeURIComponent(email.trim())}`);
+      const res = await fetch("/api/auth/me", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ email: email.trim(), password }),
+      });
+      if (res.status === 403) {
+        const data = await res.json().catch(() => ({})) as { error?: string; appealEmail?: string };
+        setSuspensionInfo({
+          message:     data.error ?? "Your account has been suspended.",
+          appealEmail: data.appealEmail ?? "support@oddacademia.com",
+        });
+        return;
+      }
       if (!res.ok) {
-        setLoginErrors({ email: "No account found with that email." });
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setLoginErrors({ email: data.error ?? "Invalid email or password." });
         return;
       }
       const dbUser = await res.json() as { id: string; fullName: string; avatarUrl: string | null };
@@ -177,6 +193,22 @@ function LoginPageInner() {
           {/* ===== LOGIN MODE ===== */}
           {mode === "login" && (
             <>
+              {suspensionInfo && (
+                <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
+                  <p className="font-semibold mb-1">Account Suspended</p>
+                  <p>{suspensionInfo.message}</p>
+                  <p className="mt-2 text-xs text-red-600">
+                    To appeal, contact:{" "}
+                    <a
+                      href={`mailto:${suspensionInfo.appealEmail}`}
+                      className="font-medium underline hover:text-red-800"
+                    >
+                      {suspensionInfo.appealEmail}
+                    </a>
+                  </p>
+                </div>
+              )}
+
               <h1 className="mb-8 text-2xl font-semibold text-gray-900">
                 Log in to Odd Academia
               </h1>

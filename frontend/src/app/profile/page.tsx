@@ -27,10 +27,11 @@ const WORK_STATUS_LABEL: Record<string, string> = {
 
 export default function ProfilePage() {
   // FIX: Always derive profile subject from authenticated session, never hardcode
-  const { user, isLoggedIn } = useAuth();
+  const { user, isLoggedIn, logout } = useAuth();
   const router = useRouter();
-  const [tab,         setTab]         = useState<Tab>("papers");
-  const [profileUser, setProfileUser] = useState<ProfileUser | null>(null);
+  const [tab,          setTab]          = useState<Tab>("papers");
+  const [profileUser,  setProfileUser]  = useState<ProfileUser | null>(null);
+  const [profileError, setProfileError] = useState(false);
 
   useEffect(() => {
     if (!isLoggedIn) router.replace("/login");
@@ -38,14 +39,28 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
+    setProfileError(false);
     // FIX: Always derive profile subject from authenticated session, never hardcode
     fetch(`/api/users/${user.id}`)
-      .then(r => r.ok ? r.json() as Promise<ProfileUser> : Promise.reject())
+      .then(r => { if (!r.ok) throw new Error("not_found"); return r.json() as Promise<ProfileUser>; })
       .then(data => setProfileUser(data))
-      .catch(() => null);
+      .catch(() => setProfileError(true));
   }, [user]);
 
   if (!isLoggedIn) return null;
+
+  if (profileError) return (
+    <div className="py-20 text-center space-y-3">
+      <p className="text-sm text-zinc-500">Could not load your profile. Your session may be outdated.</p>
+      <button
+        type="button"
+        onClick={logout}
+        className="text-sm font-medium text-[var(--brand)] hover:underline"
+      >
+        Log out and log in again
+      </button>
+    </div>
+  );
 
   if (!profileUser) return (
     <div className="py-20 text-center text-sm text-zinc-400">Loading profile…</div>

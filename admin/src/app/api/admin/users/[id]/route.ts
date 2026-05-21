@@ -1,8 +1,12 @@
 import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth/jwt";
 import { ok, err } from "@/lib/response";
 import { prisma } from "@/lib/prisma";
+
+// APPEAL INFO: Admin contact email must be surfaced in both email and UI error message
+const APPEAL_EMAIL = "support@oddacademia.com";
 
 export async function GET(
   _req: NextRequest,
@@ -50,7 +54,8 @@ export async function POST(
 
   const { id }   = await params;
   const body     = await req.json().catch(() => null);
-  const action   = body?.action as string | undefined;
+  const action   = body?.action  as string | undefined;
+  const reason   = body?.reason  as string | undefined;
 
   if (!action || !["warn", "ban", "unban"].includes(action)) {
     return err("action must be 'warn', 'ban', or 'unban'.");
@@ -72,6 +77,9 @@ export async function POST(
     userPatch = { warnCount: { increment: 1 } };
     logAction = "warn_user";
   } else if (action === "ban") {
+    // SUSPENSION FLOW: status update → revoke sessions → send email → in-app notification
+    // SESSION CLEANUP: Revoke existing tokens when suspension is applied by admin
+    // No server-side tokens exist; active sessions are invalidated on next app load via /api/auth/status
     userPatch = { isBanned: true, bannedAt: new Date() };
     logAction = "ban_user";
   } else {
@@ -79,12 +87,30 @@ export async function POST(
     logAction = "unban_user";
   }
 
-  const [updated] = await prisma.$transaction([
+  const ops: Prisma.PrismaPromise<unknown>[] = [
     prisma.user.update({ where: { id }, data: userPatch }),
     prisma.moderationLog.create({
       data: { adminId: adminUser.userId, action: logAction, targetId: id, targetType: "user" },
     }),
-  ]);
+  ];
 
+  if (action === "ban") {
+    const notifId   = crypto.randomUUID();
+    const notifBody =
+      `Your account has been banned by an administrator.` +
+      (reason ? ` Reason: ${reason}.` : "") +
+      ` To appeal, contact: ${APPEAL_EMAIL}`;
+    // $executeRaw bypasses Prisma client enum validation — 'moderation' exists in the DB enum
+    // but the local generated client is stale. Remove this workaround after prisma generate runs.
+    ops.push(
+      prisma.$executeRaw`
+        INSERT INTO "notifications" (id, user_id, type, body, reference_id, reference_type, is_read, created_at)
+        VALUES (${notifId}, ${id}, 'moderation', ${notifBody}, ${id}, 'user', false, NOW())
+      `
+    );
+    // TODO: POST to /api/email/suspension to send suspension email to user
+  }
+
+  const [updated] = await prisma.$transaction(ops);
   return ok(updated);
 }

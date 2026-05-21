@@ -29,6 +29,14 @@ interface Conversation {
   senderLastMsgRead: boolean;
 }
 
+interface ModerationNotif {
+  id:        string;
+  type:      string;
+  body:      string | null;
+  isRead:    boolean;
+  createdAt: string;
+}
+
 const INITIAL_MOCK: MockNotification[] = [
   { id: "n1", text: "New Paper Published: AI In Healthcare", type: "Paper",    date: "2023-10-01" },
   { id: "n2", text: "New Comment on your Post",              type: "Comment",  date: "2023-10-02" },
@@ -43,8 +51,9 @@ export default function NotificationsPage() {
   const [activeTab,     setActiveTab]     = useState<NotifTab>("New");
   const [sortKey,       setSortKey]       = useState<SortKey>("date");
   const [sortDir,       setSortDir]       = useState<SortDir>("asc");
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [chatWith,      setChatWith]      = useState<{ id: string; name: string } | null>(null);
+  const [conversations,    setConversations]    = useState<Conversation[]>([]);
+  const [moderationNotifs, setModerationNotifs] = useState<ModerationNotif[]>([]);
+  const [chatWith,         setChatWith]         = useState<{ id: string; name: string } | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Persist deleted mock notification IDs to localStorage
@@ -80,7 +89,7 @@ export default function NotificationsPage() {
     if (!isLoggedIn) router.replace("/login");
   }, [isLoggedIn, router]);
 
-  // Poll inbox every 5 s
+  // Poll inbox every 5 s; fetch moderation notifications once on mount
   useEffect(() => {
     if (!user) return;
     function fetchInbox() {
@@ -91,6 +100,13 @@ export default function NotificationsPage() {
     }
     fetchInbox();
     intervalRef.current = setInterval(fetchInbox, 5000);
+
+    // NOTIFICATION: Load moderation notifications created by admin review actions
+    fetch(`/api/notifications?userId=${user.id}`)
+      .then(r => r.ok ? r.json() as Promise<ModerationNotif[]> : Promise.resolve([]))
+      .then(data => setModerationNotifs(data.filter(n => n.type === "moderation")))
+      .catch(() => null);
+
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [user]);
 
@@ -131,10 +147,10 @@ export default function NotificationsPage() {
   // "Messages" tab: all conversations minus removed ones
   const visibleConvos = conversations.filter(c => !removedConvos.has(c.partnerId));
 
-  // Badge counts received-unread AND sent messages the recipient hasn't read yet
+  // Badge counts received-unread, sent-unread, AND unread moderation notifications
   const unreadTabBadge  = visibleMsgNotifs.filter(
     c => c.unread > 0 || (c.isSent && !c.senderLastMsgRead)
-  ).length;
+  ).length + moderationNotifs.filter(n => !n.isRead).length;
   const unreadMsgsBadge = visibleConvos.reduce((s, c) => s + c.unread, 0);
 
   const staticFiltered = mockNotifs.filter(n => {
@@ -148,24 +164,31 @@ export default function NotificationsPage() {
 
   // Combined rows for non-Messages tabs
   type CombinedRow =
-    | { kind: "msg";    conv: Conversation; }
-    | { kind: "static"; notif: MockNotification; };
+    | { kind: "msg";        conv: Conversation; }
+    | { kind: "moderation"; notif: ModerationNotif; }
+    | { kind: "static";     notif: MockNotification; };
 
   const combinedRows: CombinedRow[] =
     activeTab === "New"
       ? [
           ...visibleMsgNotifs.map(c => ({ kind: "msg" as const, conv: c })),
+          ...moderationNotifs.map(n => ({ kind: "moderation" as const, notif: n })),
           ...staticFiltered.map(n  => ({ kind: "static" as const, notif: n })),
         ]
-      : staticFiltered.map(n => ({ kind: "static" as const, notif: n }));
+      : activeTab === "Comments"
+        ? [
+            ...moderationNotifs.map(n => ({ kind: "moderation" as const, notif: n })),
+            ...staticFiltered.map(n  => ({ kind: "static" as const, notif: n })),
+          ]
+        : staticFiltered.map(n => ({ kind: "static" as const, notif: n }));
 
   // Sort combined rows
   const sortedRows = [...combinedRows].sort((a, b) => {
-    const mul = sortDir === "asc" ? 1 : -1;
-    const typeA = a.kind === "msg" ? "Message" : a.notif.type;
-    const typeB = b.kind === "msg" ? "Message" : b.notif.type;
-    const dateA = a.kind === "msg" ? a.conv.lastAt : a.notif.date;
-    const dateB = b.kind === "msg" ? b.conv.lastAt : b.notif.date;
+    const mul   = sortDir === "asc" ? 1 : -1;
+    const typeA = a.kind === "msg" ? "Message" : a.kind === "moderation" ? "Moderation" : a.notif.type;
+    const typeB = b.kind === "msg" ? "Message" : b.kind === "moderation" ? "Moderation" : b.notif.type;
+    const dateA = a.kind === "msg" ? a.conv.lastAt : a.kind === "moderation" ? a.notif.createdAt : a.notif.date;
+    const dateB = b.kind === "msg" ? b.conv.lastAt : b.kind === "moderation" ? b.notif.createdAt : b.notif.date;
     if (sortKey === "type") return typeA.localeCompare(typeB) * mul;
     return dateA.localeCompare(dateB) * mul;
   });
@@ -340,6 +363,31 @@ export default function NotificationsPage() {
                           </svg>
                         </button>
                       </td>
+                    </tr>
+                  );
+                }
+
+                if (row.kind === "moderation") {
+                  const { notif } = row;
+                  return (
+                    <tr key={`mod-${notif.id}`} className={`border-b border-black/[0.04] last:border-0 transition ${notif.isRead ? "hover:bg-zinc-50" : "bg-orange-50/40 hover:bg-orange-50/60"}`}>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            </svg>
+                          </span>
+                          <span className={notif.isRead ? "text-zinc-500" : "font-semibold text-zinc-900"}>
+                            {notif.body ?? "Your content was reviewed by a moderator."}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-500">Moderation</td>
+                      <td className="px-4 py-3 text-zinc-500 text-xs">
+                        {new Date(notif.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                      </td>
+                      <td className="px-4 py-3" />
                     </tr>
                   );
                 }
