@@ -77,6 +77,7 @@ model User {
   notificationSettings NotificationSettings?
   sentMessages         Message[]             @relation("SentMessages")
   receivedMessages     Message[]             @relation("ReceivedMessages")
+  savedPapers          PaperSave[]
   adminUser            AdminUser?
 
   @@index([role])
@@ -130,6 +131,7 @@ model Paper {
   citedBy        PaperReference[]   @relation("CitedPaper")
   comments       Comment[]
   linkedMessages Message[]
+  saves          PaperSave[]
 
   @@index([authorId])
   @@index([status])
@@ -236,6 +238,20 @@ model Follow {
   @@unique([followerId, followingId])
   @@index([followingId])
   @@map("follows")
+}
+
+model PaperSave {
+  userId    String   @map("user_id")
+  paperId   String   @map("paper_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paper Paper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+
+  @@id([userId, paperId])
+  @@index([userId])
+  @@index([paperId])
+  @@map("paper_saves")
 }
 
 model Notification {
