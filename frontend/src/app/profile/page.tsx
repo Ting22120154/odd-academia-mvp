@@ -6,13 +6,14 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { mockUser } from "@/data/mockUser";
 import { mockPosts } from "@/data/mockPosts";
+import { fetchSavedPapers } from "@/lib/saved-papers-client";
+import type { SavedPaperResponse } from "@/modules/saved-papers/types";
 
-type Tab = "papers" | "cited-comments";
+type Tab = "papers" | "saved-papers" | "cited-comments";
 
 const MOCK_STATS = {
   papers: 120,
   followers: "1.2K",
-  savedPapers: 14,
   citedComments: 50,
 };
 
@@ -37,10 +38,28 @@ export default function ProfilePage() {
   const { isLoggedIn } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("papers");
+  const [savedCount, setSavedCount] = useState(0);
+  const [savedPapers, setSavedPapers] = useState<SavedPaperResponse[]>([]);
+  const [savedLoading, setSavedLoading] = useState(false);
 
   useEffect(() => {
     if (!isLoggedIn) router.replace("/login");
   }, [isLoggedIn, router]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let cancelled = false;
+    setSavedLoading(true);
+    void fetchSavedPapers().then(({ papers, count }) => {
+      if (cancelled) return;
+      setSavedPapers(papers);
+      setSavedCount(count);
+      setSavedLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn]);
 
   if (!isLoggedIn) return null;
 
@@ -109,7 +128,11 @@ export default function ProfilePage() {
         <div className="mt-4 grid grid-cols-2 gap-4">
           <MetricCard icon="papers" label="Papers" value={String(MOCK_STATS.papers)} />
           <MetricCard icon="followers" label="Followers" value={MOCK_STATS.followers} />
-          <MetricCard icon="saved" label="Saved Papers" value={String(MOCK_STATS.savedPapers)} />
+          <MetricCard
+            icon="saved"
+            label="Saved Papers"
+            value={savedLoading ? "…" : String(savedCount)}
+          />
           <MetricCard icon="comments" label="Cited Comments" value={String(MOCK_STATS.citedComments)} />
         </div>
       </div>
@@ -119,6 +142,9 @@ export default function ProfilePage() {
         <div className="flex items-center gap-3 border-b border-black/[0.06] pb-3">
           <TabButton active={tab === "papers"} onClick={() => setTab("papers")}>
             Papers
+          </TabButton>
+          <TabButton active={tab === "saved-papers"} onClick={() => setTab("saved-papers")}>
+            Saved Papers
           </TabButton>
           <TabButton active={tab === "cited-comments"} onClick={() => setTab("cited-comments")}>
             Your Cited Comments
@@ -136,6 +162,32 @@ export default function ProfilePage() {
                 image={p.image.src}
               />
             ))}
+          </div>
+        )}
+
+        {tab === "saved-papers" && (
+          <div className="mt-4">
+            {savedLoading ? (
+              <p className="text-sm text-zinc-500">Loading saved papers…</p>
+            ) : savedPapers.length === 0 ? (
+              <p className="text-sm text-zinc-500">
+                No saved papers yet. Save papers from the paper page to see them here.
+              </p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {savedPapers.map((p) => (
+                  <Link key={p.paperId} href={`/paper/${p.paperId}`} className="block">
+                    <PaperCard
+                      title={p.title}
+                      desc={p.abstract ?? ""}
+                      tags={[]}
+                      image=""
+                      author={p.author.fullName}
+                    />
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -252,25 +304,35 @@ function PaperCard({
   desc,
   tags,
   image,
+  author,
 }: {
   title: string;
   desc: string;
   tags: string[];
   image: string;
+  author?: string;
 }) {
   return (
     <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
       <div className="h-32 bg-gradient-to-br from-indigo-400 via-blue-500 to-purple-600" />
       <div className="p-3">
         <div className="text-sm font-semibold text-zinc-900 line-clamp-2">{title}</div>
+        {author ? (
+          <div className="mt-1 text-xs font-medium text-zinc-600">{author}</div>
+        ) : null}
         <div className="mt-1 text-xs text-zinc-500 line-clamp-2">{desc}</div>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {tags.slice(0, 2).map((t) => (
-            <span key={t} className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600">
-              {t}
-            </span>
-          ))}
-        </div>
+        {tags.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {tags.slice(0, 2).map((t) => (
+              <span
+                key={t}
+                className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -8,10 +8,16 @@ import { mockPosts } from "@/lib/mockPosts";
 import { mockUser } from "@/data/mockUser";
 import { useAuth } from "@/context/AuthContext";
 import {
+  createComment as createCommentApi,
   deleteComment as deleteCommentApi,
   fetchCommentsForPaper,
   updateComment as updateCommentApi,
 } from "@/lib/comments-client";
+import {
+  fetchPaperSaveStatus,
+  savePaper as savePaperApi,
+  unsavePaper as unsavePaperApi,
+} from "@/lib/saved-papers-client";
 import type { CommentResponse } from "@/modules/comments/types";
 
 type Props = {
@@ -317,6 +323,10 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
 
   const [followPaper, setFollowPaper] = useState(false);
   const [followAuthor, setFollowAuthor] = useState(false);
+  const [paperSaved, setPaperSaved] = useState(false);
+  const [saveStatusLoading, setSaveStatusLoading] = useState(false);
+  const [saveActionLoading, setSaveActionLoading] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [comments, setComments] = useState<UiComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
@@ -359,6 +369,44 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
     void loadComments();
   }, [loadComments]);
 
+  const loadSaveStatus = useCallback(async () => {
+    if (!commentsPaperId || !isLoggedIn) {
+      setPaperSaved(false);
+      return;
+    }
+    setSaveStatusLoading(true);
+    setSaveError(null);
+    const status = await fetchPaperSaveStatus(commentsPaperId);
+    setSaveStatusLoading(false);
+    if (status) setPaperSaved(status.saved);
+  }, [commentsPaperId, isLoggedIn]);
+
+  useEffect(() => {
+    void loadSaveStatus();
+  }, [loadSaveStatus]);
+
+  async function toggleSavePaper() {
+    if (!commentsPaperId) {
+      setSaveError("Save is not available for this paper yet.");
+      return;
+    }
+    if (!isLoggedIn) {
+      setSaveError("Login to save papers.");
+      return;
+    }
+    setSaveActionLoading(true);
+    setSaveError(null);
+    const result = paperSaved
+      ? await unsavePaperApi(commentsPaperId)
+      : await savePaperApi(commentsPaperId);
+    setSaveActionLoading(false);
+    if (!result.ok) {
+      setSaveError(result.error);
+      return;
+    }
+    setPaperSaved(result.saved);
+  }
+
   const related = useMemo(() => {
     // Related papers are mocked by "same subject OR shared tag", excluding current post.
     return mockPosts
@@ -367,52 +415,58 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
       .slice(0, 3);
   }, [post.id, post.subject, post.tags]);
 
-  function submitTopLevelComment() {
+  async function submitTopLevelComment() {
     const trimmed = composer.trim();
-    if (!trimmed) return;
-    setComments((prev) => [
-      {
-        id: `u_${Date.now()}`,
-        authorId: mockUser.id,
-        name: "You",
-        time: "Just now",
-        text: trimmed,
-        likes: 0,
-        likedByMe: false,
-        replies: [],
-      },
-      ...prev,
-    ]);
+    if (!trimmed || actionLoading) return;
+    if (!isLoggedIn) {
+      setCommentsError("Login to post a comment.");
+      return;
+    }
+    if (!commentsPaperId) {
+      setCommentsError("Comments are not available for this paper yet.");
+      return;
+    }
+
+    setActionLoading(true);
+    setCommentsError(null);
+    const result = await createCommentApi(commentsPaperId, trimmed, {
+      citation: composerCitation.trim() || undefined,
+    });
+    setActionLoading(false);
+
+    if (!result.ok) {
+      setCommentsError(result.error);
+      return;
+    }
+
     setComposer("");
     setComposerCitation("");
+    await loadComments();
   }
 
-  function submitReply(commentId: string) {
+  async function submitReply(commentId: string) {
     const trimmed = replyDraft.trim();
-    if (!trimmed) return;
-    setComments((prev) =>
-      prev.map((c) =>
-        c.id === commentId
-          ? {
-              ...c,
-              replies: [
-                ...c.replies,
-                {
-                  id: `r_${Date.now()}`,
-                  authorId: mockUser.id,
-                  name: "You",
-                  time: "Just now",
-                  text: trimmed,
-                  likes: 0,
-                  likedByMe: false,
-                },
-              ],
-            }
-          : c
-      )
-    );
+    if (!trimmed || actionLoading) return;
+    if (!commentsPaperId) {
+      setCommentsError("Comments are not available for this paper yet.");
+      return;
+    }
+
+    setActionLoading(true);
+    setCommentsError(null);
+    const result = await createCommentApi(commentsPaperId, trimmed, {
+      parentCommentId: commentId,
+    });
+    setActionLoading(false);
+
+    if (!result.ok) {
+      setCommentsError(result.error);
+      return;
+    }
+
     setReplyDraft("");
     setActiveReplyFor(null);
+    await loadComments();
   }
 
   function isOwnComment(authorId: string) {
@@ -622,31 +676,58 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
               <Chip icon="＋">{(post.tags ?? [])[0] ?? "AI infrastructure"}</Chip>
             </div>
 
-            {/* Follow row is only visible after login (per Figma). */}
+            {/* Follow + save row (login-gated). */}
             {isLoggedIn ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <PrimaryButton
+                    onClick={() => setFollowPaper((v) => !v)}
+                    aria-pressed={followPaper}
+                    className="justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      ⤴ {followPaper ? "Following Paper" : "Follow Paper"}
+                    </span>
+                    <span className="text-white/90">35</span>
+                  </PrimaryButton>
+                  <PrimaryButton
+                    onClick={() => setFollowAuthor((v) => !v)}
+                    aria-pressed={followAuthor}
+                    className="justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      👤 {followAuthor ? "Following Author" : "Follow Author"}
+                    </span>
+                    <span className="text-white/90">35</span>
+                  </PrimaryButton>
+                </div>
                 <PrimaryButton
-                  onClick={() => setFollowPaper((v) => !v)}
-                  aria-pressed={followPaper}
-                  className="justify-between"
+                  type="button"
+                  onClick={() => void toggleSavePaper()}
+                  disabled={!commentsPaperId || saveStatusLoading || saveActionLoading}
+                  aria-pressed={paperSaved}
+                  className="w-full justify-center"
                 >
-                  <span className="flex items-center gap-2">
-                    ⤴ {followPaper ? "Following Paper" : "Follow Paper"}
-                  </span>
-                  <span className="text-white/90">35</span>
+                  {saveActionLoading
+                    ? "Saving…"
+                    : saveStatusLoading
+                      ? "Loading…"
+                      : paperSaved
+                        ? "★ Saved"
+                        : "☆ Save Paper"}
                 </PrimaryButton>
-                <PrimaryButton
-                  onClick={() => setFollowAuthor((v) => !v)}
-                  aria-pressed={followAuthor}
-                  className="justify-between"
-                >
-                  <span className="flex items-center gap-2">
-                    👤 {followAuthor ? "Following Author" : "Follow Author"}
-                  </span>
-                  <span className="text-white/90">35</span>
-                </PrimaryButton>
+                {saveError ? (
+                  <p className="text-xs text-red-600">{saveError}</p>
+                ) : null}
               </div>
-            ) : null}
+            ) : (
+              <Link
+                href="/login"
+                className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-[var(--brand)] text-sm font-medium text-[var(--brand)] hover:bg-[rgba(0,102,255,0.04)]"
+              >
+                Login to save this paper
+              </Link>
+            )}
           </section>
 
           {/* Reader */}
@@ -735,7 +816,9 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
                 />
 
                 <div className="flex items-center gap-3">
-                  <PrimaryButton onClick={submitTopLevelComment}>Post Comment</PrimaryButton>
+                  <PrimaryButton onClick={() => void submitTopLevelComment()} disabled={actionLoading}>
+                    {actionLoading ? "Posting…" : "Post Comment"}
+                  </PrimaryButton>
                   <OutlineButton onClick={() => copyToClipboard(citation)} title="Copy citation">
                     Copy citation
                   </OutlineButton>
@@ -898,7 +981,12 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
                               placeholder="Write a reply…"
                               className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm outline-none focus:border-black/20"
                             />
-                            <PrimaryButton onClick={() => submitReply(c.id)}>Reply</PrimaryButton>
+                            <PrimaryButton
+                              onClick={() => void submitReply(c.id)}
+                              disabled={actionLoading}
+                            >
+                              Reply
+                            </PrimaryButton>
                           </div>
                         ) : null}
                       </div>

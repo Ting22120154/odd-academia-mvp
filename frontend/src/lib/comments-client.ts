@@ -7,6 +7,28 @@ async function parseJson<T>(res: Response): Promise<T | ApiError> {
   return res.json() as Promise<T | ApiError>;
 }
 
+/** POST /api/comments — create top-level comment or reply */
+export async function createComment(
+  paperId: string,
+  content: string,
+  opts?: { parentCommentId?: string; citation?: string },
+): Promise<{ ok: true; comment: CommentResponse } | { ok: false; error: string }> {
+  const res = await fetch("/api/comments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      paperId,
+      content,
+      parentCommentId: opts?.parentCommentId,
+      citation: opts?.citation,
+    }),
+  });
+  const data = await parseJson<ApiSuccess<{ comment: CommentResponse }>>(res);
+  if (!data.success) return { ok: false, error: data.error };
+  return { ok: true, comment: data.comment };
+}
+
 /** GET /api/comments/paper/:paperId — public threaded list */
 export async function fetchCommentsForPaper(paperId: string): Promise<CommentResponse[]> {
   const res = await fetch(`/api/comments/paper/${paperId}`, { cache: "no-store" });

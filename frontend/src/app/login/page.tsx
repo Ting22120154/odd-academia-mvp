@@ -76,7 +76,7 @@ function LoginPageInner() {
     setSignupErrors({});
   }
 
-  function handleLogin() {
+  async function handleLogin() {
     const errs: { email?: string; password?: string } = {};
     if (!email.trim()) errs.email = "Email is required.";
     if (!password.trim()) errs.password = "Password is required.";
@@ -85,11 +85,34 @@ function LoginPageInner() {
       return;
     }
     setLoginErrors({});
+
+    const loginEmail = email.trim().toLowerCase();
+    const res = await fetch("/api/auth/bridge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email: loginEmail }),
+    });
+    const data = (await res.json()) as {
+      success?: boolean;
+      error?: string;
+      user?: { id: string; fullName: string; email: string; avatarUrl?: string };
+    };
+
+    if (!data.success || !data.user) {
+      setLoginErrors({
+        email:
+          data.error ??
+          "No account in the database for this email. Try rick.smith@example.com after pnpm db:seed.",
+      });
+      return;
+    }
+
     login({
-      id: mockUser.id,
-      fullName: mockUser.fullName,
-      email: email.trim(),
-      avatarUrl: mockUser.avatarUrl,
+      id: data.user.id,
+      fullName: data.user.fullName,
+      email: data.user.email,
+      avatarUrl: data.user.avatarUrl ?? mockUser.avatarUrl,
     });
   }
 

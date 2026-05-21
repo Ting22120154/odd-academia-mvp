@@ -16,9 +16,8 @@ export function proxy(request: NextRequest) {
   const isLoggedIn = session === "user";
   const isGuest = session === "guest";
 
-  // Public route: redirect to "/" if already logged in, otherwise allow through
+  // Login page is always reachable (use Sign Out to test login again)
   if (PUBLIC_ROUTES.includes(pathname)) {
-    if (isLoggedIn) return NextResponse.redirect(new URL("/", request.url));
     return NextResponse.next();
   }
 

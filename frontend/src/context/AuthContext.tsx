@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import type { MockUser } from "@/data/mockUser";
+import { AUTH_USER_COOKIE } from "@/lib/auth/session";
 
 type AuthUser = Pick<MockUser, "id" | "fullName" | "email" | "avatarUrl">;
 
@@ -36,7 +37,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedGuest = localStorage.getItem("isGuest");
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser) as AuthUser);
+        const parsed = JSON.parse(storedUser) as AuthUser;
+        setUser(parsed);
+        // Sync Neon user id for APIs (fixes legacy mock ids like u_1)
+        if (parsed.email) {
+          void fetch("/api/auth/bridge", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ email: parsed.email }),
+          })
+            .then((res) => res.json())
+            .then((data: { success?: boolean; user?: AuthUser }) => {
+              if (!data.success || !data.user?.id) return;
+              const updated = { ...parsed, ...data.user };
+              localStorage.setItem("authUser", JSON.stringify(updated));
+              document.cookie = `${AUTH_USER_COOKIE}=${encodeURIComponent(data.user.id)}; path=/; max-age=604800; samesite=lax`;
+              setUser(updated);
+            })
+            .catch(() => {});
+        }
       } catch {
         localStorage.removeItem("authUser");
       }
@@ -50,8 +70,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (userData: AuthUser) => {
       localStorage.setItem("authUser", JSON.stringify(userData));
       localStorage.removeItem("isGuest");
-      // Mirror into cookie so proxy.ts can read it server-side
+      // Mirror into cookies so proxy + comment APIs can read session server-side
       document.cookie = "auth-session=user; path=/; max-age=604800";
+      document.cookie = `${AUTH_USER_COOKIE}=${encodeURIComponent(userData.id)}; path=/; max-age=604800; samesite=lax`;
       setUser(userData);
       setIsGuest(false);
       router.push("/");
@@ -64,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("isGuest");
     localStorage.removeItem("guestViewedPapers");
     document.cookie = "auth-session=; path=/; max-age=0";
+    document.cookie = `${AUTH_USER_COOKIE}=; path=/; max-age=0`;
     setUser(null);
     setIsGuest(false);
     router.push("/login");

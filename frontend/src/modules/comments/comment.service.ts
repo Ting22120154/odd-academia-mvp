@@ -100,6 +100,16 @@ export async function getCommentsForPaper(paperId: string) {
     }
   }
 
+  const byNewest = (a: CommentResponse, b: CommentResponse) =>
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  const byOldest = (a: CommentResponse, b: CommentResponse) =>
+    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+
+  roots.sort(byNewest);
+  for (const root of roots) {
+    root.replies.sort(byOldest);
+  }
+
   return roots;
 }
 
