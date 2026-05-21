@@ -23,13 +23,50 @@ export async function PATCH(
   const newStatus = action === "dismiss" ? "dismissed" : "reviewed";
 
   if (type === "paper") {
-    const updated = await prisma.paperReport.update({ where: { id }, data: { status: newStatus } });
-    return ok(updated);
+    const report = await prisma.paperReport.findUnique({
+      where:   { id },
+      include: { paper: { select: { authorId: true } } },
+    });
+    if (!report) return err("Report not found.", 404);
+
+    await prisma.paperReport.update({ where: { id }, data: { status: newStatus } });
+
+    // NOTIFICATION: Paper author must be notified on report resolution
+    const authorId = report.paper?.authorId;
+    if (authorId) {
+      const notifId   = crypto.randomUUID();
+      const verb      = action === "dismiss" ? "dismissed (no violation found)" : "reviewed by a moderator";
+      const notifBody = `A report about your paper has been ${verb}.`;
+      const refId     = report.paperId ?? null;
+      await (refId
+        ? prisma.$executeRaw`
+            INSERT INTO "notifications" (id, user_id, type, body, reference_id, reference_type, is_read, created_at)
+            VALUES (${notifId}, ${authorId}, 'moderation', ${notifBody}, ${refId}, 'paper', false, NOW())
+          `
+        : prisma.$executeRaw`
+            INSERT INTO "notifications" (id, user_id, type, body, is_read, created_at)
+            VALUES (${notifId}, ${authorId}, 'moderation', ${notifBody}, false, NOW())
+          `
+      );
+    }
+    return ok({ ok: true });
   }
 
   if (type === "user") {
-    const updated = await prisma.userReport.update({ where: { id }, data: { status: newStatus } });
-    return ok(updated);
+    const report = await prisma.userReport.findUnique({ where: { id } });
+    if (!report) return err("Report not found.", 404);
+
+    await prisma.userReport.update({ where: { id }, data: { status: newStatus } });
+
+    // NOTIFICATION: Reported user must be notified on report resolution
+    const notifId   = crypto.randomUUID();
+    const verb      = action === "dismiss" ? "dismissed (no violation found)" : "reviewed by a moderator";
+    const notifBody = `A report about your account has been ${verb}.`;
+    await prisma.$executeRaw`
+      INSERT INTO "notifications" (id, user_id, type, body, reference_id, reference_type, is_read, created_at)
+      VALUES (${notifId}, ${report.reportedId}, 'moderation', ${notifBody}, ${id}, 'user', false, NOW())
+    `;
+    return ok({ ok: true });
   }
 
   if (type === "comment") {
