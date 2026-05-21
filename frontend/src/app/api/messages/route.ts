@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "me and with query params are required." }, { status: 400 });
   }
 
-  // Mark incoming messages as read
+  // STATUS LOGIC: 'seen' must only be set when recipient's read event fires
   await prisma.message.updateMany({
     where: { senderId: with_, recipientId: me, isRead: false },
     data:  { isRead: true },

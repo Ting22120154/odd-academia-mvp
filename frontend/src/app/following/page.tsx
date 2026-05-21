@@ -13,35 +13,14 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "followers", label: "People Following You" },
 ];
 
-interface MockPerson {
-  id: string;
-  name: string;
-  username: string;
-  avatarUrl?: string;
-  isFollowing: boolean;
-}
-
-const MOCK_PEOPLE_YOU_FOLLOW: MockPerson[] = [
-  { id: "p1", name: "Cassian Voss", username: "cassianv", isFollowing: true },
-  { id: "p2", name: "Lyra Solis", username: "lyrasolis", isFollowing: true },
-  { id: "p3", name: "Nyx Aris", username: "nyxaris", isFollowing: true },
-  { id: "p4", name: "Nova Aether", username: "novaa", isFollowing: true },
-  { id: "p5", name: "Atlas Thorne", username: "atlast", isFollowing: true },
-  { id: "p6", name: "Sam Night", username: "samnight", isFollowing: true },
-  { id: "p7", name: "Phoenix Ember", username: "phoenixe", isFollowing: true },
-];
-
-const MOCK_FOLLOWERS: MockPerson[] = [
-  { id: "f1", name: "Elara Nox", username: "elaranox", isFollowing: false },
-  { id: "f2", name: "Cassian Voss", username: "cassianv", isFollowing: true },
-  { id: "f3", name: "Lyra Solis", username: "lyrasolis", isFollowing: true },
-  { id: "f4", name: "Orion Vega", username: "orionv", isFollowing: false },
-  { id: "f5", name: "Dorian Zephyr", username: "dorianz", isFollowing: false },
-  { id: "f6", name: "Selena Astra", username: "selenaastra", isFollowing: false },
-  { id: "f7", name: "Nova Aether", username: "novaa", isFollowing: true },
-  { id: "f8", name: "Atlas Thorne", username: "atlast", isFollowing: true },
-  { id: "f9", name: "Phoenix Ember", username: "phoenixe", isFollowing: true },
-];
+type DbUser = {
+  id:         string;
+  fullName:   string;
+  username:   string;
+  workStatus: string;
+  jobTitle:   string | null;
+  avatarUrl:  string | null;
+};
 
 interface MockFollowedPaper {
   id: string;
@@ -63,29 +42,24 @@ const MOCK_FOLLOWED_PAPERS: MockFollowedPaper[] = [
 ];
 
 export default function FollowingPage() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("papers");
-  const [people, setPeople] = useState(MOCK_PEOPLE_YOU_FOLLOW);
-  const [followers, setFollowers] = useState(MOCK_FOLLOWERS);
+  const [dbUsers, setDbUsers] = useState<DbUser[]>([]);
 
   useEffect(() => {
     if (!isLoggedIn) router.replace("/login");
   }, [isLoggedIn, router]);
 
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    fetch("/api/users")
+      .then(r => r.ok ? r.json() as Promise<DbUser[]> : Promise.resolve([]))
+      .then(data => setDbUsers(data.filter(u => u.id !== user?.id)))
+      .catch(() => null);
+  }, [isLoggedIn, user?.id]);
+
   if (!isLoggedIn) return null;
-
-  function toggleFollowPeople(id: string) {
-    setPeople((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, isFollowing: !p.isFollowing } : p)),
-    );
-  }
-
-  function toggleFollowFollower(id: string) {
-    setFollowers((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, isFollowing: !p.isFollowing } : p)),
-    );
-  }
 
   return (
     <section className="mx-auto w-full max-w-[var(--page-max)]">
@@ -146,43 +120,33 @@ export default function FollowingPage() {
       {/* People You Follow */}
       {tab === "people" && (
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {people.map((p) => (
-            <PersonCard
-              key={p.id}
-              person={p}
-              actionLabel={p.isFollowing ? "Unfollow" : "Follow"}
-              onAction={() => toggleFollowPeople(p.id)}
-            />
-          ))}
+          {dbUsers.length === 0 ? (
+            <div className="col-span-full py-10 text-center text-sm text-zinc-400">Loading users…</div>
+          ) : (
+            dbUsers.map((u) => (
+              <PersonCard key={u.id} person={{ id: u.id, name: u.fullName, username: u.username }} />
+            ))
+          )}
         </div>
       )}
 
       {/* People Following You */}
       {tab === "followers" && (
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {followers.map((p) => (
-            <PersonCard
-              key={p.id}
-              person={p}
-              actionLabel={p.isFollowing ? "Unfollow" : "Follow Back"}
-              onAction={() => toggleFollowFollower(p.id)}
-            />
-          ))}
+          {dbUsers.length === 0 ? (
+            <div className="col-span-full py-10 text-center text-sm text-zinc-400">Loading users…</div>
+          ) : (
+            dbUsers.map((u) => (
+              <PersonCard key={u.id} person={{ id: u.id, name: u.fullName, username: u.username }} />
+            ))
+          )}
         </div>
       )}
     </section>
   );
 }
 
-function PersonCard({
-  person,
-  actionLabel,
-  onAction,
-}: {
-  person: MockPerson;
-  actionLabel: string;
-  onAction: () => void;
-}) {
+function PersonCard({ person }: { person: { id: string; name: string; username: string } }) {
   return (
     <div className="flex flex-col items-center rounded-xl border border-black/[0.06] bg-white p-5 shadow-[var(--shadow-sm)]">
       <Link href={`/user/${person.id}`}>
@@ -194,15 +158,9 @@ function PersonCard({
       <div className="text-xs text-zinc-500">@{person.username}</div>
       <button
         type="button"
-        onClick={onAction}
-        className={[
-          "mt-3 inline-flex h-8 items-center rounded-lg px-5 text-xs font-medium",
-          person.isFollowing
-            ? "bg-[var(--brand)] text-white hover:opacity-90"
-            : "bg-[var(--brand)] text-white hover:opacity-90",
-        ].join(" ")}
+        className="mt-3 inline-flex h-8 items-center rounded-lg bg-[var(--brand)] px-5 text-xs font-medium text-white hover:opacity-90"
       >
-        {actionLabel}
+        Follow
       </button>
     </div>
   );

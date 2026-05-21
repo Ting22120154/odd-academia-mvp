@@ -6,35 +6,40 @@ import { mockPosts } from "@/data/mockPosts";
 import { useAuth } from "@/context/AuthContext";
 import { ChatModal } from "@/components/ChatModal";
 
-const MOCK_OTHER_USER = {
-  fullName: "Evelyn Harper",
-  username: "Ev_Harper",
-  email: "evharper@gmail.com",
-  workStatus: "Open for Work",
-  bio: "Dr. Evelyn Harper is a passionate advocate for sustainable energy, with a strong focus on renewable technologies. She has written extensively on the subject and is a sought-after speaker at events promoting green energy solutions.",
-  followers: "1.2k",
-  following: 300,
-  avatarUrl: "/avatars/avatar-2.svg",
-  stats: { papers: 120, followers: "1.2K", savedPapers: 14, citedComments: 50 },
+type ProfileUser = {
+  id:         string;
+  fullName:   string;
+  username:   string;
+  workStatus: string;
+  jobTitle:   string | null;
+  bio:        string | null;
+  avatarUrl:  string | null;
+};
+
+const WORK_STATUS_LABEL: Record<string, string> = {
+  open:      "Open for Work",
+  freelance: "Freelance",
+  not_open:  "Not Open",
+  none:      "",
 };
 
 export default function UserProfilePage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
 
+  const [profileUser,    setProfileUser]    = useState<ProfileUser | null>(null);
+  const [profileNotFound, setProfileNotFound] = useState(false);
   const [chatOpen,       setChatOpen]       = useState(false);
-  const [realRecipientId, setRealRecipientId] = useState<string | null>(null);
-
-  // Resolve the mock profile user's real DB UUID so chat messages save correctly
-  useEffect(() => {
-    fetch(`/api/auth/me?email=${encodeURIComponent(MOCK_OTHER_USER.email)}`)
-      .then(r => r.ok ? r.json() as Promise<{ id: string }> : Promise.reject())
-      .then(data => setRealRecipientId(data.id))
-      .catch(() => null);
-  }, []);
   const [reportingUser,  setReportingUser]  = useState(false);
   const [reportDraft,    setReportDraft]    = useState({ subject: "", description: "" });
   const [reportStatus,   setReportStatus]   = useState<"idle" | "sending" | "done">("idle");
+
+  useEffect(() => {
+    fetch(`/api/users/${id}`)
+      .then(r => r.ok ? r.json() as Promise<ProfileUser> : Promise.reject())
+      .then(data => setProfileUser(data))
+      .catch(() => setProfileNotFound(true));
+  }, [id]);
 
   async function submitUserReport() {
     if (!user) return;
@@ -43,15 +48,24 @@ export default function UserProfilePage() {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        type:        "user",
-        reportedId:  id,
-        reporterId:  user.id,
-        subject:     reportDraft.subject,
-        reason:      reportDraft.description,
+        type:       "user",
+        reportedId: id,
+        reporterId: user.id,
+        subject:    reportDraft.subject,
+        reason:     reportDraft.description,
       }),
     });
     setReportStatus("done");
   }
+
+  if (profileNotFound) return (
+    <div className="py-20 text-center text-sm text-zinc-400">User not found.</div>
+  );
+  if (!profileUser) return (
+    <div className="py-20 text-center text-sm text-zinc-400">Loading…</div>
+  );
+
+  const workStatusLabel = WORK_STATUS_LABEL[profileUser.workStatus] ?? profileUser.workStatus;
 
   return (
     <section className="mx-auto w-full max-w-[var(--page-max)] space-y-6">
@@ -62,12 +76,14 @@ export default function UserProfilePage() {
           <div className="-mt-12 flex items-end gap-4">
             <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-white bg-zinc-200" />
             <div className="flex-1 pb-1">
-              <h1 className="text-xl font-bold text-zinc-900">{MOCK_OTHER_USER.fullName}</h1>
+              <h1 className="text-xl font-bold text-zinc-900">{profileUser.fullName}</h1>
               <div className="flex items-center gap-2 text-sm text-zinc-500">
-                <span>@{MOCK_OTHER_USER.username}</span>
-                <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-600">
-                  {MOCK_OTHER_USER.workStatus}
-                </span>
+                <span>@{profileUser.username}</span>
+                {workStatusLabel && (
+                  <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-600">
+                    {workStatusLabel}
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex gap-2">
@@ -99,15 +115,15 @@ export default function UserProfilePage() {
             </div>
           </div>
 
-          <p className="mt-4 text-sm text-zinc-600">{MOCK_OTHER_USER.bio}</p>
+          <p className="mt-4 text-sm text-zinc-600">{profileUser.bio ?? "No bio provided."}</p>
 
           <div className="mt-3 flex items-center gap-4 text-sm">
             <span>
-              <strong className="text-zinc-900">{MOCK_OTHER_USER.followers}</strong>{" "}
+              <strong className="text-zinc-900">—</strong>{" "}
               <span className="text-zinc-500">followers</span>
             </span>
             <span>
-              <strong className="text-zinc-900">{MOCK_OTHER_USER.following}</strong>{" "}
+              <strong className="text-zinc-900">—</strong>{" "}
               <span className="text-zinc-500">following</span>
             </span>
           </div>
@@ -133,10 +149,10 @@ export default function UserProfilePage() {
         <div className="mt-4 grid grid-cols-2 gap-4">
           {(
             [
-              ["Papers", MOCK_OTHER_USER.stats.papers],
-              ["Followers", MOCK_OTHER_USER.stats.followers],
-              ["Saved Papers", MOCK_OTHER_USER.stats.savedPapers],
-              ["Cited Comments", MOCK_OTHER_USER.stats.citedComments],
+              ["Papers", "—"],
+              ["Followers", "—"],
+              ["Saved Papers", "—"],
+              ["Cited Comments", "—"],
             ] as const
           ).map(([label, value]) => (
             <div key={label} className="flex items-center gap-3 rounded-2xl border border-black/[0.06] bg-white p-4">
@@ -174,10 +190,10 @@ export default function UserProfilePage() {
       </div>
 
       {/* Chat modal */}
-      {chatOpen && realRecipientId && (
+      {chatOpen && (
         <ChatModal
-          recipientId={realRecipientId}
-          recipientName={MOCK_OTHER_USER.fullName}
+          recipientId={id}
+          recipientName={profileUser.fullName}
           onClose={() => setChatOpen(false)}
         />
       )}

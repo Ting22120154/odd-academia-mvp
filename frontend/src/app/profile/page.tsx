@@ -4,45 +4,54 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { mockUser } from "@/data/mockUser";
 import { mockPosts } from "@/data/mockPosts";
 
 type Tab = "papers" | "cited-comments";
 
-const MOCK_STATS = {
-  papers: 120,
-  followers: "1.2K",
-  savedPapers: 14,
-  citedComments: 50,
+type ProfileUser = {
+  id:         string;
+  fullName:   string;
+  username:   string;
+  workStatus: string;
+  jobTitle:   string | null;
+  bio:        string | null;
+  avatarUrl:  string | null;
 };
 
-const MOCK_CITED_COMMENTS = [
-  {
-    id: "cc-1",
-    paperTitle: "Interesting Facts About AI",
-    paperSubtitle: "How AI Is Changing the Future",
-    tags: ["AI infrastructure", "Computer science"],
-    author: mockUser.fullName,
-    avatarUrl: mockUser.avatarUrl,
-    comment:
-      "I've made some comments on my own paper around ethical challenges posed by autonomous AI systems, advocating for a responsible approach to AI development that prioritises human values and societal needs. Key considerations include privacy, job displacement, and the need for regulatory frameworks to ensure AI benefits all of humanity.",
-    citationRef:
-      'Cited contribution 04-Ethical Implications of Autonomous AI: Balancing Innovation and Responsibility (2024)',
-    replies: 2,
-    likes: 21,
-  },
-];
+const WORK_STATUS_LABEL: Record<string, string> = {
+  open:      "Open for Work",
+  freelance: "Freelance",
+  not_open:  "Not Open",
+  none:      "",
+};
 
 export default function ProfilePage() {
-  const { isLoggedIn } = useAuth();
+  // FIX: Always derive profile subject from authenticated session, never hardcode
+  const { user, isLoggedIn } = useAuth();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("papers");
+  const [tab,         setTab]         = useState<Tab>("papers");
+  const [profileUser, setProfileUser] = useState<ProfileUser | null>(null);
 
   useEffect(() => {
     if (!isLoggedIn) router.replace("/login");
   }, [isLoggedIn, router]);
 
+  useEffect(() => {
+    if (!user) return;
+    // FIX: Always derive profile subject from authenticated session, never hardcode
+    fetch(`/api/users/${user.id}`)
+      .then(r => r.ok ? r.json() as Promise<ProfileUser> : Promise.reject())
+      .then(data => setProfileUser(data))
+      .catch(() => null);
+  }, [user]);
+
   if (!isLoggedIn) return null;
+
+  if (!profileUser) return (
+    <div className="py-20 text-center text-sm text-zinc-400">Loading profile…</div>
+  );
+
+  const workStatusLabel = WORK_STATUS_LABEL[profileUser.workStatus] ?? profileUser.workStatus;
 
   return (
     <section className="mx-auto w-full max-w-[var(--page-max)] space-y-6">
@@ -52,19 +61,21 @@ export default function ProfilePage() {
         <div className="relative px-6 pb-6">
           <div className="-mt-12 flex items-end gap-4">
             <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-white bg-zinc-200">
-              {mockUser.avatarUrl && (
-                <img src={mockUser.avatarUrl} alt="" className="h-full w-full object-cover" />
+              {profileUser.avatarUrl && (
+                <img src={profileUser.avatarUrl} alt="" className="h-full w-full object-cover" />
               )}
             </div>
             <div className="flex-1 pb-1">
               <div className="flex items-center gap-3">
-                <h1 className="text-xl font-bold text-zinc-900">{mockUser.fullName}</h1>
+                <h1 className="text-xl font-bold text-zinc-900">{profileUser.fullName}</h1>
               </div>
               <div className="flex items-center gap-2 text-sm text-zinc-500">
-                <span>@{mockUser.username}</span>
-                <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-600">
-                  {mockUser.workStatus}
-                </span>
+                <span>@{profileUser.username}</span>
+                {workStatusLabel && (
+                  <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-600">
+                    {workStatusLabel}
+                  </span>
+                )}
               </div>
             </div>
             <Link
@@ -75,26 +86,26 @@ export default function ProfilePage() {
             </Link>
           </div>
 
-          <p className="mt-4 text-sm text-zinc-600">{mockUser.bio}</p>
+          <p className="mt-4 text-sm text-zinc-600">{profileUser.bio ?? "No bio provided."}</p>
 
           <div className="mt-3 flex items-center gap-4 text-sm">
             <span>
-              <strong className="text-zinc-900">3k</strong>{" "}
+              <strong className="text-zinc-900">—</strong>{" "}
               <span className="text-zinc-500">followers</span>
             </span>
             <span>
-              <strong className="text-zinc-900">125</strong>{" "}
+              <strong className="text-zinc-900">—</strong>{" "}
               <span className="text-zinc-500">following</span>
             </span>
           </div>
 
           <div className="mt-2 flex items-center gap-3">
-            <a href={`https://github.com${mockUser.github}`} className="text-zinc-500 hover:text-zinc-900">
+            <a href="#" className="text-zinc-500 hover:text-zinc-900">
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2Z" />
               </svg>
             </a>
-            <a href={`https://linkedin.com/in/${mockUser.linkedin}`} className="text-zinc-500 hover:text-zinc-900">
+            <a href="#" className="text-zinc-500 hover:text-zinc-900">
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286ZM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065ZM6.918 20.452H3.756V9h3.162v11.452ZM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003Z" />
               </svg>
@@ -107,10 +118,10 @@ export default function ProfilePage() {
       <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
         <div className="text-sm font-semibold text-zinc-900">Engagement Metrics</div>
         <div className="mt-4 grid grid-cols-2 gap-4">
-          <MetricCard icon="papers" label="Papers" value={String(MOCK_STATS.papers)} />
-          <MetricCard icon="followers" label="Followers" value={MOCK_STATS.followers} />
-          <MetricCard icon="saved" label="Saved Papers" value={String(MOCK_STATS.savedPapers)} />
-          <MetricCard icon="comments" label="Cited Comments" value={String(MOCK_STATS.citedComments)} />
+          <MetricCard icon="papers"    label="Papers"          value="—" />
+          <MetricCard icon="followers" label="Followers"       value="—" />
+          <MetricCard icon="saved"     label="Saved Papers"    value="—" />
+          <MetricCard icon="comments"  label="Cited Comments"  value="—" />
         </div>
       </div>
 
@@ -133,42 +144,14 @@ export default function ProfilePage() {
                 title={p.title}
                 desc={p.description}
                 tags={p.tags}
-                image={p.image.src}
               />
             ))}
           </div>
         )}
 
         {tab === "cited-comments" && (
-          <div className="mt-4 space-y-4">
-            {MOCK_CITED_COMMENTS.map((cc) => (
-              <div key={cc.id} className="space-y-3">
-                <div>
-                  <div className="text-base font-semibold text-zinc-900">{cc.paperTitle}</div>
-                  <div className="text-sm text-zinc-500">{cc.paperSubtitle}</div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {cc.tags.map((t) => (
-                      <span key={t} className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600">
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-black/[0.06] p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 overflow-hidden rounded-full bg-zinc-200" />
-                    <span className="text-sm font-semibold text-zinc-900">{cc.author}</span>
-                  </div>
-                  <p className="mt-3 text-sm text-zinc-600">{cc.comment}</p>
-                  <p className="mt-2 text-sm text-[var(--brand)]">{cc.citationRef}</p>
-                  <div className="mt-3 flex items-center gap-4 text-xs text-zinc-500">
-                    <span>{cc.replies} Reply</span>
-                    <span>{cc.likes} Like</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="mt-4 py-8 text-center text-sm text-zinc-400">
+            No cited comments yet.
           </div>
         )}
       </div>
@@ -251,12 +234,10 @@ function PaperCard({
   title,
   desc,
   tags,
-  image,
 }: {
   title: string;
   desc: string;
   tags: string[];
-  image: string;
 }) {
   return (
     <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">

@@ -14,20 +14,34 @@ export async function POST(req: NextRequest) {
   }
 
   if (type === "comment") {
-    const { commentId, reason } = body as Record<string, string>;
-    if (!commentId || !reason) {
-      return NextResponse.json({ error: "commentId and reason are required." }, { status: 400 });
+    const { commentBody, commentAuthor, reason } = body as Record<string, string>;
+    if (!reason) {
+      return NextResponse.json({ error: "reason is required." }, { status: 400 });
     }
-    const report = await prisma.commentReport.create({ data: { commentId, reporterId, reason } });
+    const report = await prisma.commentReport.create({
+      data: {
+        commentBody:   commentBody   ?? null,
+        commentAuthor: commentAuthor ?? null,
+        reporterId,
+        reason,
+      },
+    });
     return NextResponse.json(report, { status: 201 });
   }
 
   if (type === "paper") {
-    const { paperId, subject, reason } = body as Record<string, string>;
-    if (!paperId || !subject || !reason) {
-      return NextResponse.json({ error: "paperId, subject and reason are required." }, { status: 400 });
+    const { paperTitle, subject, reason } = body as Record<string, string>;
+    if (!subject || !reason) {
+      return NextResponse.json({ error: "subject and reason are required." }, { status: 400 });
     }
-    const report = await prisma.paperReport.create({ data: { paperId, reporterId, subject, reason } });
+    const report = await prisma.paperReport.create({
+      data: {
+        paperTitle: paperTitle ?? null,
+        reporterId,
+        subject,
+        reason,
+      },
+    });
     return NextResponse.json(report, { status: 201 });
   }
 

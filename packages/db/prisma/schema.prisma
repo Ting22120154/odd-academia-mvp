@@ -232,16 +232,18 @@ model Comment {
 }
 
 model CommentReport {
-  id         String       @id @default(uuid())
-  commentId  String       @map("comment_id")
-  reporterId String       @map("reporter_id")
-  reason     String
-  status     ReportStatus @default(pending)
-  createdAt  DateTime     @default(now()) @map("created_at")
-  updatedAt  DateTime     @updatedAt @map("updated_at")
+  id            String       @id @default(uuid())
+  commentId     String?      @map("comment_id")
+  commentBody   String?      @map("comment_body")
+  commentAuthor String?      @map("comment_author")
+  reporterId    String       @map("reporter_id")
+  reason        String
+  status        ReportStatus @default(pending)
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
 
-  comment  Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  reporter User    @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  comment  Comment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  reporter User     @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
 
   @@index([commentId])
   @@index([reporterId])
@@ -328,7 +330,8 @@ model AdminUser {
 
 model PaperReport {
   id         String       @id @default(uuid())
-  paperId    String       @map("paper_id")
+  paperId    String?      @map("paper_id")
+  paperTitle String?      @map("paper_title")
   reporterId String       @map("reporter_id")
   subject    String
   reason     String
@@ -336,8 +339,8 @@ model PaperReport {
   createdAt  DateTime     @default(now()) @map("created_at")
   updatedAt  DateTime     @updatedAt @map("updated_at")
 
-  paper    Paper @relation(fields: [paperId], references: [id], onDelete: Cascade)
-  reporter User  @relation("PaperReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  paper    Paper? @relation(fields: [paperId], references: [id], onDelete: SetNull)
+  reporter User   @relation("PaperReporter", fields: [reporterId], references: [id], onDelete: Cascade)
 
   @@index([paperId])
   @@index([status])

@@ -292,16 +292,17 @@ export function PaperDetailClient({ post }: Props) {
   }
 
   async function submitReport(draft: ReportDraft) {
-    const commentId = reportingCommentId;
-    if (!commentId || !user) return;
+    if (!reportingCommentId || !user) return;
+    const c = comments.find(x => x.id === reportingCommentId);
     await fetch("/api/reports", {
-      method: "POST",
+      method:  "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        type: "comment",
-        commentId,
-        reporterId: user.id,
-        reason: draft.subject ? `${draft.subject}: ${draft.description}` : draft.description,
+        type:          "comment",
+        commentBody:   c?.text ?? "",
+        commentAuthor: c?.name ?? "Unknown",
+        reporterId:    user.id,
+        reason:        draft.subject ? `${draft.subject}: ${draft.description}` : draft.description,
       }),
     });
     setReportingCommentId(null);
@@ -310,14 +311,14 @@ export function PaperDetailClient({ post }: Props) {
   async function submitPaperReport(draft: ReportDraft) {
     if (!user) return;
     await fetch("/api/reports", {
-      method: "POST",
+      method:  "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        type: "paper",
-        paperId: post.id,
+        type:       "paper",
+        paperTitle: post.title,
         reporterId: user.id,
-        subject: draft.subject,
-        reason: draft.description,
+        subject:    draft.subject,
+        reason:     draft.description,
       }),
     });
     setReportingPaper(false);

@@ -6,19 +6,42 @@ const PAGE_SIZE = 20;
 
 // ── Types from the API response ───────────────────────────────────────────────
 type CommentReportRow = {
-  id:        string;
-  reason:    string;
-  status:    string;
-  createdAt: string;
+  id:            string;
+  reason:        string;
+  status:        string;
+  createdAt:     string;
+  commentBody:   string | null;
+  commentAuthor: string | null;
   comment: {
     content: string;
     author:  { fullName: string };
     paper:   { title: string };
-  };
+  } | null;
   reporter: { fullName: string };
 };
 
-// Shape expected by the existing ReportCard component
+type PaperReportRow = {
+  id:         string;
+  subject:    string;
+  reason:     string;
+  status:     string;
+  createdAt:  string;
+  paperTitle: string | null;
+  paper:      { title: string } | null;
+  reporter:   { fullName: string };
+};
+
+type UserReportRow = {
+  id:        string;
+  subject:   string;
+  reason:    string;
+  status:    string;
+  createdAt: string;
+  reported:  { fullName: string };
+  reporter:  { fullName: string };
+};
+
+// Shape expected by the ReportCard component
 type ReportCardData = {
   id:         string;
   author:     string;
@@ -30,12 +53,39 @@ type ReportCardData = {
   status:     string;
 };
 
-function toCardData(r: CommentReportRow): ReportCardData {
+function toCommentCardData(r: CommentReportRow): ReportCardData {
   return {
     id:         r.id,
-    author:     r.comment.author.fullName,
-    paperTitle: r.comment.paper.title,
-    content:    r.comment.content,
+    author:     r.comment?.author?.fullName ?? r.commentAuthor ?? "Unknown",
+    paperTitle: r.comment?.paper?.title ?? "(unknown paper)",
+    content:    r.comment?.content ?? r.commentBody ?? "(comment text unavailable)",
+    reportedAt: new Date(r.createdAt),
+    reportedBy: r.reporter.fullName,
+    reason:     r.reason,
+    status:     r.status,
+  };
+}
+
+function toPaperCardData(r: PaperReportRow): ReportCardData {
+  const title = r.paper?.title ?? r.paperTitle ?? "(unknown paper)";
+  return {
+    id:         r.id,
+    author:     title,
+    paperTitle: title,
+    content:    r.subject,
+    reportedAt: new Date(r.createdAt),
+    reportedBy: r.reporter.fullName,
+    reason:     r.reason,
+    status:     r.status,
+  };
+}
+
+function toUserCardData(r: UserReportRow): ReportCardData {
+  return {
+    id:         r.id,
+    author:     r.reported.fullName,
+    paperTitle: "(user account)",
+    content:    r.subject,
     reportedAt: new Date(r.createdAt),
     reportedBy: r.reporter.fullName,
     reason:     r.reason,
@@ -111,43 +161,63 @@ const STATUS_COLOURS: Record<string, string> = {
   dismissed: "bg-gray-100 text-gray-500 border-gray-200",
 };
 
-function ReportCard({ comment, onAction }: { comment: ReportCardData; onAction: (id: string, action: "review" | "dismiss") => void }) {
+function ReportCard({
+  report,
+  typeTab,
+  onAction,
+}: {
+  report:  ReportCardData;
+  typeTab: TypeTab;
+  onAction: (id: string, action: "review" | "dismiss") => void;
+}) {
   return (
     <div className="bg-white rounded-xl border border-red-200 shadow-sm overflow-hidden">
       <div className="px-5 py-4">
         <div className="flex items-center gap-2 flex-wrap mb-1">
-          <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded border uppercase tracking-wide ${STATUS_COLOURS[comment.status] ?? STATUS_COLOURS.pending}`}>
-            {comment.status}
+          <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded border uppercase tracking-wide ${STATUS_COLOURS[report.status] ?? STATUS_COLOURS.pending}`}>
+            {report.status}
           </span>
-          <span className="text-xs text-gray-400">
-            <span className="font-medium text-gray-700">{comment.author}</span>
-            {" · on "}
-            <span className="font-medium text-gray-700 truncate max-w-[200px] inline-block align-bottom">
-              {comment.paperTitle}
+          {typeTab === "comments" && (
+            <span className="text-xs text-gray-400">
+              <span className="font-medium text-gray-700">{report.author}</span>
+              {" · on "}
+              <span className="font-medium text-gray-700 truncate max-w-[200px] inline-block align-bottom">
+                {report.paperTitle}
+              </span>
             </span>
-          </span>
+          )}
+          {typeTab === "papers" && (
+            <span className="text-xs text-gray-400">
+              Paper: <span className="font-medium text-gray-700">{report.paperTitle}</span>
+            </span>
+          )}
+          {typeTab === "users" && (
+            <span className="text-xs text-gray-400">
+              User: <span className="font-medium text-gray-700">{report.author}</span>
+            </span>
+          )}
         </div>
 
-        <p className="text-sm text-gray-700 leading-relaxed line-clamp-2 mt-1">{comment.content}</p>
+        <p className="text-sm text-gray-700 leading-relaxed line-clamp-2 mt-1">{report.content}</p>
 
         <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
-          <span>{fmt(comment.reportedAt)}</span>
+          <span>{fmt(report.reportedAt)}</span>
           <span>·</span>
-          <span className="font-medium text-red-500">Reported by {comment.reportedBy}</span>
+          <span className="font-medium text-red-500">Reported by {report.reportedBy}</span>
         </div>
 
-        <p className="text-xs text-gray-500 mt-1 italic">"{comment.reason}"</p>
+        <p className="text-xs text-gray-500 mt-1 italic">"{report.reason}"</p>
 
-        {comment.status === "pending" && (
+        {report.status === "pending" && (
           <div className="flex gap-2 mt-3">
             <button
-              onClick={() => onAction(comment.id, "review")}
+              onClick={() => onAction(report.id, "review")}
               className="px-3 py-1 text-xs font-medium rounded bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
             >
               Mark Reviewed
             </button>
             <button
-              onClick={() => onAction(comment.id, "dismiss")}
+              onClick={() => onAction(report.id, "dismiss")}
               className="px-3 py-1 text-xs font-medium rounded bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 transition-colors"
             >
               Dismiss
@@ -160,24 +230,48 @@ function ReportCard({ comment, onAction }: { comment: ReportCardData; onAction: 
 }
 
 // ── Filter tabs ───────────────────────────────────────────────────────────────
-const STATUS_TABS = ["all", "pending", "reviewed", "dismissed"] as const;
+const TYPE_TABS   = ["comments", "papers", "users"]                    as const;
+const STATUS_TABS = ["all", "pending", "reviewed", "dismissed"]        as const;
+type TypeTab   = (typeof TYPE_TABS)[number];
 type StatusTab = (typeof STATUS_TABS)[number];
+
+const TYPE_LABELS: Record<TypeTab, string> = {
+  comments: "Comment Reports",
+  papers:   "Paper Reports",
+  users:    "User Reports",
+};
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function ReportsPage() {
-  const [reports,    setReports]    = useState<ReportCardData[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [statusTab,  setStatusTab]  = useState<StatusTab>("pending");
-  const [shown,      setShown]      = useState(PAGE_SIZE);
+  const [reports,   setReports]   = useState<ReportCardData[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [typeTab,   setTypeTab]   = useState<TypeTab>("comments");
+  const [statusTab, setStatusTab] = useState<StatusTab>("pending");
+  const [shown,     setShown]     = useState(PAGE_SIZE);
 
-  const fetchReports = useCallback(async (status: StatusTab) => {
+  const fetchReports = useCallback(async (type: TypeTab, status: StatusTab) => {
     setLoading(true);
     try {
-      const qs  = status !== "all" ? `?type=comment&status=${status}` : "?type=comment";
-      const res = await fetch(`/api/reports${qs}`);
+      const statusQs = status !== "all" ? `&status=${status}` : "";
+      const apiType  = type === "comments" ? "comment" : type === "papers" ? "paper" : "user";
+      const res = await fetch(`/api/reports?type=${apiType}${statusQs}`);
       if (!res.ok) throw new Error("Failed to fetch reports");
-      const json = await res.json() as { success: boolean; data: { commentReports: CommentReportRow[] } };
-      setReports(json.data.commentReports.map(toCardData));
+      const json = await res.json() as {
+        success: boolean;
+        data: {
+          commentReports: CommentReportRow[];
+          paperReports:   PaperReportRow[];
+          userReports:    UserReportRow[];
+        };
+      };
+
+      if (type === "comments") {
+        setReports(json.data.commentReports.map(toCommentCardData));
+      } else if (type === "papers") {
+        setReports(json.data.paperReports.map(toPaperCardData));
+      } else {
+        setReports(json.data.userReports.map(toUserCardData));
+      }
       setShown(PAGE_SIZE);
     } catch {
       setReports([]);
@@ -186,16 +280,17 @@ export default function ReportsPage() {
     }
   }, []);
 
-  useEffect(() => { void fetchReports(statusTab); }, [statusTab, fetchReports]);
+  useEffect(() => { void fetchReports(typeTab, statusTab); }, [typeTab, statusTab, fetchReports]);
 
   const handleAction = useCallback(async (id: string, action: "review" | "dismiss") => {
-    await fetch(`/api/reports/comment/${id}`, {
+    const apiType = typeTab === "comments" ? "comment" : typeTab === "papers" ? "paper" : "user";
+    await fetch(`/api/reports/${apiType}/${id}`, {
       method:  "PATCH",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ action }),
     });
-    void fetchReports(statusTab);
-  }, [statusTab, fetchReports]);
+    void fetchReports(typeTab, statusTab);
+  }, [typeTab, statusTab, fetchReports]);
 
   const visible = reports.slice(0, shown);
   const hasMore = shown < reports.length;
@@ -205,23 +300,22 @@ export default function ReportsPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          {loading ? "Loading…" : `${reports.length} comment reports`}
+          {loading ? "Loading…" : `${reports.length} ${TYPE_LABELS[typeTab].toLowerCase()}`}
         </p>
       </div>
 
       {/* Analytics — mock chart, TODO: replace with DB aggregation */}
       <ReportsBarChart />
 
-      {/* Reported comments list */}
       <div>
-        {/* Status filter tabs */}
-        <div className="flex gap-1 mb-4">
-          {STATUS_TABS.map(tab => (
+        {/* Type tabs */}
+        <div className="flex gap-1 mb-3">
+          {TYPE_TABS.map(tab => (
             <button
               key={tab}
-              onClick={() => setStatusTab(tab)}
+              onClick={() => { setTypeTab(tab); setStatusTab("pending"); }}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg capitalize transition-colors ${
-                statusTab === tab
+                typeTab === tab
                   ? "bg-gray-900 text-white"
                   : "bg-white border border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50"
               }`}
@@ -231,7 +325,24 @@ export default function ReportsPage() {
           ))}
         </div>
 
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Reported Comments</h2>
+        {/* Status filter tabs */}
+        <div className="flex gap-1 mb-4">
+          {STATUS_TABS.map(tab => (
+            <button
+              key={tab}
+              onClick={() => setStatusTab(tab)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg capitalize transition-colors ${
+                statusTab === tab
+                  ? "bg-blue-600 text-white"
+                  : "bg-white border border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        <h2 className="text-sm font-semibold text-gray-700 mb-3">{TYPE_LABELS[typeTab]}</h2>
 
         {loading ? (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm text-center py-16 text-gray-400 text-sm">
@@ -239,13 +350,13 @@ export default function ReportsPage() {
           </div>
         ) : reports.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm text-center py-16 text-gray-400 text-sm">
-            No reported comments.
+            No {TYPE_LABELS[typeTab].toLowerCase()}.
           </div>
         ) : (
           <>
             <div className="space-y-3">
-              {visible.map(c => (
-                <ReportCard key={c.id} comment={c} onAction={handleAction} />
+              {visible.map(r => (
+                <ReportCard key={r.id} report={r} typeTab={typeTab} onAction={handleAction} />
               ))}
             </div>
             {hasMore && (

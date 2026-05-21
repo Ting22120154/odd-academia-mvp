@@ -34,13 +34,16 @@ export async function GET(req: NextRequest) {
     const unreadCount = messages.filter(
       (m) => m.senderId === partner.id && m.recipientId === userId && !m.isRead
     ).length;
+    // true when the recipient has opened the conversation (GET fires isRead=true on our sent msg)
+    const senderLastMsgRead = isSent ? msg.isRead : false;
     return {
-      partnerId:   partner.id,
-      partnerName: partner.fullName,
-      lastMessage: msg.body,
-      lastAt:      msg.createdAt,
+      partnerId:         partner.id,
+      partnerName:       partner.fullName,
+      lastMessage:       msg.body,
+      lastAt:            msg.createdAt,
       isSent,
-      unread:      unreadCount,
+      unread:            unreadCount,
+      senderLastMsgRead,
     };
   });
 

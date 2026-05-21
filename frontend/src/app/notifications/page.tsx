@@ -20,12 +20,13 @@ interface MockNotification {
 }
 
 interface Conversation {
-  partnerId:   string;
-  partnerName: string;
-  lastMessage: string;
-  lastAt:      string;
-  isSent:      boolean;
-  unread:      number;
+  partnerId:         string;
+  partnerName:       string;
+  lastMessage:       string;
+  lastAt:            string;
+  isSent:            boolean;
+  unread:            number;
+  senderLastMsgRead: boolean;
 }
 
 const INITIAL_MOCK: MockNotification[] = [
@@ -124,12 +125,16 @@ export default function NotificationsPage() {
     });
   }
 
+  // NOTIFICATION FILTER: include own messages for status-update notifications
   // "New" tab: all conversations minus dismissed ones
   const visibleMsgNotifs = conversations.filter(c => !dismissedMsgs.has(c.partnerId));
   // "Messages" tab: all conversations minus removed ones
   const visibleConvos = conversations.filter(c => !removedConvos.has(c.partnerId));
 
-  const unreadTabBadge  = visibleMsgNotifs.filter(c => c.unread > 0).length;
+  // Badge counts received-unread AND sent messages the recipient hasn't read yet
+  const unreadTabBadge  = visibleMsgNotifs.filter(
+    c => c.unread > 0 || (c.isSent && !c.senderLastMsgRead)
+  ).length;
   const unreadMsgsBadge = visibleConvos.reduce((s, c) => s + c.unread, 0);
 
   const staticFiltered = mockNotifs.filter(n => {
@@ -287,7 +292,11 @@ export default function NotificationsPage() {
               {sortedRows.map((row) => {
                 if (row.kind === "msg") {
                   const { conv } = row;
-                  const unseen = conv.unread > 0;
+                  // unseen = received unread OR sent but recipient hasn't opened yet
+                  const unseen = conv.unread > 0 || (conv.isSent && !conv.senderLastMsgRead);
+                  const statusLabel = conv.isSent
+                    ? (conv.senderLastMsgRead ? "Message · Seen" : "Message · Sent")
+                    : (conv.unread > 0        ? "Message · Unread" : "Message · Read");
                   return (
                     <tr
                       key={`msg-${conv.partnerId}`}
@@ -307,14 +316,14 @@ export default function NotificationsPage() {
                               &ldquo;{conv.lastMessage.length > 55 ? conv.lastMessage.slice(0, 55) + "…" : conv.lastMessage}&rdquo;
                             </span>
                           </span>
-                          {unseen && (
+                          {conv.unread > 0 && (
                             <span className="ml-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-bold text-white leading-none">
                               {conv.unread}
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-zinc-400">{unseen ? "Message · Unseen" : "Message · Seen"}</td>
+                      <td className="px-4 py-3 text-zinc-400">{statusLabel}</td>
                       <td className="px-4 py-3 text-zinc-400 text-xs">
                         {new Date(conv.lastAt).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                       </td>
