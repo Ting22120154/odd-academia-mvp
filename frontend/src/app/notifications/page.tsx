@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -38,6 +38,11 @@ export default function NotificationsPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const activeTabRef = useRef(activeTab);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
 
   useEffect(() => {
     if (!isLoggedIn) router.replace("/login");
@@ -73,14 +78,27 @@ export default function NotificationsPage() {
   }
 
   async function handleNotificationClick(n: NotificationResponse) {
+    const tabAtClick = activeTab;
+
     if (!n.isRead) {
       const result = await markNotificationRead(n.id);
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      setItems((prev) => prev.filter((item) => item.id !== n.id));
       setUnreadCount((c) => Math.max(0, c - 1));
+
+      // Only mutate the list for the tab that was active when the user clicked.
+      // If they switched tabs while the request was in flight, load() already refetched.
+      setItems((prev) => {
+        if (activeTabRef.current !== tabAtClick) return prev;
+        if (tabAtClick === "New") {
+          return prev.filter((item) => item.id !== n.id);
+        }
+        return prev.map((item) =>
+          item.id === n.id ? { ...item, isRead: true } : item,
+        );
+      });
     }
     router.push(n.href);
   }
