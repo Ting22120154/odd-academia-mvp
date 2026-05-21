@@ -40,6 +40,123 @@ type DbUser = {
 };
 
 // ---------------------------------------------------------------------------
+// Warn User modal
+// ---------------------------------------------------------------------------
+function WarnUserModal({
+  userName,
+  userId,
+  currentWarnCount,
+  onCancel,
+  onDone,
+}: {
+  userName:         string;
+  userId:           string;
+  currentWarnCount: number;
+  onCancel:         () => void;
+  onDone:           (newCount: number, autoSuspended: boolean) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [busy,   setBusy]   = useState(false);
+  const [done,   setDone]   = useState(false);
+
+  const newCount        = currentWarnCount + 1;
+  const willAutoSuspend = newCount >= 4;
+
+  async function handleConfirm() {
+    setBusy(true);
+    const res = await fetch(`/api/admin/users/${userId}`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ action: "warn", reason: reason.trim() || undefined }),
+    });
+    setBusy(false);
+    if (res.ok) {
+      setDone(true);
+      onDone(newCount, willAutoSuspend);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 relative">
+        <button onClick={onCancel} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+
+        {!done ? (
+          <div>
+            <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center mx-auto mb-4">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-1 text-center">Issue Warning</h2>
+            <p className="text-sm text-gray-500 mb-1 text-center">
+              Warning{" "}
+              <span className="font-semibold text-orange-500">{newCount}</span>
+              {" "}of 4 for{" "}
+              <span className="font-semibold text-gray-800">{userName}</span>.
+            </p>
+            {willAutoSuspend && (
+              <p className="text-xs text-red-500 text-center font-medium mt-1">
+                This will automatically suspend the account.
+              </p>
+            )}
+            <textarea
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="Reason for warning (optional)…"
+              rows={3}
+              className="w-full mt-4 text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-700 resize-none focus:outline-none focus:border-gray-400"
+            />
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={onCancel}
+                className="flex-1 px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleConfirm()}
+                disabled={busy}
+                className="flex-1 px-4 py-2 text-sm rounded-lg bg-yellow-500 text-white hover:bg-yellow-600 disabled:opacity-60"
+              >
+                {busy ? "Sending…" : willAutoSuspend ? "Warn & Suspend" : "Issue Warning"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center mx-auto mb-4">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">
+              {willAutoSuspend ? "Warned & Suspended" : "Warning Issued"}
+            </h2>
+            <p className="text-sm text-gray-500">
+              {willAutoSuspend
+                ? `${userName} has been warned (${newCount}/4) and automatically suspended.`
+                : `${userName} has received warning ${newCount} of 4.`}
+            </p>
+            <button
+              onClick={onCancel}
+              className="mt-5 w-full py-2 text-sm rounded-lg bg-[#0066ff] text-white hover:bg-blue-700"
+            >
+              Close
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Remove User modal
 // ---------------------------------------------------------------------------
 function RemoveUserModal({
@@ -196,6 +313,7 @@ export default function UserDetailPage() {
   const [paperSearch,    setPaperSearch]    = useState("");
   const [showAllPapers,  setShowAllPapers]  = useState(false);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [showWarnModal,   setShowWarnModal]   = useState(false);
   const [openMenu,       setOpenMenu]       = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -331,6 +449,12 @@ export default function UserDetailPage() {
                     Suspend <span className="w-2 h-2 rounded-full bg-red-500 ml-auto" />
                   </button>
                 )}
+                <button
+                  onClick={() => { setOpenMenu(null); setShowWarnModal(true); }}
+                  className="w-full text-left px-4 py-2 text-xs text-yellow-600 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
+                >
+                  Warn <span className="w-2 h-2 rounded-full bg-yellow-400 ml-auto" />
+                </button>
                 <button
                   onClick={() => { setOpenMenu(null); setShowRemoveModal(true); }}
                   className="w-full text-left px-4 py-2 text-xs text-red-500 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
@@ -588,6 +712,20 @@ export default function UserDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ── Warn User modal ── */}
+      {showWarnModal && (
+        <WarnUserModal
+          userName={user.fullName}
+          userId={id}
+          currentWarnCount={user.warnCount}
+          onCancel={() => setShowWarnModal(false)}
+          onDone={(newCount, autoSuspended) => {
+            setUser(u => u ? { ...u, warnCount: newCount, isBanned: autoSuspended || u.isBanned } : u);
+            setShowWarnModal(false);
+          }}
+        />
+      )}
 
       {/* ── Remove User modal ── */}
       {showRemoveModal && (

@@ -193,6 +193,7 @@ export default function UsersPage() {
                 <th className="text-left px-4 py-3 font-medium text-gray-600">No. Papers Published</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Following</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Followers</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Warnings</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -200,11 +201,11 @@ export default function UsersPage() {
             <tbody className="divide-y divide-gray-100">
               {loading && users.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-gray-400">Loading…</td>
+                  <td colSpan={8} className="text-center py-12 text-gray-400">Loading…</td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-gray-400">No users found.</td>
+                  <td colSpan={8} className="text-center py-12 text-gray-400">No users found.</td>
                 </tr>
               ) : users.map(u => (
                 <tr
@@ -217,6 +218,15 @@ export default function UsersPage() {
                   <td className="px-4 py-3 text-gray-500">{u._count.papers}</td>
                   <td className="px-4 py-3 text-gray-500">{u._count.following}</td>
                   <td className="px-4 py-3 text-gray-500">{u._count.followers}</td>
+                  <td className="px-4 py-3">
+                    {u.warnCount > 0 ? (
+                      <span className={`text-xs font-semibold ${u.warnCount >= 3 ? "text-red-500" : "text-orange-500"}`}>
+                        {u.warnCount}/4
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3"><StatusBadge status={toStatus(u.isBanned)} /></td>
                   <td className="px-4 py-3 text-right">
                     <button
