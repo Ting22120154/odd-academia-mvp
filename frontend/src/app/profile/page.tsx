@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Own profile page — data from GET /api/users/me (Postgres via Prisma).
+ * Replaces mockUser / mockPosts. Protected by proxy.ts (login required).
+ */
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";

@@ -1,5 +1,7 @@
 "use client";
 
+/** Wraps pages with TopNav; isLoggedIn comes from AuthContext (real session, not mock). */
+
 import type { ReactNode } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { TopNav } from "@/components/TopNav";

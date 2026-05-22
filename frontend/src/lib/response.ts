@@ -1,3 +1,8 @@
+/**
+ * Standard JSON envelope for App Router APIs:
+ * Success: { success: true, data }
+ * Error:   { success: false, error }
+ */
 import { NextResponse } from "next/server";
 
 export function ok<T>(data: T, status = 200) {

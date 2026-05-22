@@ -1,3 +1,7 @@
+/**
+ * Server-side auth for Route Handlers.
+ * Call getAuthPayload() at the start of protected APIs; returns null → 401.
+ */
 import { cookies } from "next/headers";
 import { verifyToken } from "@/lib/auth/jwt";
 import { USER_TOKEN_COOKIE } from "@/lib/auth/session";

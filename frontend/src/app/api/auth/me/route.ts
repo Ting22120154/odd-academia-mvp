@@ -1,3 +1,7 @@
+/**
+ * GET /api/auth/me
+ * Returns the logged-in user from JWT sub. Used by AuthContext on load and after profile save.
+ */
 import { prisma } from "@/lib/prisma";
 import { getAuthPayload } from "@/lib/auth/require-auth";
 import { toPublicUser } from "@/lib/auth/user";

@@ -1,3 +1,6 @@
+/**
+ * Maps Prisma User rows to safe API shapes (never exposes passwordHash).
+ */
 import type { User } from "@prisma/client";
 import type { ApiRole, PublicUser } from "@/lib/auth/types";
 

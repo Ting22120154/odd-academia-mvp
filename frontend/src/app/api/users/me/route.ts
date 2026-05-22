@@ -1,3 +1,8 @@
+/**
+ * GET  /api/users/me — full profile for the logged-in user (includes email).
+ * PATCH /api/users/me — update profile fields + replace interest tags.
+ * Auth: JWT required (401 if missing).
+ */
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthPayload } from "@/lib/auth/require-auth";

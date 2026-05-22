@@ -1,3 +1,9 @@
+/**
+ * Next.js proxy (middleware) — page-level access control only.
+ * - Does NOT protect /api/* (each route calls getAuthPayload itself).
+ * - Logged-in users: JWT in oa_user_token OR guest flag in auth-session.
+ * - Redirects anonymous users away from AUTH_ONLY_PREFIXES to /login.
+ */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -7,6 +13,7 @@ const AUTH_SESSION_COOKIE = "auth-session";
 const PUBLIC_ROUTES = ["/login"];
 const AUTH_ONLY_PREFIXES = ["/profile", "/notifications", "/upload", "/following"];
 
+/** Lightweight JWT payload decode for edge proxy (no secret verify — API routes verify fully). */
 function decodeToken(token: string): { role: string; exp?: number } | null {
   try {
     const parts = token.split(".");

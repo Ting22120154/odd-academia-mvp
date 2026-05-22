@@ -1,6 +1,13 @@
+/**
+ * GET /api/users/[id] — public profile by UUID.
+ * - Private profiles (profileVisibility=false): 403 unless viewer is the owner.
+ * - Email only included when viewing your own profile via /me, not here.
+ * - Response includes isFollowing when the viewer is logged in.
+ */
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthPayload } from "@/lib/auth/require-auth";
+import { viewerFollowsTarget } from "@/lib/auth/follow";
 import { profileInclude, toProfilePaper, toProfileUser } from "@/lib/auth/profile";
 import { ok, err } from "@/lib/response";
 
@@ -35,5 +42,10 @@ export async function GET(
     includeEmail: isOwnProfile,
   });
 
-  return ok({ user: profile });
+  const isFollowing =
+    !isOwnProfile && viewer?.sub
+      ? await viewerFollowsTarget(viewer.sub, id)
+      : false;
+
+  return ok({ user: profile, isFollowing });
 }

@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * Client auth state for the main app.
+ * - Logged-in: validated via GET /api/auth/me (httpOnly JWT cookie).
+ * - Guest: localStorage + auth-session=guest cookie (browse only; write APIs need login).
+ * - applySession: called after login/register; logout hits /api/auth/logout.
+ */
+
 import {
   createContext,
   useContext,

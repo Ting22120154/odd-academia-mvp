@@ -1,9 +1,16 @@
 "use client";
 
+/**
+ * Another user's public profile. [id] must be a DB user UUID (not mock "1"/"2").
+ * GET /api/users/[id]; follow via POST/DELETE /api/users/[id]/follow.
+ * Own id redirects to /profile.
+ */
+
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { toggleFollow } from "@/lib/follow-client";
 import {
   fetchUserProfile,
   formatCount,
@@ -17,8 +24,10 @@ const UUID_RE =
 export default function UserProfilePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { user: sessionUser } = useAuth();
+  const { user: sessionUser, isLoggedIn } = useAuth();
   const [profile, setProfile] = useState<ProfileUser | null>(null);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,11 +46,12 @@ export default function UserProfilePage() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const { user, error: err } = await fetchUserProfile(id);
+      const { user, isFollowing: following, error: err } = await fetchUserProfile(id);
       if (cancelled) return;
       if (err || !user) setError(err ?? "User not found.");
       else {
         setProfile(user);
+        setIsFollowing(!!following);
         setError(null);
       }
       setLoading(false);
@@ -69,6 +79,32 @@ export default function UserProfilePage() {
 
   const githubUrl = socialHref(profile.github, "github");
   const linkedinUrl = socialHref(profile.linkedin, "linkedin");
+
+  async function handleFollowToggle() {
+    if (!id || followBusy) return;
+    if (!isLoggedIn) {
+      router.push("/login");
+      return;
+    }
+    setFollowBusy(true);
+    const { isFollowing: next, error: err } = await toggleFollow(id, isFollowing);
+    setFollowBusy(false);
+    if (err) {
+      setError(err);
+      return;
+    }
+    setIsFollowing(!!next);
+    if (profile && typeof next === "boolean") {
+      const delta = next ? 1 : -1;
+      setProfile({
+        ...profile,
+        stats: {
+          ...profile.stats,
+          followers: Math.max(0, profile.stats.followers + delta),
+        },
+      });
+    }
+  }
 
   return (
     <section className="mx-auto w-full max-w-[var(--page-max)] space-y-6">
@@ -99,9 +135,16 @@ export default function UserProfilePage() {
               </Link>
               <button
                 type="button"
-                className="inline-flex h-9 items-center rounded-lg bg-[var(--brand)] px-4 text-xs font-semibold text-white hover:opacity-95"
+                disabled={followBusy}
+                onClick={handleFollowToggle}
+                className={[
+                  "inline-flex h-9 items-center rounded-lg px-4 text-xs font-semibold hover:opacity-95 disabled:opacity-60",
+                  isFollowing
+                    ? "border border-[var(--brand)] bg-white text-[var(--brand)]"
+                    : "bg-[var(--brand)] text-white",
+                ].join(" ")}
               >
-                Follow Author
+                {followBusy ? "…" : isFollowing ? "Unfollow" : "Follow Author"}
               </button>
             </div>
           </div>

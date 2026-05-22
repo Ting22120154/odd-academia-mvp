@@ -1,3 +1,7 @@
+/**
+ * POST /api/auth/login
+ * Same generic error for wrong email vs wrong password (avoids account enumeration).
+ */
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/auth/password";

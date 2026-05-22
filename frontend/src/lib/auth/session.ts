@@ -1,3 +1,8 @@
+/**
+ * Session cookies after login/register.
+ * - oa_user_token: signed JWT (httpOnly, not readable by client JS)
+ * - auth-session: lightweight flag used by proxy.ts for route guards
+ */
 import type { NextResponse } from "next/server";
 import { signToken, type TokenPayload } from "@/lib/auth/jwt";
 

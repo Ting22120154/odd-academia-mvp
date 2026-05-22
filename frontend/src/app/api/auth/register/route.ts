@@ -1,3 +1,7 @@
+/**
+ * POST /api/auth/register
+ * Creates a User in Postgres (role forced to "user"), hashes password, sets session cookies.
+ */
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth/password";
@@ -33,7 +37,7 @@ export async function POST(req: NextRequest) {
         username,
         fullName,
         passwordHash,
-        role: "user",
+        role: "user", // Never allow self-registration as admin
       },
     });
 

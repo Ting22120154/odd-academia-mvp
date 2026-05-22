@@ -1,3 +1,7 @@
+/**
+ * Shared Prisma singleton for Neon Postgres.
+ * Exported as @odd-academia/db/client for frontend API routes.
+ */
 import { PrismaClient } from "@prisma/client"
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }

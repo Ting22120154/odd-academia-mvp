@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Edit own profile — loads GET /api/users/me, saves PATCH /api/users/me.
+ * Email is read-only; avatar upload not implemented yet.
+ */
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";

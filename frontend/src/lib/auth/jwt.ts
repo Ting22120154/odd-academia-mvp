@@ -1,3 +1,8 @@
+/**
+ * JWT helpers for the frontend user app (not the admin app).
+ * Tokens are stored in httpOnly cookies — see session.ts.
+ * Set JWT_SECRET in frontend/.env.local for production.
+ */
 import jwt from "jsonwebtoken";
 import type { Role } from "@prisma/client";
 

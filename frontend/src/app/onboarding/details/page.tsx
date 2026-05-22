@@ -1,5 +1,7 @@
 "use client";
 
+/** Post-signup onboarding UI; uses AuthContext for redirect guards (profile completion flow). */
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";

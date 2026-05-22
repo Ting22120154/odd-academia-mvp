@@ -1,3 +1,9 @@
+/**
+ * Profile DTOs and mappers (server-side).
+ * - Maps Prisma workStatus enum ↔ UI labels
+ * - Maps profileVisibility boolean ↔ PUBLIC | PRIVATE
+ * - Stats use Prisma _count (followers, following, papers, comments)
+ */
 import type { Paper, User, WorkStatus } from "@prisma/client";
 import { toApiRole } from "@/lib/auth/user";
 
@@ -126,6 +132,7 @@ export function toProfileUser(
   };
 }
 
+/** Prisma include used by GET /api/users/me and GET /api/users/[id]. */
 export const profileInclude = {
   interests: { include: { interest: true } },
   _count: {

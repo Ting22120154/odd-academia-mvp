@@ -1,3 +1,8 @@
+/**
+ * Browser-side helpers for profile APIs (credentials: "include" sends cookies).
+ * Types mirror server ProfileUser; keep in sync with lib/auth/profile.ts.
+ */
+
 export type ProfileUser = {
   id: string;
   fullName: string;
@@ -44,11 +49,13 @@ export async function fetchMyProfile(): Promise<{ user?: ProfileUser; error?: st
   return { user: json.data.user };
 }
 
-export async function fetchUserProfile(id: string): Promise<{ user?: ProfileUser; error?: string }> {
+export async function fetchUserProfile(
+  id: string
+): Promise<{ user?: ProfileUser; isFollowing?: boolean; error?: string }> {
   const res = await fetch(`/api/users/${id}`, { credentials: "include" });
-  const json = (await res.json()) as ApiRes<{ user: ProfileUser }>;
+  const json = (await res.json()) as ApiRes<{ user: ProfileUser; isFollowing: boolean }>;
   if (!json.success) return { error: json.error };
-  return { user: json.data.user };
+  return { user: json.data.user, isFollowing: json.data.isFollowing };
 }
 
 export async function updateMyProfile(

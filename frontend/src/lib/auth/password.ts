@@ -1,3 +1,6 @@
+/**
+ * Password hashing for register/login. Only passwordHash is stored in the DB.
+ */
 import bcrypt from "bcryptjs";
 
 const SALT_ROUNDS = 10;

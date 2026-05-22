@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Login & sign-up — calls POST /api/auth/login and POST /api/auth/register.
+ * Session cookies are set by the API; client uses applySession for UI state.
+ */
+
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth, type AuthUser } from "@/context/AuthContext";

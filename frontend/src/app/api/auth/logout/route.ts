@@ -1,3 +1,4 @@
+/** POST /api/auth/logout — clears httpOnly session cookies. */
 import { ok } from "@/lib/response";
 import { clearSessionCookies } from "@/lib/auth/session";
 
