@@ -81,29 +81,34 @@ export async function PATCH(req: NextRequest) {
   }
 
   try {
-    await prisma.user.update({
-      where: { id: payload.sub },
-      data,
-    });
-
-    if (Array.isArray(body.interests)) {
-      const names = (body.interests as unknown[])
-        .map((n) => String(n).trim())
-        .filter(Boolean);
-
-      await prisma.userInterest.deleteMany({ where: { userId: payload.sub } });
-
-      for (const name of names) {
-        const interest = await prisma.interest.upsert({
-          where: { name },
-          update: {},
-          create: { name, icon: "📌" },
-        });
-        await prisma.userInterest.create({
-          data: { userId: payload.sub, interestId: interest.id },
+    await prisma.$transaction(async (tx) => {
+      if (Object.keys(data).length > 0) {
+        await tx.user.update({
+          where: { id: payload.sub },
+          data,
         });
       }
-    }
+
+      if (Array.isArray(body.interests)) {
+        const names = (body.interests as unknown[])
+          .map((n) => String(n).trim())
+          .filter(Boolean)
+          .slice(0, 30);
+
+        await tx.userInterest.deleteMany({ where: { userId: payload.sub } });
+
+        for (const name of names) {
+          const interest = await tx.interest.upsert({
+            where: { name },
+            update: {},
+            create: { name, icon: "📌" },
+          });
+          await tx.userInterest.create({
+            data: { userId: payload.sub, interestId: interest.id },
+          });
+        }
+      }
+    });
 
     const profile = await loadProfile(payload.sub);
     if (!profile) return err("User not found.", 404);

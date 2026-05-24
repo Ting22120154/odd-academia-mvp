@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { isValidUserId } from "@/lib/auth/user-id";
 import { toggleFollow } from "@/lib/follow-client";
 import {
   fetchUserProfile,
@@ -17,9 +18,6 @@ import {
   socialHref,
   type ProfileUser,
 } from "@/lib/profile-client";
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export default function UserProfilePage() {
   const { id } = useParams<{ id: string }>();
@@ -37,7 +35,7 @@ export default function UserProfilePage() {
       router.replace("/profile");
       return;
     }
-    if (!UUID_RE.test(id)) {
+    if (!isValidUserId(id)) {
       setError("Invalid user id.");
       setLoading(false);
       return;
@@ -188,8 +186,7 @@ export default function UserProfilePage() {
             [
               ["Papers", profile.stats.papers],
               ["Followers", formatCount(profile.stats.followers)],
-              ["Saved Papers", profile.stats.savedPapers],
-              ["Cited Comments", profile.stats.citedComments],
+              ["Comments", profile.stats.citedComments],
             ] as const
           ).map(([label, value]) => (
             <div key={label} className="flex items-center gap-3 rounded-2xl border border-black/[0.06] bg-white p-4">

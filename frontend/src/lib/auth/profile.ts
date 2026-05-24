@@ -125,7 +125,7 @@ export function toProfileUser(
       followers: user._count.followers,
       following: user._count.following,
       citedComments: user._count.comments,
-      savedPapers: 0,
+      savedPapers: 0, // Not in schema yet — omitted from profile UI
     },
     papers,
     isOwnProfile,

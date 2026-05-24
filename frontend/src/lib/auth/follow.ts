@@ -4,6 +4,7 @@
  * Used by /api/users/[id]/follow and /api/users/me/following|followers.
  */
 import { prisma } from "@/lib/prisma";
+import { isValidUserId } from "@/lib/auth/user-id";
 
 export type FollowAuthor = {
   id: string;
@@ -13,12 +14,7 @@ export type FollowAuthor = {
   isFollowing: boolean;
 };
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-export function isValidUserId(id: string): boolean {
-  return UUID_RE.test(id);
-}
+export { isValidUserId };
 
 export async function viewerFollowsTarget(
   viewerId: string | undefined,

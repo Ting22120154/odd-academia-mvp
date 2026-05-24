@@ -16,7 +16,7 @@ import {
   type ProfileUser,
 } from "@/lib/profile-client";
 
-type Tab = "papers" | "cited-comments";
+type Tab = "papers";
 
 export default function ProfilePage() {
   const { isLoggedIn } = useAuth();
@@ -135,8 +135,7 @@ export default function ProfilePage() {
         <div className="mt-4 grid grid-cols-2 gap-4">
           <MetricCard icon="papers" label="Papers" value={String(profile.stats.papers)} />
           <MetricCard icon="followers" label="Followers" value={formatCount(profile.stats.followers)} />
-          <MetricCard icon="saved" label="Saved Papers" value={String(profile.stats.savedPapers)} />
-          <MetricCard icon="comments" label="Cited Comments" value={String(profile.stats.citedComments)} />
+          <MetricCard icon="comments" label="Comments" value={String(profile.stats.citedComments)} />
         </div>
       </div>
 
@@ -144,9 +143,6 @@ export default function ProfilePage() {
         <div className="flex items-center gap-3 border-b border-black/[0.06] pb-3">
           <TabButton active={tab === "papers"} onClick={() => setTab("papers")}>
             Papers
-          </TabButton>
-          <TabButton active={tab === "cited-comments"} onClick={() => setTab("cited-comments")}>
-            Your Cited Comments
           </TabButton>
         </div>
 
@@ -160,10 +156,6 @@ export default function ProfilePage() {
               ))
             )}
           </div>
-        )}
-
-        {tab === "cited-comments" && (
-          <p className="mt-4 text-sm text-zinc-500">Cited comments coming soon.</p>
         )}
       </div>
     </section>

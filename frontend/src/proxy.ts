@@ -1,35 +1,20 @@
 /**
- * Next.js proxy (middleware) — page-level access control only.
- * - Does NOT protect /api/* (each route calls getAuthPayload itself).
- * - Logged-in users: JWT in oa_user_token OR guest flag in auth-session.
+ * Next.js proxy — page-level access control only (UI routing).
+ * - Does NOT protect /api/* (each route calls getAuthPayload + jwt.verify).
+ * - Uses verifyToken() so forged JWTs cannot pass page guards.
  * - Redirects anonymous users away from AUTH_ONLY_PREFIXES to /login.
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-
-const USER_TOKEN_COOKIE = "oa_user_token";
-const AUTH_SESSION_COOKIE = "auth-session";
+import { verifyToken } from "@/lib/auth/jwt";
+import { USER_TOKEN_COOKIE, AUTH_SESSION_COOKIE } from "@/lib/auth/session";
 
 const PUBLIC_ROUTES = ["/login"];
 const AUTH_ONLY_PREFIXES = ["/profile", "/notifications", "/upload", "/following"];
 
-/** Lightweight JWT payload decode for edge proxy (no secret verify — API routes verify fully). */
-function decodeToken(token: string): { role: string; exp?: number } | null {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const payload = JSON.parse(atob(base64));
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null;
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
 function getSession(req: NextRequest) {
   const token = req.cookies.get(USER_TOKEN_COOKIE)?.value;
-  const payload = token ? decodeToken(token) : null;
+  const payload = token ? verifyToken(token) : null;
   if (payload?.role === "user" || payload?.role === "admin") {
     return "user" as const;
   }

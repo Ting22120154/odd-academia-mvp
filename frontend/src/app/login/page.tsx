@@ -136,6 +136,7 @@ function LoginPageInner() {
     if (!username.trim()) errs.username = "Username is required.";
     if (!signupEmail.trim()) errs.email = "Email is required.";
     if (!signupPassword.trim()) errs.password = "Password is required.";
+    else if (signupPassword.length < 8) errs.password = "Password must be at least 8 characters.";
     if (!confirmPassword.trim()) {
       errs.confirmPassword = "Please confirm your password.";
     } else if (signupPassword !== confirmPassword) {

@@ -7,9 +7,18 @@ import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/auth/password";
 import { toPublicUser } from "@/lib/auth/user";
 import { attachSessionCookies } from "@/lib/auth/session";
+import { checkRateLimit, getClientIp } from "@/lib/auth/rate-limit";
 import { ok, err } from "@/lib/response";
 
+const LOGIN_LIMIT = 10;
+const WINDOW_MS = 60_000;
+
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+  if (!checkRateLimit(`auth:login:${ip}`, LOGIN_LIMIT, WINDOW_MS)) {
+    return err("Too many login attempts. Please try again later.", 429);
+  }
+
   const body = await req.json().catch(() => null);
   if (!body?.email || !body?.password) {
     return err("Email and password are required.", 400);

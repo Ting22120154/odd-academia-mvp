@@ -8,6 +8,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthPayload } from "@/lib/auth/require-auth";
 import { viewerFollowsTarget } from "@/lib/auth/follow";
+import { isValidUserId } from "@/lib/auth/user-id";
 import { profileInclude, toProfilePaper, toProfileUser } from "@/lib/auth/profile";
 import { ok, err } from "@/lib/response";
 
@@ -16,6 +17,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  if (!isValidUserId(id)) return err("Invalid user id.", 400);
+
   const viewer = await getAuthPayload();
 
   const user = await prisma.user.findUnique({

@@ -4,7 +4,7 @@
  * Client auth state for the main app.
  * - Logged-in: validated via GET /api/auth/me (httpOnly JWT cookie).
  * - Guest: localStorage + auth-session=guest cookie (browse only; write APIs need login).
- * - applySession: called after login/register; logout hits /api/auth/logout.
+ * - applySession (alias login): called after login/register; logout hits /api/auth/logout.
  */
 
 import {
@@ -27,6 +27,8 @@ type AuthState = {
   isGuest: boolean;
   isLoggedIn: boolean;
   applySession: (user: AuthUser) => void;
+  /** @deprecated Use applySession — kept so older callers using login() still work */
+  login: (user: AuthUser) => void;
   logout: () => Promise<void>;
   continueAsGuest: () => void;
   refreshSession: () => Promise<void>;
@@ -121,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isGuest,
         isLoggedIn: user !== null,
         applySession,
+        login: applySession,
         logout,
         continueAsGuest,
         refreshSession,
