@@ -2,7 +2,7 @@
 
 /**
  * Following hub — People/Followers tabs use real user UUIDs from the DB.
- * Papers tab is still a placeholder (paper-follow not in schema yet).
+ * Papers tab lists papers the user follows via PaperFollow API.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -15,6 +15,11 @@ import {
   toggleFollow,
   type FollowAuthor,
 } from "@/lib/follow-client";
+import {
+  fetchFollowedPapersList,
+  togglePaperFollow,
+  type FollowedPaper,
+} from "@/lib/paper-follow-client";
 
 type Tab = "papers" | "people" | "followers";
 
@@ -30,6 +35,7 @@ export default function FollowingPage() {
   const [tab, setTab] = useState<Tab>("people");
   const [people, setPeople] = useState<FollowAuthor[]>([]);
   const [followers, setFollowers] = useState<FollowAuthor[]>([]);
+  const [papers, setPapers] = useState<FollowedPaper[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -41,14 +47,20 @@ export default function FollowingPage() {
   const loadLists = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [followingRes, followersRes] = await Promise.all([
+    const [followingRes, followersRes, papersRes] = await Promise.all([
       fetchFollowingList(),
       fetchFollowersList(),
+      fetchFollowedPapersList(),
     ]);
     if (followingRes.error) setError(followingRes.error);
     else setPeople(followingRes.people ?? []);
     if (followersRes.error && !followingRes.error) setError(followersRes.error);
     else setFollowers(followersRes.people ?? []);
+    if (papersRes.error && !followingRes.error && !followersRes.error) {
+      setError(papersRes.error);
+    } else {
+      setPapers(papersRes.papers ?? []);
+    }
     setLoading(false);
   }, []);
 
@@ -106,13 +118,32 @@ export default function FollowingPage() {
 
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
-      {loading && tab !== "papers" && (
+      {loading && (
         <p className="mt-6 text-sm text-zinc-500">Loading…</p>
       )}
 
-      {tab === "papers" && (
-        <div className="mt-6 rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
-          <p className="text-sm text-zinc-500">Paper follows coming soon.</p>
+      {tab === "papers" && !loading && (
+        <div className="mt-6">
+          {papers.length === 0 ? (
+            <p className="text-sm text-zinc-500">You are not following any papers yet.</p>
+          ) : (
+            <ul className="space-y-3">
+              {papers.map((paper) => (
+                <PaperFollowCard
+                  key={paper.id}
+                  paper={paper}
+                  busy={busyId === paper.id}
+                  onUnfollow={async () => {
+                    setBusyId(paper.id);
+                    const { error: err } = await togglePaperFollow(paper.id, true);
+                    setBusyId(null);
+                    if (err) setError(err);
+                    else setPapers((prev) => prev.filter((p) => p.id !== paper.id));
+                  }}
+                />
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -156,6 +187,38 @@ export default function FollowingPage() {
         </div>
       )}
     </section>
+  );
+}
+
+function PaperFollowCard({
+  paper,
+  busy,
+  onUnfollow,
+}: {
+  paper: FollowedPaper;
+  busy?: boolean;
+  onUnfollow: () => void;
+}) {
+  return (
+    <li className="flex items-center justify-between gap-4 rounded-xl border border-black/[0.06] bg-white p-4 shadow-[var(--shadow-sm)]">
+      <div className="min-w-0 flex-1">
+        <Link
+          href={`/paper/${paper.id}`}
+          className="text-sm font-semibold text-zinc-900 hover:underline"
+        >
+          {paper.title}
+        </Link>
+        <div className="mt-1 text-xs text-zinc-500">by {paper.authorName}</div>
+      </div>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onUnfollow}
+        className="shrink-0 inline-flex h-8 items-center rounded-lg border border-[var(--brand)] px-4 text-xs font-medium text-[var(--brand)] hover:bg-blue-50 disabled:opacity-60"
+      >
+        {busy ? "…" : "Unfollow"}
+      </button>
+    </li>
   );
 }
 

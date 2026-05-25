@@ -10,6 +10,10 @@ import { useAuth } from "@/context/AuthContext";
 import { mockUser } from "@/data/mockUser";
 import { isValidUserId } from "@/lib/auth/user-id";
 import { fetchFollowStatus, toggleFollow } from "@/lib/follow-client";
+import {
+  fetchPaperFollowStatus,
+  togglePaperFollow,
+} from "@/lib/paper-follow-client";
 import { paperDownloadFilename } from "@/lib/files/paperFilename";
 import {
   brandButtonHover,
@@ -278,9 +282,24 @@ export function PaperDetailClient({ post, relatedPosts = [] }: Props) {
   }
 
   const [followPaper, setFollowPaper] = useState(false);
+  const [paperFollowerCount, setPaperFollowerCount] = useState(0);
+  const [followPaperBusy, setFollowPaperBusy] = useState(false);
   const [followAuthor, setFollowAuthor] = useState(false);
   const [followAuthorBusy, setFollowAuthorBusy] = useState(false);
   const [comments, setComments] = useState<UiComment[]>(seededComments);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { isFollowing, followerCount } = await fetchPaperFollowStatus(post.id);
+      if (cancelled) return;
+      setFollowPaper(!!isFollowing);
+      setPaperFollowerCount(followerCount);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [post.id]);
 
   useEffect(() => {
     if (!isLoggedIn || !canFollowAuthor || !authorId) {
@@ -328,6 +347,31 @@ export function PaperDetailClient({ post, relatedPosts = [] }: Props) {
     : followAuthor
       ? "Unfollow"
       : "Follow";
+
+  const handleFollowPaper = useCallback(async () => {
+    if (followPaperBusy) return;
+    if (!isLoggedIn) {
+      router.push("/login");
+      return;
+    }
+    setFollowPaperBusy(true);
+    const { isFollowing, followerCount, error } = await togglePaperFollow(
+      post.id,
+      followPaper,
+    );
+    setFollowPaperBusy(false);
+    if (!error) {
+      if (typeof isFollowing === "boolean") setFollowPaper(isFollowing);
+      if (typeof followerCount === "number") setPaperFollowerCount(followerCount);
+    }
+  }, [followPaper, followPaperBusy, isLoggedIn, post.id, router]);
+
+  const followPaperLabel = followPaperBusy
+    ? "…"
+    : followPaper
+      ? "Unfollow Paper"
+      : "Follow Paper";
+
   const [composer, setComposer] = useState("");
   const [composerCitation, setComposerCitation] = useState("");
   const [activeReplyFor, setActiveReplyFor] = useState<string | null>(null);
@@ -503,14 +547,15 @@ export function PaperDetailClient({ post, relatedPosts = [] }: Props) {
             {isLoggedIn ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <PrimaryButton
-                  onClick={() => setFollowPaper((v) => !v)}
+                  onClick={() => void handleFollowPaper()}
+                  disabled={followPaperBusy}
                   aria-pressed={followPaper}
                   className="justify-between"
                 >
                   <span className="flex items-center gap-2">
-                    ⤴ {followPaper ? "Following Paper" : "Follow Paper"}
+                    ⤴ {followPaperLabel}
                   </span>
-                  <span className="text-white/90">35</span>
+                  <span className="text-white/90">{paperFollowerCount}</span>
                 </PrimaryButton>
                 {canFollowAuthor ? (
                   <PrimaryButton
