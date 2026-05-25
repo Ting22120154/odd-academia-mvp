@@ -5,11 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 import { PAPER_CATEGORIES, type PaperCategory } from "@/lib/papers/categories";
-import {
-  getAuthHeaders,
-  getStoredAccessToken,
-  setStoredAccessToken,
-} from "@/lib/auth/client";
 
 const CATEGORY_OPTIONS: PaperCategory[] = [...PAPER_CATEGORIES];
 
@@ -110,7 +105,7 @@ interface Citation {
 }
 
 export default function UploadPage() {
-  const { isLoggedIn, user, accessToken } = useAuth();
+  const { isLoggedIn, user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -229,30 +224,11 @@ export default function UploadPage() {
 
     setSubmitting(true);
     try {
-      let token = accessToken ?? getStoredAccessToken();
-      if (!token) {
-        const loginRes = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: "rick.smith@example.com" }),
-        });
-        if (loginRes.ok) {
-          const loginData = (await loginRes.json()) as { token?: string };
-          if (loginData.token) {
-            token = loginData.token;
-            setStoredAccessToken(loginData.token);
-          }
-        }
-      }
-      if (!token) {
-        throw new Error("Please log in again, then try submitting.");
-      }
-
       const res = await fetch("/api/posts", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           title: title.trim(),
@@ -303,7 +279,7 @@ export default function UploadPage() {
 
       const uploadRes = await fetch("/api/papers/upload", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
         body: formData,
       });
 

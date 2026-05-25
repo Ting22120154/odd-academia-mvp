@@ -1,5 +1,5 @@
 import prisma from "@odd-academia/db/client";
-import { getBearerUserId } from "@/lib/auth/jwt";
+import { getRouteUserId } from "@/lib/auth/require-auth";
 import { splitKeywordsAndCategories } from "@/lib/papers/categories";
 
 const paperInclude = {
@@ -64,7 +64,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const userId = getBearerUserId(req);
+  const userId = await getRouteUserId(req);
   if (!userId) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }

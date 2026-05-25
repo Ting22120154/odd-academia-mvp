@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import prisma from "@odd-academia/db/client";
-import { getBearerUserId } from "@/lib/auth/jwt";
+import { getRouteUserId } from "@/lib/auth/require-auth";
 
 const paperInclude = {
   author: {
@@ -59,7 +59,7 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const userId = getBearerUserId(req);
+  const userId = await getRouteUserId(req);
   if (!userId) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }

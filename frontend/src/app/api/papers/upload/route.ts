@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import prisma from "@odd-academia/db/client";
-import { getBearerUserId } from "@/lib/auth/jwt";
+import { getRouteUserId } from "@/lib/auth/require-auth";
 import { paperUploadPaths } from "@/lib/files/paperFilename";
 import { paperInclude } from "@/lib/papers/constants";
 
@@ -27,7 +27,7 @@ function extensionFromMime(mime: string): string {
 }
 
 export async function POST(req: Request) {
-  const userId = getBearerUserId(req);
+  const userId = await getRouteUserId(req);
   if (!userId) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
