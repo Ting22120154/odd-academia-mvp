@@ -1,9 +1,13 @@
 "use client";
 
+/**
+ * Login & sign-up — calls POST /api/auth/login and POST /api/auth/register.
+ * Session cookies are set by the API; client uses applySession for UI state.
+ */
+
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
-import { mockUser } from "@/data/mockUser";
+import { useAuth, type AuthUser } from "@/context/AuthContext";
 
 type Mode = "login" | "signup";
 
@@ -42,20 +46,20 @@ function LeftPanel() {
 }
 
 function LoginPageInner() {
-  const { login, continueAsGuest } = useAuth();
+  const { applySession, continueAsGuest } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const isGuestLimit = searchParams.get("reason") === "guest_limit";
 
   const [mode, setMode] = useState<Mode>("login");
   const [linkedinNotice, setLinkedinNotice] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState("");
 
   // Login fields + errors
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginErrors, setLoginErrors] = useState<{ email?: string; password?: string }>({});
-  // APPEAL INFO: Admin contact email must be surfaced in both email and UI error message
-  const [suspensionInfo, setSuspensionInfo] = useState<{ message: string; appealEmail: string } | null>(null);
 
   // Signup fields + errors
   const [fullName, setFullName] = useState("");
@@ -78,6 +82,22 @@ function LoginPageInner() {
     setSignupErrors({});
   }
 
+  function toAuthUser(u: {
+    id: string;
+    fullName: string;
+    email: string;
+    avatarUrl?: string;
+    role?: AuthUser["role"];
+  }): AuthUser {
+    return {
+      id: u.id,
+      fullName: u.fullName,
+      email: u.email,
+      avatarUrl: u.avatarUrl,
+      role: u.role,
+    };
+  }
+
   async function handleLogin() {
     const errs: { email?: string; password?: string } = {};
     if (!email.trim()) errs.email = "Email is required.";
@@ -87,46 +107,36 @@ function LoginPageInner() {
       return;
     }
     setLoginErrors({});
-    setSuspensionInfo(null);
-
-    // Validate credentials against DB — no fallback to mock IDs
+    setFormError("");
+    setLoading(true);
     try {
-      const res = await fetch("/api/auth/me", {
-        method:  "POST",
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ email: email.trim(), password }),
+        credentials: "include",
+        body: JSON.stringify({ email: email.trim(), password }),
       });
-      if (res.status === 403) {
-        const data = await res.json().catch(() => ({})) as { error?: string; appealEmail?: string };
-        setSuspensionInfo({
-          message:     data.error ?? "Your account has been suspended.",
-          appealEmail: data.appealEmail ?? "support@oddacademia.com",
-        });
+      const json = await res.json();
+      if (!json.success) {
+        setFormError(json.error ?? "Login failed.");
         return;
       }
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { error?: string };
-        setLoginErrors({ email: data.error ?? "Invalid email or password." });
-        return;
-      }
-      const dbUser = await res.json() as { id: string; fullName: string; avatarUrl: string | null };
-      login({
-        id:        dbUser.id,
-        fullName:  dbUser.fullName,
-        email:     email.trim(),
-        avatarUrl: dbUser.avatarUrl ?? mockUser.avatarUrl,
-      });
+      applySession(toAuthUser(json.data.user));
+      router.push("/");
     } catch {
-      setLoginErrors({ email: "Could not reach the server. Please try again." });
+      setFormError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
   }
 
-  function handleSignup() {
+  async function handleSignup() {
     const errs: typeof signupErrors = {};
     if (!fullName.trim()) errs.fullName = "Full name is required.";
     if (!username.trim()) errs.username = "Username is required.";
     if (!signupEmail.trim()) errs.email = "Email is required.";
     if (!signupPassword.trim()) errs.password = "Password is required.";
+    else if (signupPassword.length < 8) errs.password = "Password must be at least 8 characters.";
     if (!confirmPassword.trim()) {
       errs.confirmPassword = "Please confirm your password.";
     } else if (signupPassword !== confirmPassword) {
@@ -137,18 +147,40 @@ function LoginPageInner() {
       return;
     }
     setSignupErrors({});
-    if (typeof window !== "undefined") {
+    setFormError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          fullName: fullName.trim(),
+          username: username.trim(),
+          email: signupEmail.trim(),
+          password: signupPassword,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setFormError(json.error ?? "Sign up failed.");
+        return;
+      }
+      applySession(toAuthUser(json.data.user));
       localStorage.setItem(
         "pendingUser",
         JSON.stringify({
           fullName: fullName.trim(),
           username: username.trim(),
           email: signupEmail.trim(),
-          password: signupPassword,
         })
       );
+      router.push("/onboarding/interests");
+    } catch {
+      setFormError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    router.push("/onboarding/interests");
   }
 
   const inputClass =
@@ -190,25 +222,15 @@ function LoginPageInner() {
             </div>
           )}
 
+          {formError ? (
+            <div className="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              {formError}
+            </div>
+          ) : null}
+
           {/* ===== LOGIN MODE ===== */}
           {mode === "login" && (
             <>
-              {suspensionInfo && (
-                <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
-                  <p className="font-semibold mb-1">Account Suspended</p>
-                  <p>{suspensionInfo.message}</p>
-                  <p className="mt-2 text-xs text-red-600">
-                    To appeal, contact:{" "}
-                    <a
-                      href={`mailto:${suspensionInfo.appealEmail}`}
-                      className="font-medium underline hover:text-red-800"
-                    >
-                      {suspensionInfo.appealEmail}
-                    </a>
-                  </p>
-                </div>
-              )}
-
               <h1 className="mb-8 text-2xl font-semibold text-gray-900">
                 Log in to Odd Academia
               </h1>
@@ -234,7 +256,7 @@ function LoginPageInner() {
               </div>
 
               <form
-                onSubmit={(e) => { e.preventDefault(); void handleLogin(); }}
+                onSubmit={(e) => { e.preventDefault(); handleLogin(); }}
                 className="space-y-4"
               >
                 <div>
@@ -269,8 +291,8 @@ function LoginPageInner() {
                     <p className="mt-1 text-xs text-red-600">{loginErrors.password}</p>
                   )}
                 </div>
-                <button type="submit" className={primaryBtnClass}>
-                  Login
+                <button type="submit" disabled={loading} className={primaryBtnClass}>
+                  {loading ? "Signing in…" : "Login"}
                 </button>
               </form>
 
@@ -410,8 +432,8 @@ function LoginPageInner() {
                   )}
                 </div>
 
-                <button type="submit" className={primaryBtnClass}>
-                  Create Account
+                <button type="submit" disabled={loading} className={primaryBtnClass}>
+                  {loading ? "Creating account…" : "Create Account"}
                 </button>
               </form>
 

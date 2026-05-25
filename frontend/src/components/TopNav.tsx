@@ -1,12 +1,18 @@
 "use client";
 
+/**
+ * Top navigation. When logged in, avatar menu links to /profile and calls logout API.
+ * isLoggedIn prop is passed from AppShell (AuthContext).
+ */
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-type Props = {};
+type Props = {
+  isLoggedIn?: boolean;
+};
 
 function IconButton({
   children,
@@ -41,48 +47,100 @@ function IconButton({
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function TopNav(_props: Props) {
-  const pathname              = usePathname();
-  const { user, isGuest, logout } = useAuth();
-  const isLoggedIn            = user !== null;
-  const [unread,   setUnread] = useState(0);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+function UserMenu({ isProfile }: { isProfile: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const { logout, user } = useAuth();
 
-  // Unread message badge — poll only for real logged-in users
   useEffect(() => {
-    if (!user) return;
-    async function check() {
-      const res = await fetch(`/api/messages/unread-count?userId=${user!.id}`);
-      if (res.ok) {
-        const data = await res.json() as { count: number };
-        setUnread(data.count);
-      }
+    if (!open) return;
+    function handlePointerDown(e: PointerEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
-    void check();
-    const interval = setInterval(() => { void check(); }, 8000);
-    return () => clearInterval(interval);
-  }, [user]);
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
 
-  // Close avatar dropdown when clicking outside
-  useEffect(() => {
-    function handleOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, []);
+  const initial =
+    user?.fullName?.trim().charAt(0).toUpperCase() ||
+    user?.email?.trim().charAt(0).toUpperCase() ||
+    "G";
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        aria-label="Account menu"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((v) => !v)}
+        className={[
+          "inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full text-xs font-semibold transition",
+          isProfile
+            ? "ring-2 ring-[var(--brand)] ring-offset-2 bg-zinc-200 text-zinc-700"
+            : "bg-zinc-200 text-zinc-700 hover:bg-zinc-300",
+        ].join(" ")}
+      >
+        {user?.avatarUrl && !avatarError ? (
+          <img
+            src={user.avatarUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            onError={() => setAvatarError(true)}
+          />
+        ) : (
+          <span>{initial}</span>
+        )}
+      </button>
+
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-50 mt-2 min-w-[140px] overflow-hidden rounded-xl border border-black/[0.08] bg-white py-1 shadow-[var(--shadow-md)]"
+        >
+          <Link
+            href="/profile"
+            role="menuitem"
+            className="block px-4 py-2.5 text-sm text-zinc-700 hover:bg-zinc-50"
+            onClick={() => setOpen(false)}
+          >
+            Profile
+          </Link>
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-4 py-2.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+            onClick={() => {
+              setOpen(false);
+              logout();
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function TopNav({ isLoggedIn }: Props) {
+  const pathname = usePathname();
 
   if (pathname === "/login") return null;
   if (pathname?.startsWith("/paper")) return null;
 
-  const isHome          = pathname === "/" || pathname === "/home";
-  const isFollowing     = pathname?.startsWith("/following");
+  const isHome = pathname === "/" || pathname === "/home";
+  const isFollowing = pathname?.startsWith("/following");
   const isNotifications = pathname?.startsWith("/notifications");
-  const isProfile       = pathname === "/profile" || pathname?.startsWith("/profile/") || pathname?.startsWith("/user/");
+  const isProfile = pathname === "/profile" || pathname?.startsWith("/profile/") || pathname?.startsWith("/user/");
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-black/[0.06] bg-white/80 backdrop-blur">
@@ -100,14 +158,6 @@ export function TopNav(_props: Props) {
             >
               ⤴ Submit New Paper
             </Link>
-          ) : isGuest ? (
-            <button
-              type="button"
-              onClick={logout}
-              className="inline-flex h-10 items-center gap-2 rounded-xl border border-black/[0.08] px-4 text-sm font-medium text-zinc-600 hover:bg-zinc-50"
-            >
-              Log out
-            </button>
           ) : (
             <Link
               href="/login"
@@ -132,80 +182,23 @@ export function TopNav(_props: Props) {
               <path d="M22 21a5 5 0 0 0-7.5-4.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
             </svg>
           </IconButton>
-
-          {/* Notifications bell with unread badge */}
-          <div className="relative">
-            <IconButton href="/notifications" label="Notifications" active={isNotifications}>
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 7h18s-3 0-3-7Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
-                <path d="M9.5 19a2.5 2.5 0 0 0 5 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-              </svg>
-            </IconButton>
-            {unread > 0 && (
-              <span className="pointer-events-none absolute -top-1 -right-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white leading-none">
-                {unread > 99 ? "99+" : unread}
-              </span>
-            )}
-          </div>
-
-          {/* Avatar with logout dropdown */}
-          <div className="relative" ref={menuRef}>
-            <button
-              type="button"
-              aria-label="Profile menu"
-              onClick={() => setMenuOpen(o => !o)}
-              className={[
-                "inline-flex h-10 w-10 items-center justify-center rounded-full text-xs font-semibold transition",
-                isProfile || menuOpen
-                  ? "ring-2 ring-[var(--brand)] ring-offset-2 bg-zinc-200 text-zinc-700"
-                  : "bg-zinc-200 text-zinc-700 hover:bg-zinc-300",
-              ].join(" ")}
+          <IconButton href="/notifications" label="Notifications" active={isNotifications}>
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 7h18s-3 0-3-7Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
+              <path d="M9.5 19a2.5 2.5 0 0 0 5 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+            </svg>
+          </IconButton>
+          {isLoggedIn ? (
+            <UserMenu isProfile={isProfile} />
+          ) : (
+            <Link
+              href="/login"
+              aria-label="Login"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-zinc-200 text-xs font-semibold text-zinc-700 hover:bg-zinc-300"
             >
-              <img
-                src="/avatar-placeholder.png"
-                alt=""
-                className="h-full w-full rounded-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                  (e.target as HTMLImageElement).parentElement!.textContent =
-                    user?.fullName?.[0]?.toUpperCase() ?? "G";
-                }}
-              />
-            </button>
-
-            {menuOpen && (
-              <div className="absolute right-0 top-12 z-50 min-w-[160px] overflow-hidden rounded-xl border border-black/[0.06] bg-white shadow-lg">
-                {user && (
-                  <div className="border-b border-black/[0.06] px-4 py-2.5">
-                    <p className="text-xs font-semibold text-zinc-900 truncate">{user.fullName}</p>
-                    <p className="text-[11px] text-zinc-400 truncate">{user.email}</p>
-                  </div>
-                )}
-                {isLoggedIn && (
-                  <Link
-                    href="/profile"
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-zinc-700 hover:bg-zinc-50"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                      <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-                    </svg>
-                    View Profile
-                  </Link>
-                )}
-                <button
-                  type="button"
-                  onClick={() => { setMenuOpen(false); logout(); }}
-                  className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                  </svg>
-                  Log out
-                </button>
-              </div>
-            )}
-          </div>
+              G
+            </Link>
+          )}
         </div>
       </div>
     </header>

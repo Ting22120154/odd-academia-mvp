@@ -1,10 +1,2 @@
-import { PrismaClient } from "@prisma/client";
-
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-
-export const prisma: PrismaClient =
-  globalForPrisma.prisma ?? new PrismaClient({ log: ["error"] });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
+/** Re-export shared Prisma client from @odd-academia/db (Neon Postgres). */
+export { prisma } from "@odd-academia/db/client";

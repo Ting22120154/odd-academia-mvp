@@ -1,57 +1,54 @@
-import { NextRequest, NextResponse } from "next/server";
+/**
+ * GET /api/users/[id] — public profile by UUID.
+ * - Private profiles (profileVisibility=false): 403 unless viewer is the owner.
+ * - Email only included when viewing your own profile via /me, not here.
+ * - Response includes isFollowing when the viewer is logged in.
+ */
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getAuthPayload } from "@/lib/auth/require-auth";
+import { viewerFollowsTarget } from "@/lib/auth/follow";
+import { isValidUserId } from "@/lib/auth/user-id";
+import { profileInclude, toProfilePaper, toProfileUser } from "@/lib/auth/profile";
+import { ok, err } from "@/lib/response";
 
 export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  if (!isValidUserId(id)) return err("Invalid user id.", 400);
+
+  const viewer = await getAuthPayload();
+
   const user = await prisma.user.findUnique({
     where: { id },
-    select: {
-      id:         true,
-      fullName:   true,
-      username:   true,
-      workStatus: true,
-      jobTitle:   true,
-      bio:        true,
-      avatarUrl:  true,
-    },
-  });
-  if (!user) return NextResponse.json({ error: "User not found." }, { status: 404 });
-  return NextResponse.json(user);
-}
-
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params;
-  const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid body." }, { status: 400 });
-
-  const { fullName, username, workStatus, bio, jobTitle } =
-    body as Record<string, string | undefined>;
-
-  const updated = await prisma.user.update({
-    where: { id },
-    data: {
-      ...(fullName   !== undefined && { fullName }),
-      ...(username   !== undefined && { username }),
-      ...(workStatus !== undefined && { workStatus }),
-      ...(bio        !== undefined && { bio }),
-      ...(jobTitle   !== undefined && { jobTitle }),
-    },
-    select: {
-      id:         true,
-      fullName:   true,
-      username:   true,
-      workStatus: true,
-      jobTitle:   true,
-      bio:        true,
-      avatarUrl:  true,
-    },
+    include: profileInclude,
   });
 
-  return NextResponse.json(updated);
+  if (!user) return err("User not found.", 404);
+
+  const isOwnProfile = viewer?.sub === user.id;
+  if (!user.profileVisibility && !isOwnProfile) {
+    return err("This profile is private.", 403);
+  }
+
+  const papers = await prisma.paper.findMany({
+    where: { authorId: id, status: "published" },
+    include: { keywords: true },
+    orderBy: { createdAt: "desc" },
+    take: 12,
+  });
+
+  const profile = toProfileUser(user, papers.map(toProfilePaper), {
+    viewerId: viewer?.sub,
+    includeEmail: isOwnProfile,
+  });
+
+  const isFollowing =
+    !isOwnProfile && viewer?.sub
+      ? await viewerFollowsTarget(viewer.sub, id)
+      : false;
+
+  return ok({ user: profile, isFollowing });
 }
