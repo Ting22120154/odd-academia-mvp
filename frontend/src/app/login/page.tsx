@@ -46,7 +46,7 @@ function LeftPanel() {
 }
 
 function LoginPageInner() {
-  const { applySession, continueAsGuest } = useAuth();
+  const { applySession, continueAsGuest, refreshSession } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const isGuestLimit = searchParams.get("reason") === "guest_limit";
@@ -122,7 +122,8 @@ function LoginPageInner() {
         return;
       }
       applySession(toAuthUser(json.data.user));
-      router.push("/");
+      await refreshSession();
+      router.push("/home");
     } catch {
       setFormError("Something went wrong. Please try again.");
     } finally {
