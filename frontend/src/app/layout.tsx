@@ -1,7 +1,8 @@
+/** Root layout: AuthProvider + AppShell wrap all pages (feat/auth-user-follow-api). */
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/context/AuthContext";
-import { TopNav } from "@/components/TopNav";
+import { AppShell } from "@/components/AppShell";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,10 +32,7 @@ export default function RootLayout({
     >
       <body className="min-h-full font-sans text-[var(--foreground)]">
         <AuthProvider>
-          <div className="min-h-screen bg-[var(--background)]">
-            <TopNav isLoggedIn />
-            <main className="mx-auto w-full max-w-[var(--page-max)] px-6 py-6">{children}</main>
-          </div>
+          <AppShell>{children}</AppShell>
         </AuthProvider>
       </body>
     </html>

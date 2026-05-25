@@ -15,7 +15,9 @@ const nav = [
 // Nav items guests cannot access
 const AUTH_ONLY_HREFS = new Set(["/upload", "/notifications", "/profile"]);
 
-function Icon({ name }: { name: (typeof nav)[number]["icon"] }) {
+type NavIcon = (typeof nav)[number]["icon"] | "chart" | "book";
+
+function Icon({ name }: { name: NavIcon }) {
   const cls = "h-4 w-4";
   switch (name) {
     case "grid":

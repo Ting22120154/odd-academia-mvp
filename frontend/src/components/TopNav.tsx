@@ -1,7 +1,14 @@
 "use client";
 
+/**
+ * Top navigation. When logged in, avatar menu links to /profile and calls logout API.
+ * isLoggedIn prop is passed from AppShell (AuthContext).
+ */
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 type Props = {
   isLoggedIn?: boolean;
@@ -37,6 +44,90 @@ function IconButton({
     <button type="button" aria-label={label} className={cls}>
       {children}
     </button>
+  );
+}
+
+function UserMenu({ isProfile }: { isProfile: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const { logout, user } = useAuth();
+
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(e: PointerEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  const initial =
+    user?.fullName?.trim().charAt(0).toUpperCase() ||
+    user?.email?.trim().charAt(0).toUpperCase() ||
+    "G";
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        aria-label="Account menu"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((v) => !v)}
+        className={[
+          "inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full text-xs font-semibold transition",
+          isProfile
+            ? "ring-2 ring-[var(--brand)] ring-offset-2 bg-zinc-200 text-zinc-700"
+            : "bg-zinc-200 text-zinc-700 hover:bg-zinc-300",
+        ].join(" ")}
+      >
+        {user?.avatarUrl && !avatarError ? (
+          <img
+            src={user.avatarUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            onError={() => setAvatarError(true)}
+          />
+        ) : (
+          <span>{initial}</span>
+        )}
+      </button>
+
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-50 mt-2 min-w-[140px] overflow-hidden rounded-xl border border-black/[0.08] bg-white py-1 shadow-[var(--shadow-md)]"
+        >
+          <Link
+            href="/profile"
+            role="menuitem"
+            className="block px-4 py-2.5 text-sm text-zinc-700 hover:bg-zinc-50"
+            onClick={() => setOpen(false)}
+          >
+            Profile
+          </Link>
+          <button
+            type="button"
+            role="menuitem"
+            className="block w-full px-4 py-2.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
+            onClick={() => {
+              setOpen(false);
+              logout();
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -97,27 +188,17 @@ export function TopNav({ isLoggedIn }: Props) {
               <path d="M9.5 19a2.5 2.5 0 0 0 5 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
             </svg>
           </IconButton>
-          <Link
-            href="/profile"
-            aria-label="Profile"
-            className={[
-              "inline-flex h-10 w-10 items-center justify-center rounded-full text-xs font-semibold transition",
-              isProfile
-                ? "ring-2 ring-[var(--brand)] ring-offset-2 bg-zinc-200 text-zinc-700"
-                : "bg-zinc-200 text-zinc-700 hover:bg-zinc-300",
-            ].join(" ")}
-            title="Profile"
-          >
-            <img
-              src="/avatar-placeholder.png"
-              alt=""
-              className="h-full w-full rounded-full object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
-                (e.target as HTMLImageElement).parentElement!.textContent = "G";
-              }}
-            />
-          </Link>
+          {isLoggedIn ? (
+            <UserMenu isProfile={isProfile} />
+          ) : (
+            <Link
+              href="/login"
+              aria-label="Login"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-zinc-200 text-xs font-semibold text-zinc-700 hover:bg-zinc-300"
+            >
+              G
+            </Link>
+          )}
         </div>
       </div>
     </header>
