@@ -2,7 +2,8 @@
 
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { mockPosts } from "@/data/mockPosts";
+import { SuggestedPaperCard } from "@/components/SuggestedPaperCard";
+import { usePublishedPapers } from "@/hooks/usePublishedPapers";
 
 const MOCK_OTHER_USER = {
   fullName: "Evelyn Harper",
@@ -18,6 +19,10 @@ const MOCK_OTHER_USER = {
 export default function UserProfilePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { papers, loading: papersLoading, error: papersError } = usePublishedPapers({
+    authorId: id,
+    limit: 50,
+  });
 
   return (
     <section className="mx-auto w-full max-w-[var(--page-max)] space-y-6">
@@ -108,22 +113,19 @@ export default function UserProfilePage() {
       {/* Papers */}
       <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
         <div className="mb-4 text-sm font-semibold text-zinc-900">Papers</div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {mockPosts.slice(0, 4).map((p) => (
-            <div key={p.id} className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
-              <div className="h-32 bg-gradient-to-br from-indigo-400 via-blue-500 to-purple-600" />
-              <div className="p-3">
-                <div className="text-sm font-semibold text-zinc-900 line-clamp-2">{p.title}</div>
-                <div className="mt-1 text-xs text-zinc-500 line-clamp-2">{p.description}</div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {p.tags.slice(0, 2).map((t) => (
-                    <span key={t} className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600">{t}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        {papersLoading ? (
+          <p className="text-sm text-zinc-500">Loading papers…</p>
+        ) : papersError ? (
+          <p className="text-sm text-red-600">{papersError}</p>
+        ) : papers.length === 0 ? (
+          <p className="text-sm text-zinc-500">No published papers for this author.</p>
+        ) : (
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {papers.map((p) => (
+              <SuggestedPaperCard key={p.id} post={p} />
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   );

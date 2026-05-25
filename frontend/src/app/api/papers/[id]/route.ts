@@ -1,19 +1,5 @@
-import prisma from "../../../../../../packages/db/src/client";
-
-const paperInclude = {
-  author: {
-    select: {
-      id: true,
-      fullName: true,
-      avatarUrl: true,
-      bio: true,
-    },
-  },
-  keywords: true,
-  categories: true,
-  contributors: true,
-  references: true,
-} as const;
+import prisma from "@odd-academia/db/client";
+import { paperInclude } from "@/lib/papers/constants";
 
 export async function GET(
   _req: Request,

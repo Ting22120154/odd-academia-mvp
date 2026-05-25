@@ -1,22 +1,9 @@
 import jwt from "jsonwebtoken";
-import prisma from "../../../../../packages/db/src/client";
+import prisma from "@odd-academia/db/client";
+import { paperInclude } from "@/lib/papers/constants";
+import { splitKeywordsAndCategories } from "@/lib/papers/categories";
 
 // File uploads: POST /api/papers/upload (multipart/form-data)
-
-const paperInclude = {
-  author: {
-    select: {
-      id: true,
-      fullName: true,
-      avatarUrl: true,
-      bio: true,
-    },
-  },
-  keywords: true,
-  categories: true,
-  contributors: true,
-  references: true,
-} as const;
 
 function getBearerUserId(req: Request): string | null {
   const header = req.headers.get("Authorization");
@@ -61,7 +48,11 @@ export async function GET(req: Request) {
     );
     const skip = (page - 1) * limit;
 
-    const where = { status: "published" as const };
+    const authorId = searchParams.get("authorId")?.trim();
+    const where = {
+      status: "published" as const,
+      ...(authorId ? { authorId } : {}),
+    };
 
     const [posts, total] = await Promise.all([
       prisma.paper.findMany({
@@ -104,12 +95,16 @@ export async function POST(req: Request) {
     return Response.json({ error: "Missing required field: abstract" }, { status: 400 });
   }
 
-  const keywords = Array.isArray(b.keywords)
+  const rawKeywords = Array.isArray(b.keywords)
     ? (b.keywords.filter((x) => typeof x === "string") as string[])
     : [];
-  const categories = Array.isArray(b.categories)
+  const rawCategories = Array.isArray(b.categories)
     ? (b.categories.filter((x) => typeof x === "string") as string[])
     : [];
+  const { categories, keywords } = splitKeywordsAndCategories([
+    ...rawCategories,
+    ...rawKeywords,
+  ]);
   const doi = typeof b.doi === "string" ? b.doi.trim() || undefined : undefined;
   const publishedAt = parsePublishedAt(b.publishedAt);
 

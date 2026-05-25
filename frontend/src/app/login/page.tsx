@@ -201,7 +201,10 @@ function LoginPageInner() {
                     id="email"
                     type="email"
                     value={email}
-                    onChange={(e) => { setEmail(e.target.value); setLoginErrors((p) => ({ ...p, email: undefined })); }}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setLoginErrors((p) => ({ ...p, email: undefined }));
+                    }}
                     placeholder="you@example.com"
                     className={loginErrors.email ? inputErrorClass : inputClass}
                   />
@@ -217,7 +220,10 @@ function LoginPageInner() {
                     id="password"
                     type="password"
                     value={password}
-                    onChange={(e) => { setPassword(e.target.value); setLoginErrors((p) => ({ ...p, password: undefined })); }}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setLoginErrors((p) => ({ ...p, password: undefined }));
+                    }}
                     placeholder="••••••••"
                     className={loginErrors.password ? inputErrorClass : inputClass}
                   />

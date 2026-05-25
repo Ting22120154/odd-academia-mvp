@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { mockUser } from "@/data/mockUser";
-import { mockPosts } from "@/data/mockPosts";
+import { SuggestedPaperCard } from "@/components/SuggestedPaperCard";
+import { usePublishedPapers } from "@/hooks/usePublishedPapers";
 
 type Tab = "papers" | "cited-comments";
 
@@ -37,6 +38,9 @@ export default function ProfilePage() {
   const { isLoggedIn } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("papers");
+  const { papers, loading: papersLoading, error: papersError } = usePublishedPapers({
+    limit: 50,
+  });
 
   useEffect(() => {
     if (!isLoggedIn) router.replace("/login");
@@ -126,17 +130,21 @@ export default function ProfilePage() {
         </div>
 
         {tab === "papers" && (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {mockPosts.slice(0, 4).map((p) => (
-              <PaperCard
-                key={p.id}
-                title={p.title}
-                desc={p.description}
-                tags={p.tags}
-                image={p.image.src}
-              />
-            ))}
-          </div>
+          <>
+            {papersLoading ? (
+              <p className="mt-4 text-sm text-zinc-500">Loading papers…</p>
+            ) : papersError ? (
+              <p className="mt-4 text-sm text-red-600">{papersError}</p>
+            ) : papers.length === 0 ? (
+              <p className="mt-4 text-sm text-zinc-500">No published papers yet.</p>
+            ) : (
+              <ul className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {papers.map((p) => (
+                  <SuggestedPaperCard key={p.id} post={p} />
+                ))}
+              </ul>
+            )}
+          </>
         )}
 
         {tab === "cited-comments" && (

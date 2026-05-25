@@ -4,22 +4,76 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
-type Keyword =
-  | "AI infrastructure"
-  | "Computer science"
-  | "Biohacking"
-  | "Maths"
-  | "Sustainability"
-  | "Business";
+import { PAPER_CATEGORIES, type PaperCategory } from "@/lib/papers/categories";
+import {
+  getAuthHeaders,
+  getStoredAccessToken,
+  setStoredAccessToken,
+} from "@/lib/auth/client";
 
-const KEYWORDS: Keyword[] = [
-  "AI infrastructure",
-  "Computer science",
-  "Biohacking",
-  "Maths",
-  "Sustainability",
-  "Business",
-];
+const CATEGORY_OPTIONS: PaperCategory[] = [...PAPER_CATEGORIES];
+
+/** Subtle hover for clickable rows/options on this page. */
+const optionHover =
+  "cursor-pointer transition hover:bg-zinc-50 hover:opacity-95 hover:ring-1 hover:ring-inset hover:ring-zinc-200/70";
+
+/** Hover/focus for interactive fields (e.g. date picker). */
+const fieldInteractive =
+  "cursor-pointer transition hover:bg-zinc-50 hover:opacity-95 hover:ring-1 hover:ring-zinc-200/60 active:opacity-90 active:ring-2 active:ring-zinc-200/70 focus:border-black/20 focus:ring-2 focus:ring-[var(--brand)]/20";
+
+function UploadCompletedBadge() {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500"
+        aria-hidden
+      >
+        <svg
+          className="h-2.5 w-2.5 text-white"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      </span>
+      <span className="text-xs font-medium text-zinc-800">Completed</span>
+    </span>
+  );
+}
+
+function UploadingBadge() {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        className="inline-block h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-zinc-200 border-t-[var(--brand)]"
+        aria-hidden
+      />
+      <span className="text-xs font-medium text-zinc-500">Uploading...</span>
+    </span>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg
+      className="h-5 w-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  );
+}
 
 const MOCK_REFERENCES = [
   {
@@ -56,7 +110,7 @@ interface Citation {
 }
 
 export default function UploadPage() {
-  const { isLoggedIn, user } = useAuth();
+  const { isLoggedIn, user, accessToken } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -64,15 +118,18 @@ export default function UploadPage() {
   }, [isLoggedIn, router]);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const [title, setTitle] = useState("");
-  const [published, setPublished] = useState("");
-  const [selectedKeywords, setSelectedKeywords] = useState<Keyword[]>([]);
-  const [kwOpen, setKwOpen] = useState(false);
+  const [published, setPublished] = useState(
+    () => new Date().toISOString().split("T")[0],
+  );
+  const [selectedCategories, setSelectedCategories] = useState<PaperCategory[]>([]);
+  const [categoryOpen, setCategoryOpen] = useState(false);
   const [abstract, setAbstract] = useState("");
   const [anonymous, setAnonymous] = useState(false);
   const [contributors, setContributors] = useState("");
@@ -116,14 +173,14 @@ export default function UploadPage() {
     setUploadProgress(0);
   }
 
-  function toggleKeyword(kw: Keyword) {
-    setSelectedKeywords((prev) =>
-      prev.includes(kw) ? prev.filter((k) => k !== kw) : [...prev, kw],
+  function toggleCategory(cat: PaperCategory) {
+    setSelectedCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
     );
   }
 
-  function removeKeyword(kw: Keyword) {
-    setSelectedKeywords((prev) => prev.filter((k) => k !== kw));
+  function removeCategory(cat: PaperCategory) {
+    setSelectedCategories((prev) => prev.filter((c) => c !== cat));
   }
 
   const filteredRefs = MOCK_REFERENCES.filter(
@@ -168,18 +225,40 @@ export default function UploadPage() {
       .map((label) => ({ label }));
 
     const publishedDate =
-      published.trim() || new Date().toLocaleDateString("en-CA");
+      published.trim() || new Date().toISOString().split("T")[0];
 
     setSubmitting(true);
     try {
+      let token = accessToken ?? getStoredAccessToken();
+      if (!token) {
+        const loginRes = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: "rick.smith@example.com" }),
+        });
+        if (loginRes.ok) {
+          const loginData = (await loginRes.json()) as { token?: string };
+          if (loginData.token) {
+            token = loginData.token;
+            setStoredAccessToken(loginData.token);
+          }
+        }
+      }
+      if (!token) {
+        throw new Error("Please log in again, then try submitting.");
+      }
+
       const res = await fetch("/api/posts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           title: title.trim(),
           content: abstract.trim(),
-          keywords: selectedKeywords,
-          categories: selectedKeywords,
+          categories: selectedCategories,
+          keywords: [],
           publishedDate,
           doi: doi.trim() || undefined,
           references: citations.map((c) => c.label),
@@ -202,8 +281,38 @@ export default function UploadPage() {
         throw new Error(body?.error ?? "Could not submit paper");
       }
 
-      const created = (await res.json()) as { id: number };
-      const url = `${window.location.origin}/posts/${created.id}`;
+      const created = (await res.json()) as { id: string };
+
+      const uploadMime =
+        file.type ||
+        (file.name.toLowerCase().endsWith(".pdf")
+          ? "application/pdf"
+          : file.name.toLowerCase().endsWith(".docx")
+            ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            : file.name.toLowerCase().endsWith(".doc")
+              ? "application/msword"
+              : "");
+      const uploadFile =
+        uploadMime && uploadMime !== file.type
+          ? new File([file], file.name, { type: uploadMime })
+          : file;
+
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+      formData.append("paperId", created.id);
+
+      const uploadRes = await fetch("/api/papers/upload", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (!uploadRes.ok) {
+        const body = (await uploadRes.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? "Paper saved but file upload failed");
+      }
+
+      const url = `${window.location.origin}/paper/${created.id}`;
       setSuccessUrl(url);
       setSuccessOpen(true);
     } catch (err) {
@@ -239,7 +348,7 @@ export default function UploadPage() {
       <button
         type="button"
         onClick={() => router.back()}
-        className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-900"
+        className={`mb-4 -ml-2 inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-zinc-600 hover:text-zinc-900 ${optionHover}`}
       >
         <span>←</span> Back
       </button>
@@ -252,7 +361,7 @@ export default function UploadPage() {
 
         {uploadState === "idle" ? (
           <div
-            className="mt-3 flex min-h-[148px] flex-col items-center justify-center rounded-2xl border border-dashed border-black/[0.12] bg-zinc-50 px-6 py-6 text-center"
+            className="mt-3 flex min-h-[148px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-black/[0.12] bg-zinc-50 px-6 py-6 text-center transition hover:border-black/20 hover:bg-zinc-100/90 hover:opacity-95 hover:ring-2 hover:ring-zinc-200/50"
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
@@ -267,7 +376,11 @@ export default function UploadPage() {
             </div>
             <div className="mt-3 text-sm font-medium text-zinc-700">
               Drag file here to upload or{" "}
-              <button type="button" onClick={() => inputRef.current?.click()} className="font-semibold text-zinc-900 underline underline-offset-2">
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                className="cursor-pointer font-semibold text-zinc-900 underline underline-offset-2 transition hover:opacity-80"
+              >
                 choose file
               </button>
             </div>
@@ -275,7 +388,7 @@ export default function UploadPage() {
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="mt-4 inline-flex h-9 items-center rounded-lg border border-black/[0.08] bg-white px-4 text-xs font-semibold text-zinc-800 hover:bg-zinc-50"
+              className="mt-4 inline-flex h-9 cursor-pointer items-center rounded-lg border border-black/[0.08] bg-white px-4 text-xs font-semibold text-zinc-800 transition hover:bg-zinc-50 hover:opacity-95 hover:ring-1 hover:ring-zinc-200/70"
             >
               Browse File
             </button>
@@ -284,7 +397,7 @@ export default function UploadPage() {
               type="file"
               className="hidden"
               onChange={(e) => onChooseFile(e.target.files?.[0] ?? null)}
-              accept=".pdf,.doc,.docx,.png,.zip"
+              accept=".pdf,.doc,.docx,application/pdf"
             />
           </div>
         ) : (
@@ -295,16 +408,29 @@ export default function UploadPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-zinc-900">{file?.name}</div>
-                <div className="mt-0.5 text-xs text-zinc-400">
-                  {uploadState === "uploading"
-                    ? `0 KB of ${file ? Math.round(file.size / 1024) : 120} KB • ⚙ Uploading...`
-                    : `0 KB of ${file ? Math.round(file.size / 1024) : 120} KB • ✅ Completed`}
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-zinc-400">
+                  <span>
+                    {(() => {
+                      const totalKb = file ? Math.max(1, Math.round(file.size / 1024)) : 0;
+                      if (uploadState === "completed") {
+                        return `${totalKb} of ${totalKb} KB uploaded`;
+                      }
+                      const uploadedKb = Math.round((uploadProgress / 100) * totalKb);
+                      return `${uploadedKb} of ${totalKb} KB`;
+                    })()}
+                  </span>
+                  <span className="text-zinc-300">•</span>
+                  {uploadState === "uploading" ? (
+                    <UploadingBadge />
+                  ) : (
+                    <UploadCompletedBadge />
+                  )}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={removeFile}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+                className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600 hover:opacity-90 hover:ring-1 hover:ring-zinc-200/70"
                 aria-label="Remove file"
               >
                 {uploadState === "completed" ? (
@@ -340,51 +466,67 @@ export default function UploadPage() {
           </div>
           <div className="space-y-2">
             <div className="text-sm font-semibold text-zinc-900">Published</div>
-            <input
-              type="date"
-              value={published}
-              onChange={(e) => setPublished(e.target.value)}
-              placeholder="YYYY-MM-DD"
-              className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-900 outline-none focus:border-black/20"
-            />
+            <div className="relative">
+              <input
+                ref={dateInputRef}
+                type="date"
+                value={published}
+                onChange={(e) => setPublished(e.target.value)}
+                placeholder="YYYY-MM-DD"
+                className={`h-11 w-full rounded-xl border border-black/[0.08] bg-white py-0 pl-4 pr-12 text-sm text-zinc-900 outline-none [&::-webkit-calendar-picker-indicator]:pointer-events-none [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-12 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 ${fieldInteractive}`}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const el = dateInputRef.current;
+                  if (!el) return;
+                  if (typeof el.showPicker === "function") el.showPicker();
+                  else el.focus();
+                }}
+                className={`absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-500 ${optionHover} rounded-lg p-1.5 hover:text-zinc-700`}
+                aria-label="Open calendar"
+              >
+                <CalendarIcon />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* ── Keywords (multi-select) ── */}
+        {/* ── Categories (multi-select) ── */}
         <div className="relative mt-6 space-y-2">
-          <div className="text-sm font-semibold text-zinc-900">Keywords</div>
+          <div className="text-sm font-semibold text-zinc-900">Categories</div>
           <div
             role="button"
             tabIndex={0}
-            aria-expanded={kwOpen}
+            aria-expanded={categoryOpen}
             aria-haspopup="listbox"
-            onClick={() => setKwOpen((v) => !v)}
+            onClick={() => setCategoryOpen((v) => !v)}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                setKwOpen((v) => !v);
+                setCategoryOpen((v) => !v);
               }
             }}
-            className="flex h-11 w-full cursor-pointer items-center justify-between rounded-xl border border-black/[0.08] bg-white px-4 text-sm outline-none focus:border-black/20 focus-visible:ring-2 focus-visible:ring-[var(--brand)]/25"
+            className="flex h-11 w-full cursor-pointer items-center justify-between rounded-xl border border-black/[0.08] bg-white px-4 text-sm outline-none transition hover:bg-zinc-50 hover:opacity-95 hover:ring-1 hover:ring-zinc-200/60 focus:border-black/20 focus-visible:ring-2 focus-visible:ring-[var(--brand)]/25"
           >
             <span className="flex flex-wrap items-center gap-2">
-              {selectedKeywords.length === 0 ? (
-                <span className="text-zinc-400">Select Keyword</span>
+              {selectedCategories.length === 0 ? (
+                <span className="text-zinc-400">Select categories</span>
               ) : (
-                selectedKeywords.map((kw) => (
+                selectedCategories.map((cat) => (
                   <span
-                    key={kw}
+                    key={cat}
                     className="inline-flex items-center gap-1 rounded-full bg-[var(--brand)]/10 px-3 py-0.5 text-xs font-medium text-[var(--brand)]"
                   >
-                    {kw}
+                    {cat}
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        removeKeyword(kw);
+                        removeCategory(cat);
                       }}
-                      className="ml-0.5 text-[var(--brand)] hover:text-[var(--brand)]/70"
-                      aria-label={`Remove ${kw}`}
+                      className="ml-0.5 cursor-pointer text-[var(--brand)] transition hover:text-[var(--brand)]/70 hover:opacity-80"
+                      aria-label={`Remove ${cat}`}
                     >
                       ×
                     </button>
@@ -394,25 +536,25 @@ export default function UploadPage() {
             </span>
             <svg className="h-4 w-4 shrink-0 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
           </div>
-          {kwOpen && (
-            <div className="absolute z-20 mt-1 w-full rounded-xl border border-black/[0.08] bg-white py-1 shadow-lg">
-              {KEYWORDS.map((kw) => (
+          {categoryOpen && (
+            <div className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-xl border border-black/[0.08] bg-white py-1 shadow-lg">
+              {CATEGORY_OPTIONS.map((cat) => (
                 <button
-                  key={kw}
+                  key={cat}
                   type="button"
-                  onClick={() => toggleKeyword(kw)}
-                  className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-zinc-50 ${
-                    selectedKeywords.includes(kw) ? "font-medium text-[var(--brand)]" : "text-zinc-700"
+                  onClick={() => toggleCategory(cat)}
+                  className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm ${optionHover} ${
+                    selectedCategories.includes(cat) ? "font-medium text-[var(--brand)]" : "text-zinc-700"
                   }`}
                 >
                   <span className={`flex h-4 w-4 items-center justify-center rounded border text-xs ${
-                    selectedKeywords.includes(kw)
+                    selectedCategories.includes(cat)
                       ? "border-[var(--brand)] bg-[var(--brand)] text-white"
                       : "border-zinc-300"
                   }`}>
-                    {selectedKeywords.includes(kw) && "✓"}
+                    {selectedCategories.includes(cat) && "✓"}
                   </span>
-                  {kw}
+                  {cat}
                 </button>
               ))}
             </div>
@@ -439,12 +581,12 @@ export default function UploadPage() {
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-3">
           <div className="space-y-2">
             <div className="text-sm font-semibold text-zinc-900">Paper Author</div>
-            <label className="flex h-11 items-center gap-3 rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-700">
+            <label className="flex h-11 cursor-pointer items-center gap-3 rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-700 transition hover:bg-zinc-50 hover:opacity-95 hover:ring-1 hover:ring-zinc-200/60">
               <span className="flex-1">Submit Anonymously</span>
               <button
                 type="button"
                 onClick={() => setAnonymous((v) => !v)}
-                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border border-black/[0.08] p-0.5 transition ${
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-black/[0.08] p-0.5 transition hover:opacity-90 hover:ring-2 hover:ring-zinc-200/80 ${
                   anonymous ? "bg-[var(--brand)]" : "bg-zinc-100"
                 }`}
                 aria-pressed={anonymous}
@@ -487,7 +629,7 @@ export default function UploadPage() {
                   <button
                     type="button"
                     onClick={() => removeCitation(c.id)}
-                    className="shrink-0 text-zinc-400 hover:text-zinc-600"
+                    className="shrink-0 cursor-pointer rounded-md p-0.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600 hover:opacity-90"
                   >
                     ×
                   </button>
@@ -513,7 +655,7 @@ export default function UploadPage() {
                   key={ref.id}
                   type="button"
                   onClick={() => addCitation(ref)}
-                  className="flex w-full items-start gap-3 border-b border-black/[0.04] px-4 py-3 text-left hover:bg-zinc-50 last:border-0"
+                  className={`flex w-full items-start gap-3 border-b border-black/[0.04] px-4 py-3 text-left last:border-0 ${optionHover}`}
                 >
                   <div className="h-14 w-20 shrink-0 overflow-hidden rounded-lg bg-zinc-200" />
                   <div className="min-w-0 flex-1">
@@ -547,10 +689,10 @@ export default function UploadPage() {
             type="button"
             onClick={onSubmit}
             disabled={!canSubmit || submitting}
-            className={`inline-flex h-10 items-center rounded-xl px-10 text-sm font-medium text-white ${
+            className={`inline-flex h-10 items-center rounded-xl px-10 text-sm font-medium text-white transition ${
               canSubmit && !submitting
-                ? "bg-[var(--brand)] hover:opacity-95"
-                : "bg-zinc-300 text-white/80"
+                ? "cursor-pointer bg-[var(--brand)] hover:opacity-95 hover:ring-2 hover:ring-[var(--brand)]/30 active:opacity-90"
+                : "cursor-not-allowed bg-zinc-300 text-white/80"
             }`}
           >
             {submitting ? "Submitting…" : "Submit"}
@@ -564,8 +706,12 @@ export default function UploadPage() {
           <div className="relative w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-xl">
             <button
               type="button"
-              onClick={() => setSuccessOpen(false)}
-              className="absolute right-4 top-4 text-zinc-400 hover:text-zinc-600"
+              onClick={() => {
+                setSuccessOpen(false);
+                router.push("/home");
+              }}
+              className={`absolute right-4 top-4 rounded-lg p-1.5 text-zinc-400 ${optionHover}`}
+              aria-label="Close and go to home"
             >
               ×
             </button>
@@ -582,7 +728,7 @@ export default function UploadPage() {
               <button
                 type="button"
                 onClick={() => navigator.clipboard.writeText(successUrl)}
-                className="shrink-0 text-zinc-400 hover:text-zinc-600"
+                className={`shrink-0 rounded-lg p-1.5 text-zinc-400 ${optionHover}`}
                 aria-label="Copy link"
               >
                 <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -595,7 +741,7 @@ export default function UploadPage() {
             <button
               type="button"
               onClick={() => shareToSocials(successUrl)}
-              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-medium text-white hover:bg-emerald-700"
+              className="mt-4 inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-medium text-white transition hover:bg-emerald-700 hover:opacity-95 hover:ring-2 hover:ring-emerald-400/40 active:opacity-90"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" />

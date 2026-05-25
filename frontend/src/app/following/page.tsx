@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { SuggestedPaperCard } from "@/components/SuggestedPaperCard";
+import { usePublishedPapers } from "@/hooks/usePublishedPapers";
 
 type Tab = "papers" | "people" | "followers";
 
@@ -68,6 +70,9 @@ export default function FollowingPage() {
   const [tab, setTab] = useState<Tab>("papers");
   const [people, setPeople] = useState(MOCK_PEOPLE_YOU_FOLLOW);
   const [followers, setFollowers] = useState(MOCK_FOLLOWERS);
+  const { papers, loading: papersLoading, error: papersError } = usePublishedPapers({
+    limit: 50,
+  });
 
   useEffect(() => {
     if (!isLoggedIn) router.replace("/login");
@@ -118,28 +123,19 @@ export default function FollowingPage() {
               View More
             </button>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {MOCK_FOLLOWED_PAPERS.map((p) => (
-              <div key={p.id} className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
-                <div className="h-32 bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800" />
-                <div className="p-3">
-                  <div className="text-sm font-semibold text-zinc-900 line-clamp-2">{p.title}</div>
-                  <div className="mt-1 text-xs text-zinc-500 line-clamp-2">{p.desc}</div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {p.tags.slice(0, 2).map((t) => (
-                      <span key={t} className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600">
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <div className="h-6 w-6 rounded-full bg-zinc-200" />
-                    <span className="text-xs text-zinc-500">{p.authorName}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          {papersLoading ? (
+            <p className="text-sm text-zinc-500">Loading papers…</p>
+          ) : papersError ? (
+            <p className="text-sm text-red-600">{papersError}</p>
+          ) : papers.length === 0 ? (
+            <p className="text-sm text-zinc-500">No published papers to show yet.</p>
+          ) : (
+            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {papers.map((p) => (
+                <SuggestedPaperCard key={p.id} post={p} />
+              ))}
+            </ul>
+          )}
         </div>
       )}
 

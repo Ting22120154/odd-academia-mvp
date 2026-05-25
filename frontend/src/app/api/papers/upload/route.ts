@@ -1,7 +1,9 @@
 import jwt from "jsonwebtoken";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import prisma from "../../../../../../packages/db/src/client";
+import prisma from "@odd-academia/db/client";
+import { paperInclude } from "@/lib/papers/constants";
+import { paperUploadPaths } from "@/lib/files/paperFilename";
 
 const ALLOWED_TYPES = new Set([
   "application/pdf",
@@ -10,21 +12,6 @@ const ALLOWED_TYPES = new Set([
 ]);
 
 const MAX_BYTES = 10 * 1024 * 1024;
-
-const paperInclude = {
-  author: {
-    select: {
-      id: true,
-      fullName: true,
-      avatarUrl: true,
-      bio: true,
-    },
-  },
-  keywords: true,
-  categories: true,
-  contributors: true,
-  references: true,
-} as const;
 
 function getBearerUserId(req: Request): string | null {
   const header = req.headers.get("Authorization");
@@ -79,7 +66,18 @@ export async function POST(req: Request) {
 
   const file = fileField as File;
 
-  if (!ALLOWED_TYPES.has(file.type)) {
+  let mimeType = file.type;
+  if (!mimeType || !ALLOWED_TYPES.has(mimeType)) {
+    const ext = path.extname(file.name).toLowerCase();
+    if (ext === ".pdf") mimeType = "application/pdf";
+    else if (ext === ".doc") mimeType = "application/msword";
+    else if (ext === ".docx") {
+      mimeType =
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    }
+  }
+
+  if (!ALLOWED_TYPES.has(mimeType)) {
     return Response.json(
       { error: "Invalid file type. Only PDF, DOC, DOCX allowed" },
       { status: 400 },
@@ -94,33 +92,49 @@ export async function POST(req: Request) {
   }
 
   const ext =
-    path.extname(file.name) || extensionFromMime(file.type) || ".bin";
-  const filename = `${Date.now()}${ext}`;
-  const uploadsDir = path.join(process.cwd(), "public", "uploads");
-  const fileUrl = `/uploads/${filename}`;
+    path.extname(file.name) || extensionFromMime(mimeType) || ".bin";
+
+  const paperIdRaw = formData.get("paperId");
+  const paperId =
+    typeof paperIdRaw === "string" ? paperIdRaw.trim() : "";
+
+  let fileUrl: string;
+  let absolutePath: string;
+
+  if (paperId) {
+    const paper = await prisma.paper.findUnique({
+      where: { id: paperId },
+      select: { id: true, authorId: true, title: true },
+    });
+
+    if (!paper) {
+      return Response.json({ error: "Paper not found" }, { status: 404 });
+    }
+    if (paper.authorId !== userId) {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const paths = paperUploadPaths(paper.title, paper.id, ext);
+    fileUrl = paths.fileUrl;
+    absolutePath = path.join(
+      process.cwd(),
+      "public",
+      "uploads",
+      paper.id,
+      paths.diskName,
+    );
+  } else {
+    const filename = `${Date.now()}${ext}`;
+    fileUrl = `/uploads/${filename}`;
+    absolutePath = path.join(process.cwd(), "public", "uploads", filename);
+  }
 
   try {
-    await mkdir(uploadsDir, { recursive: true });
+    await mkdir(path.dirname(absolutePath), { recursive: true });
     const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(path.join(uploadsDir, filename), buffer);
-
-    const paperIdRaw = formData.get("paperId");
-    const paperId =
-      typeof paperIdRaw === "string" ? paperIdRaw.trim() : "";
+    await writeFile(absolutePath, buffer);
 
     if (paperId) {
-      const paper = await prisma.paper.findUnique({
-        where: { id: paperId },
-        select: { id: true, authorId: true },
-      });
-
-      if (!paper) {
-        return Response.json({ error: "Paper not found" }, { status: 404 });
-      }
-      if (paper.authorId !== userId) {
-        return Response.json({ error: "Forbidden" }, { status: 403 });
-      }
-
       const updated = await prisma.paper.update({
         where: { id: paperId },
         data: { fileUrl },

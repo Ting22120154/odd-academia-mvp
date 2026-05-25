@@ -1,19 +1,6 @@
-import prisma from "../../../../../../../packages/db/src/client";
-
-const paperInclude = {
-  author: {
-    select: {
-      id: true,
-      fullName: true,
-      avatarUrl: true,
-      bio: true,
-    },
-  },
-  keywords: true,
-  categories: true,
-  contributors: true,
-  references: true,
-} as const;
+import prisma from "@odd-academia/db/client";
+import { paperInclude } from "@/lib/papers/constants";
+import { getCategoryDbAliases, normalizeCategory } from "@/lib/papers/categories";
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   const n = Number.parseInt(value ?? "", 10);
@@ -26,11 +13,14 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const category = decodeURIComponent(id).trim();
+    const raw = decodeURIComponent(id).trim();
 
-    if (!category) {
+    if (!raw) {
       return Response.json({ error: "Missing category" }, { status: 400 });
     }
+
+    const canonical = normalizeCategory(raw);
+    const category = canonical ?? raw;
 
     const { searchParams } = new URL(req.url);
     const page = parsePositiveInt(searchParams.get("page"), 1);
@@ -40,9 +30,22 @@ export async function GET(
     );
     const skip = (page - 1) * limit;
 
+    const aliasValues = canonical ? getCategoryDbAliases(canonical) : [category];
+
     const where = {
       status: "published" as const,
-      categories: { some: { category } },
+      OR: aliasValues.flatMap((value) => [
+        {
+          categories: {
+            some: { category: { equals: value, mode: "insensitive" as const } },
+          },
+        },
+        {
+          keywords: {
+            some: { keyword: { equals: value, mode: "insensitive" as const } },
+          },
+        },
+      ]),
     };
 
     const [posts, total] = await Promise.all([

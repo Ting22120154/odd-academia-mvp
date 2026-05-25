@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import prisma from "@odd-academia/db/client";
+import { splitKeywordsAndCategories } from "@/lib/papers/categories";
 
 const paperInclude = {
   author: {
@@ -91,12 +92,16 @@ export async function POST(req: Request) {
   }
 
   const content = typeof b.content === "string" ? b.content : "";
-  const keywords = Array.isArray(b.keywords)
+  const rawKeywords = Array.isArray(b.keywords)
     ? (b.keywords.filter((x) => typeof x === "string") as string[])
     : [];
-  const categories = Array.isArray(b.categories)
+  const rawCategories = Array.isArray(b.categories)
     ? (b.categories.filter((x) => typeof x === "string") as string[])
     : [];
+  const { categories, keywords } = splitKeywordsAndCategories([
+    ...rawCategories,
+    ...rawKeywords,
+  ]);
   const publishedDate =
     typeof b.publishedDate === "string" ? b.publishedDate : undefined;
   const doi = typeof b.doi === "string" ? b.doi.trim() || undefined : undefined;
@@ -123,7 +128,8 @@ export async function POST(req: Request) {
       authorId: userId,
       title: b.title.trim(),
       abstract: content.trim() || null,
-      publishedAt,
+      publishedAt: publishedAt ?? new Date(),
+      status: "published",
       doi,
       keywords: {
         create: keywords.map((keyword) => ({ keyword })),
