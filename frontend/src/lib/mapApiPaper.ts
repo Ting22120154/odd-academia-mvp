@@ -46,6 +46,7 @@ export function mapApiPaperToViewerPost(paper: ApiPaper): MockPost {
     id: paper.id,
     title: paper.title,
     summary: abstract.length > 200 ? `${abstract.slice(0, 200)}…` : abstract,
+    authorId: paper.author?.id,
     authorName: paper.author?.fullName ?? "Unknown",
     authorAvatarUrl: paper.author?.avatarUrl ?? "/avatars/profile.svg",
     subject,

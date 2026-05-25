@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MockPost } from "@/lib/mockPosts";
 import { EmbeddedPdfViewer } from "@/app/paper/_components/EmbeddedPdfViewer";
 import { GuestTracker } from "@/app/paper/_components/GuestTracker";
 import { useAuth } from "@/context/AuthContext";
 import { mockUser } from "@/data/mockUser";
+import { isValidUserId } from "@/lib/auth/user-id";
+import { fetchFollowStatus, toggleFollow } from "@/lib/follow-client";
 import { paperDownloadFilename } from "@/lib/files/paperFilename";
 import {
   brandButtonHover,
@@ -249,7 +252,12 @@ function ReportModal({
 }
 
 export function PaperDetailClient({ post, relatedPosts = [] }: Props) {
-  const { isLoggedIn } = useAuth();
+  const router = useRouter();
+  const { isLoggedIn, user: sessionUser } = useAuth();
+  const authorId = post.authorId;
+  const canFollowAuthor = Boolean(
+    authorId && isValidUserId(authorId) && sessionUser?.id !== authorId,
+  );
   const citation = useMemo(() => buildApaLikeCitation(post), [post]);
   const sharePath = `/paper/${post.id}`;
   const fileApiSrc = `/api/papers/${post.id}/file`;
@@ -271,7 +279,55 @@ export function PaperDetailClient({ post, relatedPosts = [] }: Props) {
 
   const [followPaper, setFollowPaper] = useState(false);
   const [followAuthor, setFollowAuthor] = useState(false);
+  const [followAuthorBusy, setFollowAuthorBusy] = useState(false);
   const [comments, setComments] = useState<UiComment[]>(seededComments);
+
+  useEffect(() => {
+    if (!isLoggedIn || !canFollowAuthor || !authorId) {
+      setFollowAuthor(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { isFollowing } = await fetchFollowStatus(authorId);
+      if (!cancelled) setFollowAuthor(!!isFollowing);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, authorId, canFollowAuthor]);
+
+  const handleFollowAuthor = useCallback(async () => {
+    if (!authorId || !canFollowAuthor || followAuthorBusy) return;
+    if (!isLoggedIn) {
+      router.push("/login");
+      return;
+    }
+    setFollowAuthorBusy(true);
+    const { isFollowing, error } = await toggleFollow(authorId, followAuthor);
+    setFollowAuthorBusy(false);
+    if (!error && typeof isFollowing === "boolean") {
+      setFollowAuthor(isFollowing);
+    }
+  }, [
+    authorId,
+    canFollowAuthor,
+    followAuthor,
+    followAuthorBusy,
+    isLoggedIn,
+    router,
+  ]);
+
+  const followAuthorLabel = followAuthorBusy
+    ? "…"
+    : followAuthor
+      ? "Unfollow"
+      : "Follow Author";
+  const followAuthorSidebarLabel = followAuthorBusy
+    ? "…"
+    : followAuthor
+      ? "Unfollow"
+      : "Follow";
   const [composer, setComposer] = useState("");
   const [composerCitation, setComposerCitation] = useState("");
   const [activeReplyFor, setActiveReplyFor] = useState<string | null>(null);
@@ -366,22 +422,23 @@ export function PaperDetailClient({ post, relatedPosts = [] }: Props) {
             </Link>
 
             <div className="mt-4">
-              {isLoggedIn ? (
+              {isLoggedIn && canFollowAuthor ? (
                 <PrimaryButton
                   className="w-full"
-                  onClick={() => setFollowAuthor((v) => !v)}
+                  onClick={() => void handleFollowAuthor()}
+                  disabled={followAuthorBusy}
                   aria-pressed={followAuthor}
                 >
-                  {followAuthor ? "Following" : "Follow"}
+                  {followAuthorSidebarLabel}
                 </PrimaryButton>
-              ) : (
+              ) : !isLoggedIn ? (
                 <Link
                   href="/login"
                   className={`inline-flex h-10 w-full items-center justify-center rounded-xl bg-[var(--brand)] text-sm font-medium text-white ${brandButtonHover}`}
                 >
                   Login to Follow
                 </Link>
-              )}
+              ) : null}
             </div>
           </section>
 
@@ -455,16 +512,19 @@ export function PaperDetailClient({ post, relatedPosts = [] }: Props) {
                   </span>
                   <span className="text-white/90">35</span>
                 </PrimaryButton>
-                <PrimaryButton
-                  onClick={() => setFollowAuthor((v) => !v)}
-                  aria-pressed={followAuthor}
-                  className="justify-between"
-                >
-                  <span className="flex items-center gap-2">
-                    👤 {followAuthor ? "Following Author" : "Follow Author"}
-                  </span>
-                  <span className="text-white/90">35</span>
-                </PrimaryButton>
+                {canFollowAuthor ? (
+                  <PrimaryButton
+                    onClick={() => void handleFollowAuthor()}
+                    disabled={followAuthorBusy}
+                    aria-pressed={followAuthor}
+                    className="justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      👤 {followAuthorLabel}
+                    </span>
+                    <span className="text-white/90">35</span>
+                  </PrimaryButton>
+                ) : null}
               </div>
             ) : null}
           </section>

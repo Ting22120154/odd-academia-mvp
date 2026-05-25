@@ -309,6 +309,7 @@ export interface FrontendViewerPost {
   id:                   string
   title:                string
   summary:              string
+  authorId?:            string
   authorName:           string
   authorAvatarUrl?:     string
   subject:              string
