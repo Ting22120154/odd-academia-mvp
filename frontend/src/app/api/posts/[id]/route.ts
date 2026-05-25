@@ -1,6 +1,6 @@
-import jwt from "jsonwebtoken";
 import { revalidatePath } from "next/cache";
-import prisma from "../../../../../../packages/db/src/client";
+import prisma from "@odd-academia/db/client";
+import { getBearerUserId } from "@/lib/auth/jwt";
 
 const paperInclude = {
   author: {
@@ -17,26 +17,6 @@ const paperInclude = {
   references: true,
 } as const;
 
-function getBearerUserId(req: Request): string | null {
-  const header = req.headers.get("Authorization");
-  if (!header?.startsWith("Bearer ")) return null;
-
-  const token = header.slice("Bearer ".length).trim();
-  const secret = process.env.JWT_SECRET;
-  if (!secret) return null;
-
-  try {
-    const payload = jwt.verify(token, secret) as jwt.JwtPayload & {
-      userId?: string;
-    };
-    if (typeof payload.userId === "string") return payload.userId;
-    if (typeof payload.sub === "string") return payload.sub;
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 function parsePublishedAt(value: string | undefined): Date | undefined | null {
   if (value === undefined) return undefined;
   const parsed = new Date(value);
@@ -47,24 +27,32 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
+  try {
+    const { id } = await params;
 
-  const existing = await prisma.paper.findUnique({
-    where: { id },
-    select: { id: true, status: true },
-  });
+    const existing = await prisma.paper.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
 
-  if (!existing || existing.status === "removed") {
-    return Response.json({ error: "Post not found" }, { status: 404 });
+    if (!existing || existing.status === "removed" || existing.status !== "published") {
+      return Response.json({ error: "Post not found" }, { status: 404 });
+    }
+
+    const post = await prisma.paper.update({
+      where: { id },
+      data: { viewCount: { increment: 1 } },
+      include: paperInclude,
+    });
+
+    return Response.json(post);
+  } catch (error) {
+    console.error("GET /api/posts/[id] failed:", error);
+    return Response.json(
+      { error: "Failed to fetch post" },
+      { status: 500 },
+    );
   }
-
-  const post = await prisma.paper.update({
-    where: { id },
-    data: { viewCount: { increment: 1 } },
-    include: paperInclude,
-  });
-
-  return Response.json(post);
 }
 
 export async function PUT(

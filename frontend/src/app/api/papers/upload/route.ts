@@ -1,9 +1,9 @@
-import jwt from "jsonwebtoken";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import prisma from "@odd-academia/db/client";
-import { paperInclude } from "@/lib/papers/constants";
+import { getBearerUserId } from "@/lib/auth/jwt";
 import { paperUploadPaths } from "@/lib/files/paperFilename";
+import { paperInclude } from "@/lib/papers/constants";
 
 const ALLOWED_TYPES = new Set([
   "application/pdf",
@@ -12,26 +12,6 @@ const ALLOWED_TYPES = new Set([
 ]);
 
 const MAX_BYTES = 10 * 1024 * 1024;
-
-function getBearerUserId(req: Request): string | null {
-  const header = req.headers.get("Authorization");
-  if (!header?.startsWith("Bearer ")) return null;
-
-  const token = header.slice("Bearer ".length).trim();
-  const secret = process.env.JWT_SECRET;
-  if (!secret) return null;
-
-  try {
-    const payload = jwt.verify(token, secret) as jwt.JwtPayload & {
-      userId?: string;
-    };
-    if (typeof payload.userId === "string") return payload.userId;
-    if (typeof payload.sub === "string") return payload.sub;
-    return null;
-  } catch {
-    return null;
-  }
-}
 
 function extensionFromMime(mime: string): string {
   switch (mime) {
@@ -98,38 +78,38 @@ export async function POST(req: Request) {
   const paperId =
     typeof paperIdRaw === "string" ? paperIdRaw.trim() : "";
 
-  let fileUrl: string;
-  let absolutePath: string;
-
-  if (paperId) {
-    const paper = await prisma.paper.findUnique({
-      where: { id: paperId },
-      select: { id: true, authorId: true, title: true },
-    });
-
-    if (!paper) {
-      return Response.json({ error: "Paper not found" }, { status: 404 });
-    }
-    if (paper.authorId !== userId) {
-      return Response.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const paths = paperUploadPaths(paper.title, paper.id, ext);
-    fileUrl = paths.fileUrl;
-    absolutePath = path.join(
-      process.cwd(),
-      "public",
-      "uploads",
-      paper.id,
-      paths.diskName,
-    );
-  } else {
-    const filename = `${Date.now()}${ext}`;
-    fileUrl = `/uploads/${filename}`;
-    absolutePath = path.join(process.cwd(), "public", "uploads", filename);
-  }
-
   try {
+    let fileUrl: string;
+    let absolutePath: string;
+
+    if (paperId) {
+      const paper = await prisma.paper.findUnique({
+        where: { id: paperId },
+        select: { id: true, authorId: true, title: true },
+      });
+
+      if (!paper) {
+        return Response.json({ error: "Paper not found" }, { status: 404 });
+      }
+      if (paper.authorId !== userId) {
+        return Response.json({ error: "Forbidden" }, { status: 403 });
+      }
+
+      const paths = paperUploadPaths(paper.title, paper.id, ext);
+      fileUrl = paths.fileUrl;
+      absolutePath = path.join(
+        process.cwd(),
+        "public",
+        "uploads",
+        paper.id,
+        paths.diskName,
+      );
+    } else {
+      const filename = `${Date.now()}${ext}`;
+      fileUrl = `/uploads/${filename}`;
+      absolutePath = path.join(process.cwd(), "public", "uploads", filename);
+    }
+
     await mkdir(path.dirname(absolutePath), { recursive: true });
     const buffer = Buffer.from(await file.arrayBuffer());
     await writeFile(absolutePath, buffer);

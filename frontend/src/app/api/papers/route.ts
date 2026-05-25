@@ -1,29 +1,9 @@
-import jwt from "jsonwebtoken";
 import prisma from "@odd-academia/db/client";
+import { getBearerUserId } from "@/lib/auth/jwt";
 import { paperInclude } from "@/lib/papers/constants";
 import { splitKeywordsAndCategories } from "@/lib/papers/categories";
 
 // File uploads: POST /api/papers/upload (multipart/form-data)
-
-function getBearerUserId(req: Request): string | null {
-  const header = req.headers.get("Authorization");
-  if (!header?.startsWith("Bearer ")) return null;
-
-  const token = header.slice("Bearer ".length).trim();
-  const secret = process.env.JWT_SECRET;
-  if (!secret) return null;
-
-  try {
-    const payload = jwt.verify(token, secret) as jwt.JwtPayload & {
-      userId?: string;
-    };
-    if (typeof payload.userId === "string") return payload.userId;
-    if (typeof payload.sub === "string") return payload.sub;
-    return null;
-  } catch {
-    return null;
-  }
-}
 
 function parsePublishedAt(value: unknown): Date {
   if (typeof value === "string" && value.trim()) {

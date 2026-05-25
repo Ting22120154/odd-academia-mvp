@@ -1,5 +1,5 @@
-import jwt from "jsonwebtoken";
 import prisma from "@odd-academia/db/client";
+import { getBearerUserId } from "@/lib/auth/jwt";
 import { splitKeywordsAndCategories } from "@/lib/papers/categories";
 
 const paperInclude = {
@@ -22,57 +22,45 @@ function parsePositiveInt(value: string | null, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-function getBearerUserId(req: Request): string | null {
-  const header = req.headers.get("Authorization");
-  if (!header?.startsWith("Bearer ")) return null;
-
-  const token = header.slice("Bearer ".length).trim();
-  const secret = process.env.JWT_SECRET;
-  if (!secret) return null;
-
-  try {
-    const payload = jwt.verify(token, secret) as jwt.JwtPayload & {
-      userId?: string;
-    };
-    if (typeof payload.userId === "string") return payload.userId;
-    if (typeof payload.sub === "string") return payload.sub;
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const page = parsePositiveInt(searchParams.get("page"), 1);
-  const limit = parsePositiveInt(searchParams.get("limit"), 10);
-  const search = searchParams.get("search")?.trim() || undefined;
-  const skip = (page - 1) * limit;
+  try {
+    const { searchParams } = new URL(req.url);
+    const page = parsePositiveInt(searchParams.get("page"), 1);
+    const limit = parsePositiveInt(searchParams.get("limit"), 10);
+    const search = searchParams.get("search")?.trim() || undefined;
+    const skip = (page - 1) * limit;
 
-  const where = {
-    status: "published" as const,
-    ...(search
-      ? {
-          OR: [
-            { title: { contains: search, mode: "insensitive" as const } },
-            { abstract: { contains: search, mode: "insensitive" as const } },
-          ],
-        }
-      : {}),
-  };
+    const where = {
+      status: "published" as const,
+      ...(search
+        ? {
+            OR: [
+              { title: { contains: search, mode: "insensitive" as const } },
+              { abstract: { contains: search, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
 
-  const [posts, total] = await Promise.all([
-    prisma.paper.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: limit,
-      include: paperInclude,
-    }),
-    prisma.paper.count({ where }),
-  ]);
+    const [posts, total] = await Promise.all([
+      prisma.paper.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        include: paperInclude,
+      }),
+      prisma.paper.count({ where }),
+    ]);
 
-  return Response.json({ posts, total, page, limit });
+    return Response.json({ posts, total, page, limit });
+  } catch (error) {
+    console.error("GET /api/posts failed:", error);
+    return Response.json(
+      { error: "Failed to fetch posts" },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(req: Request) {
@@ -123,31 +111,44 @@ export async function POST(req: Request) {
     if (!Number.isNaN(parsed.getTime())) publishedAt = parsed;
   }
 
-  const paper = await prisma.paper.create({
-    data: {
-      authorId: userId,
-      title: b.title.trim(),
-      abstract: content.trim() || null,
-      publishedAt: publishedAt ?? new Date(),
-      status: "published",
-      doi,
-      keywords: {
-        create: keywords.map((keyword) => ({ keyword })),
+  try {
+    const paper = await prisma.paper.create({
+      data: {
+        authorId: userId,
+        title: b.title.trim(),
+        abstract: content.trim() || null,
+        publishedAt: publishedAt ?? new Date(),
+        status: "published",
+        doi,
+        keywords:
+          keywords.length > 0
+            ? { create: keywords.map((keyword) => ({ keyword })) }
+            : undefined,
+        categories:
+          categories.length > 0
+            ? { create: categories.map((category) => ({ category })) }
+            : undefined,
+        contributors:
+          contributors.length > 0
+            ? {
+                create: contributors.map((c) => ({
+                  contributorName: c.label.trim(),
+                })),
+              }
+            : undefined,
+        references:
+          references.length > 0
+            ? {
+                create: references.map((citationText) => ({ citationText })),
+              }
+            : undefined,
       },
-      categories: {
-        create: categories.map((category) => ({ category })),
-      },
-      contributors: {
-        create: contributors.map((c) => ({
-          contributorName: c.label.trim(),
-        })),
-      },
-      references: {
-        create: references.map((citationText) => ({ citationText })),
-      },
-    },
-    include: paperInclude,
-  });
+      include: paperInclude,
+    });
 
-  return Response.json(paper, { status: 201 });
+    return Response.json(paper, { status: 201 });
+  } catch (error) {
+    console.error("POST /api/posts failed:", error);
+    return Response.json({ error: "Failed to create post" }, { status: 500 });
+  }
 }

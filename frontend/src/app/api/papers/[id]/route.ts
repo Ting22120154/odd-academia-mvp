@@ -13,7 +13,7 @@ export async function GET(
       select: { id: true, status: true },
     });
 
-    if (!existing || existing.status === "removed") {
+    if (!existing || existing.status === "removed" || existing.status !== "published") {
       return Response.json({ error: "Paper not found" }, { status: 404 });
     }
 

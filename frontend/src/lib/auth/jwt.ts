@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 const SECRET = process.env.JWT_SECRET ?? "oa-frontend-dev-secret";
 
 export type UserTokenPayload = jwt.JwtPayload & {
-  userId: string;
+  userId?: string;
   email?: string;
 };
 
@@ -17,4 +17,18 @@ export function verifyUserToken(token: string): UserTokenPayload | null {
   } catch {
     return null;
   }
+}
+
+/** Extract authenticated user id from `Authorization: Bearer` header. */
+export function getBearerUserId(req: Request): string | null {
+  const header = req.headers.get("Authorization");
+  if (!header?.startsWith("Bearer ")) return null;
+
+  const token = header.slice("Bearer ".length).trim();
+  const payload = verifyUserToken(token);
+  if (!payload) return null;
+
+  if (typeof payload.userId === "string") return payload.userId;
+  if (typeof payload.sub === "string") return payload.sub;
+  return null;
 }
