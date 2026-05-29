@@ -1,9 +1,14 @@
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
+import { fileTypeFromBuffer } from "file-type";
 import prisma from "@odd-academia/db/client";
 import { getRouteUserId } from "@/lib/auth/require-auth";
+import { checkRateLimit, getClientIp } from "@/lib/auth/rate-limit";
 import { paperUploadPaths } from "@/lib/files/paperFilename";
 import { paperInclude } from "@/lib/papers/constants";
+
+const UPLOAD_LIMIT = 10;
+const WINDOW_MS = 60_000;
 
 const ALLOWED_TYPES = new Set([
   "application/pdf",
@@ -13,23 +18,14 @@ const ALLOWED_TYPES = new Set([
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
-function extensionFromMime(mime: string): string {
-  switch (mime) {
-    case "application/pdf":
-      return ".pdf";
-    case "application/msword":
-      return ".doc";
-    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-      return ".docx";
-    default:
-      return "";
-  }
+function unsupportedFileType() {
+  return Response.json({ error: "Unsupported file type" }, { status: 400 });
 }
 
 export async function POST(req: Request) {
-  const userId = await getRouteUserId(req);
-  if (!userId) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const ip = getClientIp(req);
+  if (!checkRateLimit(`papers:upload:${ip}`, UPLOAD_LIMIT, WINDOW_MS)) {
+    return Response.json({ error: "Too many requests" }, { status: 429 });
   }
 
   let formData: FormData;
@@ -39,30 +35,24 @@ export async function POST(req: Request) {
     return Response.json({ error: "Invalid form data" }, { status: 400 });
   }
 
+  const paperIdRaw = formData.get("paperId");
+  const paperId =
+    typeof paperIdRaw === "string" ? paperIdRaw.trim() : "";
+  if (!paperId) {
+    return Response.json({ error: "paperId is required" }, { status: 400 });
+  }
+
+  const userId = await getRouteUserId(req);
+  if (!userId) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const fileField = formData.get("file");
   if (!fileField || typeof fileField === "string") {
     return Response.json({ error: "Missing required field: file" }, { status: 400 });
   }
 
   const file = fileField as File;
-
-  let mimeType = file.type;
-  if (!mimeType || !ALLOWED_TYPES.has(mimeType)) {
-    const ext = path.extname(file.name).toLowerCase();
-    if (ext === ".pdf") mimeType = "application/pdf";
-    else if (ext === ".doc") mimeType = "application/msword";
-    else if (ext === ".docx") {
-      mimeType =
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-    }
-  }
-
-  if (!ALLOWED_TYPES.has(mimeType)) {
-    return Response.json(
-      { error: "Invalid file type. Only PDF, DOC, DOCX allowed" },
-      { status: 400 },
-    );
-  }
 
   if (file.size > MAX_BYTES) {
     return Response.json(
@@ -71,60 +61,57 @@ export async function POST(req: Request) {
     );
   }
 
-  const ext =
-    path.extname(file.name) || extensionFromMime(mimeType) || ".bin";
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const detected = await fileTypeFromBuffer(buffer);
 
-  const paperIdRaw = formData.get("paperId");
-  const paperId =
-    typeof paperIdRaw === "string" ? paperIdRaw.trim() : "";
+  if (!detected || !ALLOWED_TYPES.has(detected.mime)) {
+    return unsupportedFileType();
+  }
+
+  const declaredType = file.type?.trim();
+  if (declaredType && declaredType !== detected.mime) {
+    return unsupportedFileType();
+  }
+
+  const ext = `.${detected.ext}`;
+  const nameExt = path.extname(file.name).toLowerCase();
+  if (nameExt && nameExt !== ext) {
+    return unsupportedFileType();
+  }
 
   try {
-    let fileUrl: string;
-    let absolutePath: string;
+    const paper = await prisma.paper.findUnique({
+      where: { id: paperId },
+      select: { id: true, authorId: true, title: true },
+    });
 
-    if (paperId) {
-      const paper = await prisma.paper.findUnique({
-        where: { id: paperId },
-        select: { id: true, authorId: true, title: true },
-      });
-
-      if (!paper) {
-        return Response.json({ error: "Paper not found" }, { status: 404 });
-      }
-      if (paper.authorId !== userId) {
-        return Response.json({ error: "Forbidden" }, { status: 403 });
-      }
-
-      const paths = paperUploadPaths(paper.title, paper.id, ext);
-      fileUrl = paths.fileUrl;
-      absolutePath = path.join(
-        process.cwd(),
-        "public",
-        "uploads",
-        paper.id,
-        paths.diskName,
-      );
-    } else {
-      const filename = `${Date.now()}${ext}`;
-      fileUrl = `/uploads/${filename}`;
-      absolutePath = path.join(process.cwd(), "public", "uploads", filename);
+    if (!paper) {
+      return Response.json({ error: "Paper not found" }, { status: 404 });
     }
+    if (paper.authorId !== userId) {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const paths = paperUploadPaths(paper.title, paper.id, ext);
+    const fileUrl = paths.fileUrl;
+    const absolutePath = path.join(
+      process.cwd(),
+      "public",
+      "uploads",
+      paper.id,
+      paths.diskName,
+    );
 
     await mkdir(path.dirname(absolutePath), { recursive: true });
-    const buffer = Buffer.from(await file.arrayBuffer());
     await writeFile(absolutePath, buffer);
 
-    if (paperId) {
-      const updated = await prisma.paper.update({
-        where: { id: paperId },
-        data: { fileUrl },
-        include: paperInclude,
-      });
+    const updated = await prisma.paper.update({
+      where: { id: paperId },
+      data: { fileUrl },
+      include: paperInclude,
+    });
 
-      return Response.json(updated);
-    }
-
-    return Response.json({ fileUrl });
+    return Response.json(updated);
   } catch (error) {
     console.error("POST /api/papers/upload failed:", error);
     return Response.json({ error: "Failed to upload file" }, { status: 500 });

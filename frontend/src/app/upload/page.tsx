@@ -224,6 +224,8 @@ export default function UploadPage() {
 
     setSubmitting(true);
     try {
+      // Paper metadata (title, abstract, categories, etc.) → POST /api/posts.
+      // Binary file upload (after we have created.id) → POST /api/papers/upload.
       const res = await fetch("/api/posts", {
         method: "POST",
         credentials: "include",

@@ -3,12 +3,38 @@ import path from "path";
 import prisma from "@odd-academia/db/client";
 import { paperDownloadFilename } from "@/lib/files/paperFilename";
 
+const UPLOADS_PREFIX = "/uploads/";
+
 const MIME_BY_EXT: Record<string, string> = {
   ".pdf": "application/pdf",
   ".doc": "application/msword",
   ".docx":
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 };
+
+function invalidFilePath() {
+  return Response.json({ error: "Invalid file path" }, { status: 400 });
+}
+
+function resolveUploadFilePath(fileUrl: string): string | null {
+  if (!fileUrl.startsWith(UPLOADS_PREFIX) || fileUrl.includes("..")) {
+    return null;
+  }
+
+  const publicDir = path.resolve(process.cwd(), "public");
+  const uploadsDir = path.join(publicDir, "uploads");
+  const resolved = path.resolve(publicDir, fileUrl.slice(1));
+
+  const relativeToUploads = path.relative(uploadsDir, resolved);
+  if (
+    relativeToUploads.startsWith("..") ||
+    path.isAbsolute(relativeToUploads)
+  ) {
+    return null;
+  }
+
+  return resolved;
+}
 
 export async function GET(
   req: Request,
@@ -23,14 +49,14 @@ export async function GET(
       select: { id: true, title: true, fileUrl: true, status: true },
     });
 
-    if (!paper?.fileUrl || paper.status === "removed") {
-      return Response.json({ error: "File not found" }, { status: 404 });
+    if (!paper?.fileUrl || paper.status !== "published") {
+      return Response.json({ error: "Not found" }, { status: 404 });
     }
 
-    const relative = paper.fileUrl.startsWith("/")
-      ? paper.fileUrl.slice(1)
-      : paper.fileUrl;
-    const filePath = path.join(process.cwd(), "public", relative);
+    const filePath = resolveUploadFilePath(paper.fileUrl);
+    if (!filePath) {
+      return invalidFilePath();
+    }
 
     let buffer: Buffer;
     try {

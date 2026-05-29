@@ -9,10 +9,7 @@ import {
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url,
-).toString();
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 /** Zoom levels for the PDF only (100% = fit width, higher = zoom in). */
 const ZOOM_STEPS = [1, 1.25, 1.5, 1.75, 2] as const;
