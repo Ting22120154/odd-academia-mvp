@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
           where: statusFilter,
           include: {
             paper:    { select: { id: true, title: true } },
-            reporter: { select: { id: true, fullName: true, username: true } },
+            reporter: { select: { id: true, fullName: true, username: true, email: true, avatarUrl: true } },
           },
           orderBy: { createdAt: "desc" },
           skip:    type === "paper" ? skip  : 0,
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
                 paper:  { select: { id: true, title: true } },
               },
             },
-            reporter: { select: { id: true, fullName: true, username: true } },
+            reporter: { select: { id: true, fullName: true, username: true, email: true, avatarUrl: true } },
           },
           orderBy: { createdAt: "desc" },
           skip:    type === "comment" ? skip  : 0,
@@ -57,8 +57,8 @@ export async function GET(req: NextRequest) {
       ? prisma.userReport.findMany({
           where: statusFilter,
           include: {
-            reported: { select: { id: true, fullName: true, username: true } },
-            reporter: { select: { id: true, fullName: true, username: true } },
+            reported: { select: { id: true, fullName: true, username: true, avatarUrl: true } },
+            reporter: { select: { id: true, fullName: true, username: true, email: true, avatarUrl: true } },
           },
           orderBy: { createdAt: "desc" },
           skip:    type === "user" ? skip  : 0,
