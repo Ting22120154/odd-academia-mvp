@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getAuthPayload } from "@/lib/auth/require-auth";
+import { err } from "@/lib/response";
 
 export async function POST(req: NextRequest) {
+  const payload = await getAuthPayload();
+  if (!payload) return err("Must be logged in to send a message.", 401);
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Invalid body." }, { status: 400 });
   }
 
-  const { senderId, recipientId, subject, body: msgBody, linkToPaper } =
+  const { recipientId, subject, body: msgBody, linkToPaper } =
     body as Record<string, unknown>;
 
-  if (typeof senderId !== "string" || !senderId) {
-    return NextResponse.json({ error: "Must be logged in to send a message." }, { status: 401 });
-  }
   if (typeof recipientId !== "string" || !recipientId) {
     return NextResponse.json({ error: "recipientId is required." }, { status: 400 });
   }
@@ -25,7 +27,7 @@ export async function POST(req: NextRequest) {
 
   const message = await prisma.message.create({
     data: {
-      senderId,
+      senderId:    payload.sub,
       recipientId,
       subject:     subject.trim(),
       body:        msgBody.trim(),

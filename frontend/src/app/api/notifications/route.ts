@@ -1,15 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getAuthPayload } from "@/lib/auth/require-auth";
+import { err } from "@/lib/response";
 
-/** GET /api/notifications?userId=<id>
- *  Returns all notifications for the given user, newest first.
+/** GET /api/notifications
+ *  Returns all notifications for the session user, newest first.
  */
-export async function GET(req: NextRequest) {
-  const userId = new URL(req.url).searchParams.get("userId");
-  if (!userId) return NextResponse.json({ error: "userId is required." }, { status: 400 });
+export async function GET() {
+  const payload = await getAuthPayload();
+  if (!payload) return err("Not authenticated.", 401);
 
   const notifications = await prisma.notification.findMany({
-    where:   { userId },
+    where:   { userId: payload.sub },
     orderBy: { createdAt: "desc" },
   });
 
@@ -17,17 +19,14 @@ export async function GET(req: NextRequest) {
 }
 
 /** PATCH /api/notifications
- *  Body: { userId }
- *  Marks all unread notifications for the user as read.
- *  BADGE: Unread count must decrement as notifications are marked read
+ *  Marks all unread notifications for the session user as read.
  */
-export async function PATCH(req: NextRequest) {
-  const body   = await req.json().catch(() => null);
-  const userId = body?.userId as string | undefined;
-  if (!userId) return NextResponse.json({ error: "userId is required." }, { status: 400 });
+export async function PATCH() {
+  const payload = await getAuthPayload();
+  if (!payload) return err("Not authenticated.", 401);
 
   await prisma.notification.updateMany({
-    where: { userId, isRead: false },
+    where: { userId: payload.sub, isRead: false },
     data:  { isRead: true },
   });
 

@@ -1,15 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getAuthPayload } from "@/lib/auth/require-auth";
 
-/** GET /api/messages/unread-count?userId=<myId>
- *  Returns { count: number } — total unread messages for the user.
+/** GET /api/messages/unread-count
+ *  Returns { count: number } — total unread messages for the session user.
  */
-export async function GET(req: NextRequest) {
-  const userId = new URL(req.url).searchParams.get("userId");
-  if (!userId) return NextResponse.json({ count: 0 });
+export async function GET() {
+  const payload = await getAuthPayload();
+  if (!payload) return NextResponse.json({ count: 0 });
 
   const count = await prisma.message.count({
-    where: { recipientId: userId, isRead: false },
+    where: { recipientId: payload.sub, isRead: false },
   });
 
   return NextResponse.json({ count });

@@ -1,7 +1,6 @@
 /**
- * JWT verify for middleware (Edge runtime).
+ * JWT verify for admin middleware (Edge runtime).
  * Uses Web Crypto API (crypto.subtle) — available in Edge without any external dependency.
- * Tokens are signed by signToken() in jwt.ts (jsonwebtoken, HS256).
  */
 import type { TokenPayload } from "@/lib/auth/jwt";
 
@@ -41,7 +40,7 @@ export async function verifyTokenEdge(token: string): Promise<TokenPayload | nul
 
     const { sub, email, role } = payload;
     if (typeof sub !== "string" || typeof email !== "string") return null;
-    if (role !== "user" && role !== "admin") return null;
+    if (role !== "admin") return null;
 
     return { sub, email, role };
   } catch {

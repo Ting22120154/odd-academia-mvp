@@ -64,7 +64,7 @@ export function Navbar() {
   const fetchUnread = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const res  = await fetch(`/api/notifications/unread-count?userId=${user.id}`);
+      const res  = await fetch("/api/notifications/unread-count", { credentials: "include" });
       if (!res.ok) return;
       const data = await res.json() as { count: number };
       setUnreadCount(data.count);
@@ -87,9 +87,8 @@ export function Navbar() {
     if (pathname !== "/notifications" || !user?.id || unreadCount === 0) return;
     setUnreadCount(0); // optimistic reset
     fetch("/api/notifications", {
-      method:  "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ userId: user.id }),
+      method:      "PATCH",
+      credentials: "include",
     }).catch(() => null);
   }, [pathname, user?.id, unreadCount]);
 

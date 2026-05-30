@@ -7,8 +7,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
+
+const NOTIF_POLL_MS = 15_000;
 
 type Props = {
   isLoggedIn?: boolean;
@@ -133,6 +135,24 @@ function UserMenu({ isProfile }: { isProfile: boolean }) {
 
 export function TopNav({ isLoggedIn }: Props) {
   const pathname = usePathname();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnread = useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const res = await fetch("/api/notifications/unread-count", { credentials: "include" });
+      if (!res.ok) return;
+      const data = await res.json() as { count: number };
+      setUnreadCount(data.count);
+    } catch { /* keep stale count on network error */ }
+  }, [isLoggedIn]);
+
+  useEffect(() => { void fetchUnread(); }, [fetchUnread]);
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const id = setInterval(() => { void fetchUnread(); }, NOTIF_POLL_MS);
+    return () => clearInterval(id);
+  }, [isLoggedIn, fetchUnread]);
 
   if (pathname === "/login") return null;
   if (pathname?.startsWith("/paper")) return null;
@@ -182,12 +202,19 @@ export function TopNav({ isLoggedIn }: Props) {
               <path d="M22 21a5 5 0 0 0-7.5-4.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
             </svg>
           </IconButton>
-          <IconButton href="/notifications" label="Notifications" active={isNotifications}>
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 7h18s-3 0-3-7Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
-              <path d="M9.5 19a2.5 2.5 0 0 0 5 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-            </svg>
-          </IconButton>
+          <div className="relative">
+            <IconButton href="/notifications" label="Notifications" active={isNotifications}>
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 7h18s-3 0-3-7Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
+                <path d="M9.5 19a2.5 2.5 0 0 0 5 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
+            </IconButton>
+            {unreadCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white leading-none pointer-events-none">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </div>
           {isLoggedIn ? (
             <UserMenu isProfile={isProfile} />
           ) : (

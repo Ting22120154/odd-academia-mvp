@@ -1,15 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getAuthPayload } from "@/lib/auth/require-auth";
+import { err } from "@/lib/response";
 
-/** GET /api/messages/inbox?userId=<id>
- *  Returns one entry per conversation partner, showing the latest message.
- *  Ordered by most recent message first.
+/** GET /api/messages/inbox
+ *  Returns one entry per conversation partner for the session user, most recent first.
  */
-export async function GET(req: NextRequest) {
-  const userId = new URL(req.url).searchParams.get("userId");
-  if (!userId) return NextResponse.json({ error: "userId is required." }, { status: 400 });
+export async function GET() {
+  const payload = await getAuthPayload();
+  if (!payload) return err("Not authenticated.", 401);
 
-  // Get all messages involving this user
+  const userId = payload.sub;
+
   const messages = await prisma.message.findMany({
     where: {
       OR: [{ recipientId: userId }, { senderId: userId }],
@@ -21,7 +23,6 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: "desc" },
   });
 
-  // Group by conversation partner, keep only the latest message per partner
   const seen = new Map<string, typeof messages[number]>();
   for (const msg of messages) {
     const partnerId = msg.senderId === userId ? msg.recipientId : msg.senderId;
@@ -34,7 +35,6 @@ export async function GET(req: NextRequest) {
     const unreadCount = messages.filter(
       (m) => m.senderId === partner.id && m.recipientId === userId && !m.isRead
     ).length;
-    // true when the recipient has opened the conversation (GET fires isRead=true on our sent msg)
     const senderLastMsgRead = isSent ? msg.isRead : false;
     return {
       partnerId:         partner.id,

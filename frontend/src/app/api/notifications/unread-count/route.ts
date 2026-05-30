@@ -1,17 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getAuthPayload } from "@/lib/auth/require-auth";
 
-/** GET /api/notifications/unread-count?userId=<id>
- *  Returns just the unread notification count — lightweight endpoint for polling.
- *  REALTIME: Notifications must update via WebSocket/SSE, not on page load only
- *  TODO: If using polling, replace with WebSocket before production
+/** GET /api/notifications/unread-count
+ *  Lightweight endpoint for badge polling — returns { count: number } for the session user.
  */
-export async function GET(req: NextRequest) {
-  const userId = new URL(req.url).searchParams.get("userId");
-  if (!userId) return NextResponse.json({ error: "userId is required." }, { status: 400 });
+export async function GET() {
+  const payload = await getAuthPayload();
+  if (!payload) return NextResponse.json({ count: 0 });
 
   const count = await prisma.notification.count({
-    where: { userId, isRead: false },
+    where: { userId: payload.sub, isRead: false },
   });
 
   return NextResponse.json({ count });

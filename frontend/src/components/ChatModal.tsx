@@ -28,7 +28,7 @@ export function ChatModal({ recipientId, recipientName, onClose }: Props) {
 
   const fetchMessages = useCallback(async () => {
     if (!user) return;
-    const res  = await fetch(`/api/messages?me=${user.id}&with=${recipientId}`);
+    const res  = await fetch(`/api/messages?with=${recipientId}`, { credentials: "include" });
     if (!res.ok) return;
     const data = await res.json() as Message[];
     setMessages(data);
@@ -57,20 +57,17 @@ export function ChatModal({ recipientId, recipientName, onClose }: Props) {
     setSendError(null);
     try {
       const res = await fetch("/api/messages", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ senderId: user.id, recipientId, body: draft.trim() }),
+        method:      "POST",
+        headers:     { "Content-Type": "application/json" },
+        credentials: "include",
+        body:        JSON.stringify({ recipientId, body: draft.trim() }),
       });
       if (res.ok) {
         setDraft("");
         await fetchMessages();
       } else {
         const data = await res.json().catch(() => null) as { error?: string } | null;
-        if (data?.error === "SESSION_STALE") {
-          setSendError("Your session is outdated. Please log out and log back in to send messages.");
-        } else {
-          setSendError(data?.error ?? "Failed to send message.");
-        }
+        setSendError(data?.error ?? "Failed to send message.");
       }
     } finally {
       setSending(false);

@@ -18,5 +18,9 @@ export async function GET() {
     return err("User not found.", 404);
   }
 
+  if (user.isBanned) {
+    return err("Account suspended.", 403);
+  }
+
   return ok({ user: toPublicUser(user) });
 }

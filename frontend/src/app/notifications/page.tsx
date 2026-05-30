@@ -93,7 +93,7 @@ export default function NotificationsPage() {
   useEffect(() => {
     if (!user) return;
     function fetchInbox() {
-      fetch(`/api/messages/inbox?userId=${user!.id}`)
+      fetch("/api/messages/inbox", { credentials: "include" })
         .then(r => r.ok ? r.json() as Promise<Conversation[]> : Promise.reject())
         .then(data => setConversations(data))
         .catch(() => {});
@@ -102,7 +102,7 @@ export default function NotificationsPage() {
     intervalRef.current = setInterval(fetchInbox, 5000);
 
     // NOTIFICATION: Load moderation notifications created by admin review actions
-    fetch(`/api/notifications?userId=${user.id}`)
+    fetch("/api/notifications", { credentials: "include" })
       .then(r => r.ok ? r.json() as Promise<ModerationNotif[]> : Promise.resolve([]))
       .then(data => setModerationNotifs(data.filter(n => n.type === "moderation")))
       .catch(() => null);

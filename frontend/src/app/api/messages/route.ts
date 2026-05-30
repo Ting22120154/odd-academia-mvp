@@ -1,20 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getAuthPayload } from "@/lib/auth/require-auth";
+import { err } from "@/lib/response";
+import { checkRateLimit, getClientIp } from "@/lib/auth/rate-limit";
 
-/** GET /api/messages?me=<myId>&with=<otherId>
- *  Returns the full conversation thread, sorted oldest first.
- *  Also marks any unread messages sent to `me` as read.
+/** GET /api/messages?with=<otherId>
+ *  Returns the full conversation thread for the session user, sorted oldest first.
+ *  Also marks any unread messages sent to the session user as read.
  */
 export async function GET(req: NextRequest) {
+  const payload = await getAuthPayload();
+  if (!payload) return err("Not authenticated.", 401);
+
   const { searchParams } = new URL(req.url);
-  const me   = searchParams.get("me");
   const with_ = searchParams.get("with");
 
-  if (!me || !with_) {
-    return NextResponse.json({ error: "me and with query params are required." }, { status: 400 });
+  if (!with_) {
+    return NextResponse.json({ error: "with query param is required." }, { status: 400 });
   }
 
-  // STATUS LOGIC: 'seen' must only be set when recipient's read event fires
+  const me = payload.sub;
+
   await prisma.message.updateMany({
     where: { senderId: with_, recipientId: me, isRead: false },
     data:  { isRead: true },
@@ -23,7 +29,7 @@ export async function GET(req: NextRequest) {
   const messages = await prisma.message.findMany({
     where: {
       OR: [
-        { senderId: me,   recipientId: with_ },
+        { senderId: me,    recipientId: with_ },
         { senderId: with_, recipientId: me   },
       ],
     },
@@ -42,34 +48,45 @@ export async function GET(req: NextRequest) {
 }
 
 /** POST /api/messages
- *  Body: { senderId, recipientId, body }
+ *  Body: { recipientId, body }
+ *  Sender is always the session user.
  */
 export async function POST(req: NextRequest) {
+  const payload = await getAuthPayload();
+  if (!payload) return err("Not authenticated.", 401);
+
+  const sender = await prisma.user.findUnique({
+    where:  { id: payload.sub },
+    select: { isBanned: true },
+  });
+  if (sender?.isBanned) return err("Account suspended.", 403);
+
+  if (!checkRateLimit(`messages:${payload.sub}`, 20, 60_000)) {
+    return err("Too many messages. Please slow down.", 429);
+  }
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Invalid body." }, { status: 400 });
   }
 
-  const { senderId, recipientId, body: msgBody } = body as Record<string, string>;
+  const { recipientId, body: msgBody } = body as Record<string, string>;
 
-  if (!senderId)    return NextResponse.json({ error: "senderId is required." },    { status: 400 });
   if (!recipientId) return NextResponse.json({ error: "recipientId is required." }, { status: 400 });
-  if (!msgBody?.trim()) return NextResponse.json({ error: "body is required." },    { status: 400 });
+  if (!msgBody?.trim()) return NextResponse.json({ error: "body is required." }, { status: 400 });
 
-  // Verify both users exist — guards against stale mock IDs in localStorage
-  const [senderExists, recipientExists] = await Promise.all([
-    prisma.user.findUnique({ where: { id: senderId },    select: { id: true } }),
-    prisma.user.findUnique({ where: { id: recipientId }, select: { id: true } }),
-  ]);
-  if (!senderExists)    return NextResponse.json({ error: "SESSION_STALE" }, { status: 401 });
+  const recipientExists = await prisma.user.findUnique({
+    where:  { id: recipientId },
+    select: { id: true },
+  });
   if (!recipientExists) return NextResponse.json({ error: "Recipient not found." }, { status: 404 });
 
   const message = await prisma.message.create({
     data: {
-      senderId,
+      senderId:    payload.sub,
       recipientId,
-      subject: "",
-      body: msgBody.trim(),
+      subject:     "",
+      body:        msgBody.trim(),
     },
     select: {
       id:        true,
