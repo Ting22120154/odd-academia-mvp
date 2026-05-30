@@ -1,20 +1,20 @@
 /**
  * Next.js proxy — page-level access control only (UI routing).
  * - Does NOT protect /api/* (each route calls getAuthPayload + jwt.verify).
- * - Uses verifyToken() so forged JWTs cannot pass page guards.
+ * - Uses verifyTokenEdge() (jose) — jsonwebtoken does not run reliably in middleware.
  * - Redirects anonymous users away from AUTH_ONLY_PREFIXES to /login.
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { verifyToken } from "@/lib/auth/jwt";
+import { verifyTokenEdge } from "@/lib/auth/jwt-edge";
 import { USER_TOKEN_COOKIE, AUTH_SESSION_COOKIE } from "@/lib/auth/session";
 
 const PUBLIC_ROUTES = ["/login"];
 const AUTH_ONLY_PREFIXES = ["/profile", "/notifications", "/upload", "/following"];
 
-function getSession(req: NextRequest) {
+async function getSession(req: NextRequest) {
   const token = req.cookies.get(USER_TOKEN_COOKIE)?.value;
-  const payload = token ? verifyToken(token) : null;
+  const payload = token ? await verifyTokenEdge(token) : null;
   if (payload?.role === "user" || payload?.role === "admin") {
     return "user" as const;
   }
@@ -24,9 +24,9 @@ function getSession(req: NextRequest) {
   return "anonymous" as const;
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const session = getSession(request);
+  const session = await getSession(request);
   const isLoggedIn = session === "user";
 
   if (pathname.startsWith("/api")) {

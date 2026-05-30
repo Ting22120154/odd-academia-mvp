@@ -31,3 +31,15 @@ export function verifyToken(token: string): TokenPayload | null {
     return null;
   }
 }
+
+/**
+ * Papers API routes (Talha): read user id from Authorization Bearer header.
+ * Prefer getRouteUserId() in route handlers — it also accepts the session cookie.
+ */
+export function getBearerUserId(req: Request): string | null {
+  const header = req.headers.get("Authorization");
+  if (!header?.startsWith("Bearer ")) return null;
+
+  const payload = verifyToken(header.slice("Bearer ".length).trim());
+  return payload?.sub ?? null;
+}

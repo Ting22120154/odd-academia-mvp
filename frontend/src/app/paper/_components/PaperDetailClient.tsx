@@ -1,15 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MockPost } from "@/lib/mockPosts";
+import { EmbeddedPdfViewer } from "@/app/paper/_components/EmbeddedPdfViewer";
 import { GuestTracker } from "@/app/paper/_components/GuestTracker";
-import { mockPosts } from "@/lib/mockPosts";
+import { useAuth } from "@/context/AuthContext";
 import { mockUser } from "@/data/mockUser";
+import { isValidUserId } from "@/lib/auth/user-id";
+import { fetchFollowStatus, toggleFollow } from "@/lib/follow-client";
+import {
+  fetchPaperFollowStatus,
+  togglePaperFollow,
+} from "@/lib/paper-follow-client";
+import { paperDownloadFilename } from "@/lib/files/paperFilename";
+import {
+  brandButtonHover,
+  cardLinkHover,
+  clickableHoverInset,
+  linkHover,
+  outlineButtonHover,
+} from "@/lib/ui/interactive";
 
 type Props = {
   post: MockPost;
+  relatedPosts?: MockPost[];
 };
+
+function pathExtFromUrl(fileUrl?: string): string {
+  if (!fileUrl) return ".pdf";
+  const match = fileUrl.match(/\.[a-z0-9]+$/i);
+  return match?.[0]?.toLowerCase() ?? ".pdf";
+}
 
 function buildApaLikeCitation(post: MockPost) {
   // MVP: simple placeholder citation format (not a full APA generator).
@@ -66,14 +89,32 @@ function initials(name: string) {
   return (a + b).toUpperCase();
 }
 
-function ToolPill({ children }: { children: React.ReactNode }) {
+function NonPdfDownloadButton({
+  fileSrc,
+  downloadFilename,
+}: {
+  fileSrc: string;
+  downloadFilename: string;
+}) {
+  async function handleDownload() {
+    const res = await fetch(`${fileSrc}?download=1`);
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = downloadFilename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50"
+      onClick={() => void handleDownload()}
+      className={`mt-2 text-sm font-semibold text-[var(--brand)] ${linkHover}`}
     >
-      <span className="text-zinc-400">●</span>
-      <span>{children}</span>
+      Download {downloadFilename}
     </button>
   );
 }
@@ -99,7 +140,7 @@ function PrimaryButton({
       type="button"
       {...props}
       className={[
-        "inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 text-sm font-medium text-white hover:opacity-95",
+        `inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 text-sm font-medium text-white ${brandButtonHover}`,
         className,
       ].join(" ")}
     >
@@ -118,7 +159,7 @@ function OutlineButton({
       type="button"
       {...props}
       className={[
-        "inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-black/[0.08] bg-white px-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50",
+        `inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-black/[0.08] bg-white px-4 text-sm font-medium text-zinc-700 ${outlineButtonHover}`,
         className,
       ].join(" ")}
     >
@@ -214,32 +255,123 @@ function ReportModal({
   );
 }
 
-export function PaperDetailClient({ post }: Props) {
+export function PaperDetailClient({ post, relatedPosts = [] }: Props) {
+  const router = useRouter();
+  const { isLoggedIn, user: sessionUser } = useAuth();
+  const authorId = post.authorId;
+  const canFollowAuthor = Boolean(
+    authorId && isValidUserId(authorId) && sessionUser?.id !== authorId,
+  );
   const citation = useMemo(() => buildApaLikeCitation(post), [post]);
-
-  // For this frontend-only MVP we infer login state from the same storage keys as the auth PR.
-  // This keeps the paper viewer compatible once AuthContext is merged, without hard-coupling.
-  const isLoggedIn = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    const sessionCookie = document.cookie
-      .split(";")
-      .map((c) => c.trim())
-      .find((c) => c.startsWith("auth-session="))
-      ?.split("=")[1];
-    if (sessionCookie === "user") return true;
-    return Boolean(localStorage.getItem("authUser"));
-  }, []);
-
-  const shareUrl =
-    typeof window !== "undefined" ? window.location.href : `/paper/${post.id}`;
+  const sharePath = `/paper/${post.id}`;
+  const fileApiSrc = `/api/papers/${post.id}/file`;
+  const downloadFilename = useMemo(
+    () => paperDownloadFilename(post.title, post.fileType === "pdf" ? ".pdf" : pathExtFromUrl(post.fileUrl)),
+    [post.title, post.fileType, post.fileUrl],
+  );
+  const hasPdf = post.fileType === "pdf" && Boolean(post.fileUrl);
 
   async function copyToClipboard(value: string) {
     await navigator.clipboard.writeText(value);
   }
 
+  async function copyShareLink() {
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "";
+    await copyToClipboard(origin ? `${origin}${sharePath}` : sharePath);
+  }
+
   const [followPaper, setFollowPaper] = useState(false);
+  const [paperFollowerCount, setPaperFollowerCount] = useState(0);
+  const [followPaperBusy, setFollowPaperBusy] = useState(false);
   const [followAuthor, setFollowAuthor] = useState(false);
+  const [followAuthorBusy, setFollowAuthorBusy] = useState(false);
   const [comments, setComments] = useState<UiComment[]>(seededComments);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { isFollowing, followerCount } = await fetchPaperFollowStatus(post.id);
+      if (cancelled) return;
+      setFollowPaper(!!isFollowing);
+      setPaperFollowerCount(followerCount);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [post.id]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !canFollowAuthor || !authorId) {
+      setFollowAuthor(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { isFollowing } = await fetchFollowStatus(authorId);
+      if (!cancelled) setFollowAuthor(!!isFollowing);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, authorId, canFollowAuthor]);
+
+  const handleFollowAuthor = useCallback(async () => {
+    if (!authorId || !canFollowAuthor || followAuthorBusy) return;
+    if (!isLoggedIn) {
+      router.push("/login");
+      return;
+    }
+    setFollowAuthorBusy(true);
+    const { isFollowing, error } = await toggleFollow(authorId, followAuthor);
+    setFollowAuthorBusy(false);
+    if (!error && typeof isFollowing === "boolean") {
+      setFollowAuthor(isFollowing);
+    }
+  }, [
+    authorId,
+    canFollowAuthor,
+    followAuthor,
+    followAuthorBusy,
+    isLoggedIn,
+    router,
+  ]);
+
+  const followAuthorLabel = followAuthorBusy
+    ? "…"
+    : followAuthor
+      ? "Unfollow"
+      : "Follow Author";
+  const followAuthorSidebarLabel = followAuthorBusy
+    ? "…"
+    : followAuthor
+      ? "Unfollow"
+      : "Follow";
+
+  const handleFollowPaper = useCallback(async () => {
+    if (followPaperBusy) return;
+    if (!isLoggedIn) {
+      router.push("/login");
+      return;
+    }
+    setFollowPaperBusy(true);
+    const { isFollowing, followerCount, error } = await togglePaperFollow(
+      post.id,
+      followPaper,
+    );
+    setFollowPaperBusy(false);
+    if (!error) {
+      if (typeof isFollowing === "boolean") setFollowPaper(isFollowing);
+      if (typeof followerCount === "number") setPaperFollowerCount(followerCount);
+    }
+  }, [followPaper, followPaperBusy, isLoggedIn, post.id, router]);
+
+  const followPaperLabel = followPaperBusy
+    ? "…"
+    : followPaper
+      ? "Unfollow Paper"
+      : "Follow Paper";
+
   const [composer, setComposer] = useState("");
   const [composerCitation, setComposerCitation] = useState("");
   const [activeReplyFor, setActiveReplyFor] = useState<string | null>(null);
@@ -247,13 +379,7 @@ export function PaperDetailClient({ post }: Props) {
   const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
   const [contribTab, setContribTab] = useState<"all" | "cited">("all");
 
-  const related = useMemo(() => {
-    // Related papers are mocked by "same subject OR shared tag", excluding current post.
-    return mockPosts
-      .filter((p) => p.id !== post.id)
-      .filter((p) => p.subject === post.subject || (p.tags ?? []).some((t) => (post.tags ?? []).includes(t)))
-      .slice(0, 3);
-  }, [post.id, post.subject, post.tags]);
+  const related = relatedPosts;
 
   function submitTopLevelComment() {
     const trimmed = composer.trim();
@@ -335,27 +461,28 @@ export function PaperDetailClient({ post }: Props) {
               </div>
             </div>
             <p className="mt-3 text-sm leading-6 text-zinc-500">{mockUser.bio}</p>
-            <Link href="#" className="text-sm font-semibold text-[var(--brand)] hover:underline">
+            <Link href="#" className={`text-sm font-semibold text-[var(--brand)] ${linkHover}`}>
               Read More…
             </Link>
 
             <div className="mt-4">
-              {isLoggedIn ? (
+              {isLoggedIn && canFollowAuthor ? (
                 <PrimaryButton
                   className="w-full"
-                  onClick={() => setFollowAuthor((v) => !v)}
+                  onClick={() => void handleFollowAuthor()}
+                  disabled={followAuthorBusy}
                   aria-pressed={followAuthor}
                 >
-                  {followAuthor ? "Following" : "Follow"}
+                  {followAuthorSidebarLabel}
                 </PrimaryButton>
-              ) : (
+              ) : !isLoggedIn ? (
                 <Link
                   href="/login"
-                  className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-[var(--brand)] text-sm font-medium text-white hover:opacity-95"
+                  className={`inline-flex h-10 w-full items-center justify-center rounded-xl bg-[var(--brand)] text-sm font-medium text-white ${brandButtonHover}`}
                 >
                   Login to Follow
                 </Link>
-              )}
+              ) : null}
             </div>
           </section>
 
@@ -364,7 +491,7 @@ export function PaperDetailClient({ post }: Props) {
             <ul className="space-y-3">
               {related.map((p) => (
                 <li key={p.id} className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-sm)]">
-                  <Link href={`/paper/${p.id}`} className="block">
+                  <Link href={`/paper/${p.id}`} className={`block ${cardLinkHover}`}>
                     <div className="h-24 bg-zinc-200" />
                     <div className="p-4">
                       <div className="text-sm font-semibold text-zinc-900">{p.title}</div>
@@ -378,89 +505,99 @@ export function PaperDetailClient({ post }: Props) {
 
         {/* Right column */}
         <div className="space-y-4">
-          {/* Title + meta */}
-          <section className="space-y-3">
-            <div className="flex items-center gap-3 text-sm text-zinc-500">
-              <Link href="/" className="hover:text-zinc-700">
-                ← Back
+          {/* Title + meta — Figma: arrow + title once, subtitle, author, tags */}
+          <section className="space-y-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <Link
+                href="/home"
+                aria-label="Back to home"
+                className={`mt-1.5 shrink-0 rounded-lg px-1 py-0.5 text-lg leading-none text-zinc-600 ${linkHover}`}
+              >
+                ←
               </Link>
-            </div>
-            <div className="text-2xl font-semibold leading-tight tracking-tight text-zinc-900 lg:text-[28px]">
-              {post.title}
-            </div>
-            <div className="text-sm text-zinc-500">{post.summary}</div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500">
-              <div className="flex flex-wrap items-center gap-3">
-                <span>
-                  Authored by <span className="font-semibold text-zinc-700">{post.authorName}</span>
-                </span>
-                <span className="hidden text-zinc-300 sm:inline">•</span>
-                <span>Contributions by Dr. Katherine Johnson</span>
+              <div className="min-w-0 flex-1 space-y-2">
+                <h1 className="text-2xl font-semibold leading-tight tracking-tight text-zinc-900 lg:text-[32px]">
+                  {post.title}
+                </h1>
+                {post.summary ? (
+                  <p className="text-base leading-relaxed text-zinc-500">{post.summary}</p>
+                ) : null}
               </div>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={post.authorAvatarUrl ?? "/avatars/profile.svg"}
+                alt=""
+                className="h-9 w-9 shrink-0 rounded-full object-cover bg-zinc-200"
+              />
+              <p className="text-sm text-zinc-600">
+                Authored by{" "}
+                <span className="font-semibold text-zinc-900">{post.authorName}</span>
+              </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
               <Chip icon="📅">10-11-2024</Chip>
-              <Chip icon="🏷️">{post.subject}</Chip>
-              <Chip icon="＋">{(post.tags ?? [])[0] ?? "AI infrastructure"}</Chip>
+              <Chip icon="✦">{(post.tags ?? [])[0] ?? post.subject ?? "AI infrastructure"}</Chip>
             </div>
 
             {/* Follow row is only visible after login (per Figma). */}
             {isLoggedIn ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <PrimaryButton
-                  onClick={() => setFollowPaper((v) => !v)}
+                  onClick={() => void handleFollowPaper()}
+                  disabled={followPaperBusy}
                   aria-pressed={followPaper}
                   className="justify-between"
                 >
                   <span className="flex items-center gap-2">
-                    ⤴ {followPaper ? "Following Paper" : "Follow Paper"}
+                    ⤴ {followPaperLabel}
                   </span>
-                  <span className="text-white/90">35</span>
+                  <span className="text-white/90">{paperFollowerCount}</span>
                 </PrimaryButton>
-                <PrimaryButton
-                  onClick={() => setFollowAuthor((v) => !v)}
-                  aria-pressed={followAuthor}
-                  className="justify-between"
-                >
-                  <span className="flex items-center gap-2">
-                    👤 {followAuthor ? "Following Author" : "Follow Author"}
-                  </span>
-                  <span className="text-white/90">35</span>
-                </PrimaryButton>
+                {canFollowAuthor ? (
+                  <PrimaryButton
+                    onClick={() => void handleFollowAuthor()}
+                    disabled={followAuthorBusy}
+                    aria-pressed={followAuthor}
+                    className="justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      👤 {followAuthorLabel}
+                    </span>
+                    <span className="text-white/90">35</span>
+                  </PrimaryButton>
+                ) : null}
               </div>
             ) : null}
           </section>
 
-          {/* Reader */}
-          <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-sm)]">
-            <div className="flex flex-wrap items-center gap-1 border-b border-black/[0.06] bg-white px-3 py-2">
-              <ToolPill>Page 1 of 235</ToolPill>
-              <ToolPill>Zoom</ToolPill>
-              <ToolPill>Full-screen</ToolPill>
-              {/* Dark mode is intentionally not present here (toggled from Profile Settings only). */}
-            </div>
-
-            <div className="bg-zinc-50 px-8 py-10">
-              <div className="text-4xl font-semibold leading-tight tracking-tight text-zinc-900">
-                {post.title}
-              </div>
-              <p className="mt-5 max-w-3xl text-base leading-7 text-zinc-600">
-                {post.summary}
-              </p>
-
-              {post.fileType === "pdf" && post.fileUrl ? (
-                <div className="mt-8 overflow-hidden rounded-2xl border border-black/[0.08] bg-white">
-                  <iframe
-                    title="PDF reader"
-                    src={post.fileUrl}
-                    className="h-[70vh] w-full bg-white"
-                  />
-                </div>
-              ) : null}
-            </div>
-          </section>
+          {/* Reader — embedded PDF (no browser native viewer) */}
+          {hasPdf ? (
+            <EmbeddedPdfViewer
+              fileSrc={fileApiSrc}
+              downloadFilename={downloadFilename}
+              downloadCount={101}
+              shareCount={35}
+              citationCount={35}
+              onShare={() => void copyShareLink()}
+              onCite={() => void copyToClipboard(citation)}
+            />
+          ) : post.fileUrl ? (
+            <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white p-6 text-center shadow-[var(--shadow-sm)]">
+              <p className="text-sm text-zinc-600">This paper is not a PDF preview.</p>
+              <NonPdfDownloadButton
+                fileSrc={fileApiSrc}
+                downloadFilename={downloadFilename}
+              />
+            </section>
+          ) : (
+            <section className="overflow-hidden rounded-2xl border border-dashed border-black/[0.12] bg-white p-8 text-center text-sm text-zinc-500 shadow-[var(--shadow-sm)]">
+              No document has been uploaded for this paper yet.
+            </section>
+          )}
 
           {/* Abstract + references */}
           <section className="space-y-6 rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
@@ -482,7 +619,7 @@ export function PaperDetailClient({ post }: Props) {
                   "O'Neill, D., et al. (2022). Adaptive reuse of existing buildings in the urban environment. Urban Landscape Transformations.",
                 ].map((r) => (
                   <li key={r} className="rounded-xl bg-zinc-50 px-4 py-3">
-                    <a href="#" className="text-[var(--brand)] underline-offset-2 hover:underline">
+                    <a href="#" className={`text-[var(--brand)] underline-offset-2 ${linkHover}`}>
                       {r}
                     </a>
                   </li>
@@ -494,7 +631,7 @@ export function PaperDetailClient({ post }: Props) {
             {!isLoggedIn ? (
               <Link
                 href="/login"
-                className="inline-flex h-10 w-fit items-center rounded-xl bg-[var(--brand)] px-5 text-sm font-medium text-white hover:opacity-95"
+                className={`inline-flex h-10 w-fit items-center rounded-xl bg-[var(--brand)] px-5 text-sm font-medium text-white ${brandButtonHover}`}
               >
                 Login to Comment
               </Link>
@@ -523,7 +660,7 @@ export function PaperDetailClient({ post }: Props) {
                   <OutlineButton onClick={() => copyToClipboard(citation)} title="Copy citation">
                     Copy citation
                   </OutlineButton>
-                  <OutlineButton onClick={() => copyToClipboard(shareUrl)}>Copy link</OutlineButton>
+                  <OutlineButton onClick={() => copyShareLink()}>Copy link</OutlineButton>
                 </div>
               </div>
             )}
@@ -536,7 +673,9 @@ export function PaperDetailClient({ post }: Props) {
                   onClick={() => setContribTab("all")}
                   className={[
                     "rounded-lg px-3 py-1.5 text-xs font-medium",
-                    contribTab === "all" ? "bg-[rgba(0,102,255,0.1)] text-[var(--brand)]" : "bg-zinc-100 text-zinc-600",
+                    contribTab === "all"
+                      ? "bg-[rgba(0,102,255,0.1)] text-[var(--brand)]"
+                      : `bg-zinc-100 text-zinc-600 ${clickableHoverInset}`,
                   ].join(" ")}
                 >
                   All
@@ -546,7 +685,9 @@ export function PaperDetailClient({ post }: Props) {
                   onClick={() => setContribTab("cited")}
                   className={[
                     "rounded-lg px-3 py-1.5 text-xs font-medium",
-                    contribTab === "cited" ? "bg-[rgba(0,102,255,0.1)] text-[var(--brand)]" : "bg-zinc-100 text-zinc-600",
+                    contribTab === "cited"
+                      ? "bg-[rgba(0,102,255,0.1)] text-[var(--brand)]"
+                      : `bg-zinc-100 text-zinc-600 ${clickableHoverInset}`,
                   ].join(" ")}
                 >
                   Cited Contributions
@@ -575,7 +716,7 @@ export function PaperDetailClient({ post }: Props) {
                         <div className="mt-3 flex items-center gap-4 text-xs text-zinc-400">
                           <button
                             type="button"
-                            className="hover:text-zinc-600"
+                            className={`rounded-md px-1.5 py-0.5 ${clickableHoverInset}`}
                             onClick={() => {
                               if (!isLoggedIn) return;
                               setActiveReplyFor((prev) => (prev === c.id ? null : c.id));
@@ -586,8 +727,14 @@ export function PaperDetailClient({ post }: Props) {
 
                           <button
                             type="button"
-                            className="hover:text-zinc-600"
-                            onClick={() => copyToClipboard(`${shareUrl}#comment-${c.id}`)}
+                            className={`rounded-md px-1.5 py-0.5 ${clickableHoverInset}`}
+                            onClick={() => {
+                              const origin =
+                                typeof window !== "undefined" ? window.location.origin : "";
+                              void copyToClipboard(
+                                `${origin ? `${origin}${sharePath}` : sharePath}#comment-${c.id}`,
+                              );
+                            }}
                             disabled={!isLoggedIn}
                             title={!isLoggedIn ? "Login required" : "Copy comment link"}
                           >
@@ -596,7 +743,7 @@ export function PaperDetailClient({ post }: Props) {
 
                           <button
                             type="button"
-                            className="hover:text-zinc-600"
+                            className={`rounded-md px-1.5 py-0.5 ${clickableHoverInset}`}
                             onClick={() => setReportingCommentId(c.id)}
                             disabled={!isLoggedIn}
                             title={!isLoggedIn ? "Login required" : "Report comment"}

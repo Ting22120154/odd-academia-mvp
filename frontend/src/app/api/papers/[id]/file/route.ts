@@ -1,0 +1,85 @@
+import { readFile } from "fs/promises";
+import path from "path";
+import prisma from "@odd-academia/db/client";
+import { paperDownloadFilename } from "@/lib/files/paperFilename";
+
+const UPLOADS_PREFIX = "/uploads/";
+
+const MIME_BY_EXT: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".doc": "application/msword",
+  ".docx":
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+};
+
+function invalidFilePath() {
+  return Response.json({ error: "Invalid file path" }, { status: 400 });
+}
+
+function resolveUploadFilePath(fileUrl: string): string | null {
+  if (!fileUrl.startsWith(UPLOADS_PREFIX) || fileUrl.includes("..")) {
+    return null;
+  }
+
+  const publicDir = path.resolve(process.cwd(), "public");
+  const uploadsDir = path.join(publicDir, "uploads");
+  const resolved = path.resolve(publicDir, fileUrl.slice(1));
+
+  const relativeToUploads = path.relative(uploadsDir, resolved);
+  if (
+    relativeToUploads.startsWith("..") ||
+    path.isAbsolute(relativeToUploads)
+  ) {
+    return null;
+  }
+
+  return resolved;
+}
+
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const download = new URL(req.url).searchParams.get("download") === "1";
+
+    const paper = await prisma.paper.findUnique({
+      where: { id },
+      select: { id: true, title: true, fileUrl: true, status: true },
+    });
+
+    if (!paper?.fileUrl || paper.status !== "published") {
+      return Response.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const filePath = resolveUploadFilePath(paper.fileUrl);
+    if (!filePath) {
+      return invalidFilePath();
+    }
+
+    let buffer: Buffer;
+    try {
+      buffer = await readFile(filePath);
+    } catch {
+      return Response.json({ error: "File not found on disk" }, { status: 404 });
+    }
+
+    const ext = path.extname(paper.fileUrl).toLowerCase() || ".pdf";
+    const filename = paperDownloadFilename(paper.title, ext);
+    const contentType = MIME_BY_EXT[ext] ?? "application/octet-stream";
+    const disposition = download ? "attachment" : "inline";
+    const encoded = encodeURIComponent(filename);
+
+    return new Response(new Uint8Array(buffer), {
+      headers: {
+        "Content-Type": contentType,
+        "Content-Disposition": `${disposition}; filename="${filename.replace(/"/g, "")}"; filename*=UTF-8''${encoded}`,
+        "Cache-Control": "private, max-age=3600",
+      },
+    });
+  } catch (error) {
+    console.error("GET /api/papers/[id]/file failed:", error);
+    return Response.json({ error: "Failed to load file" }, { status: 500 });
+  }
+}

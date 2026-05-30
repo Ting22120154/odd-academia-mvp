@@ -46,7 +46,7 @@ function LeftPanel() {
 }
 
 function LoginPageInner() {
-  const { applySession, continueAsGuest } = useAuth();
+  const { applySession, continueAsGuest, refreshSession } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const isGuestLimit = searchParams.get("reason") === "guest_limit";
@@ -122,7 +122,8 @@ function LoginPageInner() {
         return;
       }
       applySession(toAuthUser(json.data.user));
-      router.push("/");
+      await refreshSession();
+      router.push("/home");
     } catch {
       setFormError("Something went wrong. Please try again.");
     } finally {
@@ -267,7 +268,10 @@ function LoginPageInner() {
                     id="email"
                     type="email"
                     value={email}
-                    onChange={(e) => { setEmail(e.target.value); setLoginErrors((p) => ({ ...p, email: undefined })); }}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setLoginErrors((p) => ({ ...p, email: undefined }));
+                    }}
                     placeholder="you@example.com"
                     className={loginErrors.email ? inputErrorClass : inputClass}
                   />
@@ -283,7 +287,10 @@ function LoginPageInner() {
                     id="password"
                     type="password"
                     value={password}
-                    onChange={(e) => { setPassword(e.target.value); setLoginErrors((p) => ({ ...p, password: undefined })); }}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setLoginErrors((p) => ({ ...p, password: undefined }));
+                    }}
                     placeholder="••••••••"
                     className={loginErrors.password ? inputErrorClass : inputClass}
                   />

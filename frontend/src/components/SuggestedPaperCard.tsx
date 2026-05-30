@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { MockPost } from "@/lib/mockPosts";
+import { randomCardGradientStyle } from "@/lib/papers/cardGradient";
 
 type Props = {
   post: MockPost;
@@ -15,10 +16,9 @@ type Props = {
  * The whole card links to `/paper/[id]` to meet the shareable URL requirement.
  */
 export function SuggestedPaperCard({ post }: Props) {
-  const tags = post.tags?.length ? post.tags : [post.subject];
-  const headerClass =
-    post.headerGradientClass ??
-    "bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300";
+  const tags =
+    post.categories?.length ? post.categories : post.tags?.length ? post.tags : [post.subject];
+  const coverGradient = randomCardGradientStyle(post.id);
 
   const initial = post.authorName.trim().charAt(0).toUpperCase() || "?";
 
@@ -26,10 +26,14 @@ export function SuggestedPaperCard({ post }: Props) {
     <li className="group relative list-none">
       <Link
         href={`/paper/${post.id}`}
-        className="flex h-full flex-col overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
+        className="flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-[transform,box-shadow,opacity] hover:-translate-y-0.5 hover:opacity-[0.98] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] hover:ring-2 hover:ring-zinc-200/60 active:translate-y-0 active:opacity-95"
       >
         {/* Decorative header — matches Figma “abstract gradient” strip */}
-        <div className={`relative h-28 w-full shrink-0 ${headerClass}`} aria-hidden />
+        <div
+          className="relative h-28 w-full shrink-0"
+          style={{ background: coverGradient }}
+          aria-hidden
+        />
 
         <div className="flex flex-1 flex-col gap-3 p-4">
           <h2 className="line-clamp-2 text-[15px] font-semibold leading-snug text-zinc-900">
