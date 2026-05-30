@@ -22,8 +22,20 @@ List notifications for the current user.
 | `tab` | `new`, `all`, `papers`, `comments`, `contact`, `citations` | `all` |
 | `sort` | `date`, `type` | `date` |
 | `dir` | `asc`, `desc` | `desc` |
+| `oldLimit` | positive int (New tab only) | `5` |
 
 **Success `200`:**
+
+On `tab=new`, the response splits unread vs read:
+
+- `newNotifications` — all unread (grouped), no limit
+- `oldNotifications` — read (grouped), up to `oldLimit` items
+- `oldTotal` — total read groups (for “Load more”)
+- `unreadCount` — unread row count
+
+Other tabs return `notifications` only (grouped). Each item includes `ids[]` (row ids in the group) and `groupCount`.
+
+**Success `200` (all tabs):**
 
 ```json
 {

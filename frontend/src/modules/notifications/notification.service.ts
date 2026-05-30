@@ -4,8 +4,14 @@ import {
   getSeededPaperIds,
   paperPathForId,
 } from "@/modules/papers/paper-route.service";
+import {
+  groupKeyForRow,
+  mergeNotificationGroups,
+  type ResolvedNotification,
+} from "./notification-grouping";
 import type {
   ListNotificationsQuery,
+  ListNotificationsResult,
   NotificationDisplayType,
   NotificationResponse,
 } from "./types";
@@ -18,6 +24,15 @@ type NotificationRow = {
   isRead: boolean;
   createdAt: Date;
 };
+
+const ROW_SELECT = {
+  id: true,
+  type: true,
+  referenceId: true,
+  referenceType: true,
+  isRead: true,
+  createdAt: true,
+} as const;
 
 function displayType(type: NotificationType): NotificationDisplayType {
   switch (type) {
@@ -51,83 +66,6 @@ function paperCommentHref(
   return commentId ? `${base}#comment-${commentId}` : base;
 }
 
-async function resolvePaperTitle(paperId: string): Promise<string> {
-  const paper = await prisma.paper.findUnique({
-    where: { id: paperId },
-    select: { title: true },
-  });
-  return paper?.title ?? "Paper";
-}
-
-async function resolveVisibleComment(commentId: string): Promise<{
-  paperId: string;
-} | null> {
-  const comment = await prisma.comment.findUnique({
-    where: { id: commentId },
-    select: { paperId: true, isHidden: true },
-  });
-  if (!comment || comment.isHidden) return null;
-  return { paperId: comment.paperId };
-}
-
-async function toNotificationResponse(
-  row: NotificationRow,
-  seededPaperIds: string[],
-): Promise<NotificationResponse> {
-  let text = "New notification";
-  let href = "/notifications";
-
-  if (row.type === "paper" && row.referenceType === "paper" && row.referenceId) {
-    const title = await resolvePaperTitle(row.referenceId);
-    text = `New paper published: ${title}`;
-    href = paperPathForId(row.referenceId, seededPaperIds);
-  } else if (row.type === "comment" && row.referenceType === "comment" && row.referenceId) {
-    const comment = await resolveVisibleComment(row.referenceId);
-    if (comment) {
-      const title = await resolvePaperTitle(comment.paperId);
-      text = `New comment on your paper: ${title}`;
-      href = paperCommentHref(comment.paperId, row.referenceId, seededPaperIds);
-    }
-  } else if (row.type === "comment" && row.referenceType === "paper" && row.referenceId) {
-    // Legacy rows: reference was paper id only — open paper comments section
-    const title = await resolvePaperTitle(row.referenceId);
-    text = `New comment on your paper: ${title}`;
-    href = paperPathForId(row.referenceId, seededPaperIds);
-  } else if (row.type === "reply" && row.referenceType === "comment" && row.referenceId) {
-    const comment = await resolveVisibleComment(row.referenceId);
-    if (comment) {
-      const title = await resolvePaperTitle(comment.paperId);
-      text = `New reply to your comment on ${title}`;
-      href = paperCommentHref(comment.paperId, row.referenceId, seededPaperIds);
-    } else {
-      text = "New reply to your comment";
-    }
-  } else if (row.type === "citation") {
-    text = "Your work was cited";
-    if (row.referenceType === "paper" && row.referenceId) {
-      const title = await resolvePaperTitle(row.referenceId);
-      text = `Your work was cited: ${title}`;
-      href = paperPathForId(row.referenceId, seededPaperIds);
-    }
-  } else if (row.type === "contact") {
-    text = "Someone contacted you — check your email";
-    href = "/notifications";
-  } else if (row.type === "follow" && row.referenceType === "user" && row.referenceId) {
-    text = "You have a new follower";
-    href = `/user/${row.referenceId}`;
-  }
-
-  return {
-    id: row.id,
-    text,
-    type: displayType(row.type),
-    date: formatDate(row.createdAt),
-    isRead: row.isRead,
-    href,
-    createdAt: row.createdAt.toISOString(),
-  };
-}
-
 function tabWhere(tab: ListNotificationsQuery["tab"]) {
   if (tab === "new") return { isRead: false };
   if (tab === "papers") return { type: "paper" as const };
@@ -137,32 +75,195 @@ function tabWhere(tab: ListNotificationsQuery["tab"]) {
   return {};
 }
 
-export async function listNotifications(userId: string, query: ListNotificationsQuery) {
-  const rows = await prisma.notification.findMany({
-    where: { userId, ...tabWhere(query.tab) },
-    orderBy:
-      query.sort === "type"
-        ? { type: query.dir }
-        : { createdAt: query.dir },
-    select: {
-      id: true,
-      type: true,
-      referenceId: true,
-      referenceType: true,
-      isRead: true,
-      createdAt: true,
-    },
-  });
+async function loadCommentLookup(
+  rows: NotificationRow[],
+): Promise<Map<string, { paperId: string; parentId: string | null; isHidden: boolean }>> {
+  const commentIds = new Set<string>();
+  for (const row of rows) {
+    if (row.referenceType === "comment" && row.referenceId) {
+      commentIds.add(row.referenceId);
+    }
+  }
+  if (commentIds.size === 0) return new Map();
 
-  const seededPaperIds = await getSeededPaperIds();
-  const notifications = await Promise.all(
-    rows.map((row) => toNotificationResponse(row, seededPaperIds)),
+  const comments = await prisma.comment.findMany({
+    where: { id: { in: [...commentIds] } },
+    select: { id: true, paperId: true, parentId: true, isHidden: true },
+  });
+  return new Map(comments.map((c) => [c.id, c]));
+}
+
+async function loadPaperTitles(paperIds: Set<string>): Promise<Map<string, string>> {
+  if (paperIds.size === 0) return new Map();
+  const papers = await prisma.paper.findMany({
+    where: { id: { in: [...paperIds] } },
+    select: { id: true, title: true },
+  });
+  return new Map(papers.map((p) => [p.id, p.title]));
+}
+
+function resolvePaperIdForRow(
+  row: NotificationRow,
+  commentById: Map<string, { paperId: string; parentId: string | null; isHidden: boolean }>,
+): string | null {
+  if (row.referenceType === "paper" && row.referenceId) return row.referenceId;
+  if (row.referenceType === "comment" && row.referenceId) {
+    const comment = commentById.get(row.referenceId);
+    if (comment && !comment.isHidden) return comment.paperId;
+  }
+  return null;
+}
+
+function resolveOne(
+  row: NotificationRow,
+  seededPaperIds: string[],
+  commentById: Map<string, { paperId: string; parentId: string | null; isHidden: boolean }>,
+  titleByPaperId: Map<string, string>,
+): ResolvedNotification {
+  const paperId = resolvePaperIdForRow(row, commentById);
+  const paperTitle = paperId ? (titleByPaperId.get(paperId) ?? "Paper") : null;
+
+  let text = "New notification";
+  let href = "/notifications";
+  let anchorCommentId: string | null = null;
+
+  if (row.type === "paper" && row.referenceType === "paper" && row.referenceId) {
+    text = `New paper published: ${paperTitle ?? "Paper"}`;
+    href = paperPathForId(row.referenceId, seededPaperIds);
+  } else if (row.type === "comment" && row.referenceType === "comment" && row.referenceId) {
+    const comment = commentById.get(row.referenceId);
+    if (comment && !comment.isHidden) {
+      text = `New comment on your paper: ${paperTitle ?? "Paper"}`;
+      anchorCommentId = row.referenceId;
+      href = paperCommentHref(comment.paperId, row.referenceId, seededPaperIds);
+    }
+  } else if (row.type === "comment" && row.referenceType === "paper" && row.referenceId) {
+    text = `New comment on your paper: ${paperTitle ?? "Paper"}`;
+    href = paperPathForId(row.referenceId, seededPaperIds);
+  } else if (row.type === "reply" && row.referenceType === "comment" && row.referenceId) {
+    const comment = commentById.get(row.referenceId);
+    if (comment && !comment.isHidden) {
+      const anchor = comment.parentId ?? row.referenceId;
+      anchorCommentId = anchor;
+      text = `New reply to your comment on ${paperTitle ?? "Paper"}`;
+      href = paperCommentHref(comment.paperId, anchor, seededPaperIds);
+    } else {
+      text = "New reply to your comment";
+    }
+  } else if (row.type === "citation") {
+    text = "Your work was cited";
+    if (row.referenceType === "paper" && row.referenceId) {
+      text = `Your work was cited: ${paperTitle ?? "Paper"}`;
+      href = paperPathForId(row.referenceId, seededPaperIds);
+    }
+  } else if (row.type === "contact") {
+    text = "Someone contacted you — check your email";
+  } else if (row.type === "follow" && row.referenceType === "user" && row.referenceId) {
+    text = "You have a new follower";
+    href = `/user/${row.referenceId}`;
+  }
+
+  const groupKey = groupKeyForRow(row, commentById);
+
+  return {
+    id: row.id,
+    ids: [row.id],
+    text,
+    type: displayType(row.type),
+    date: formatDate(row.createdAt),
+    isRead: row.isRead,
+    href,
+    createdAt: row.createdAt.toISOString(),
+    groupCount: 1,
+    groupKey,
+    rawType: row.type,
+    paperTitle,
+  };
+}
+
+async function resolveAndGroup(
+  rows: NotificationRow[],
+  seededPaperIds: string[],
+): Promise<NotificationResponse[]> {
+  const commentById = await loadCommentLookup(rows);
+  const paperIds = new Set<string>();
+  for (const row of rows) {
+    const paperId = resolvePaperIdForRow(row, commentById);
+    if (paperId) paperIds.add(paperId);
+    if (row.referenceType === "paper" && row.referenceId) paperIds.add(row.referenceId);
+  }
+  const titleByPaperId = await loadPaperTitles(paperIds);
+  const resolved = rows.map((row) =>
+    resolveOne(row, seededPaperIds, commentById, titleByPaperId),
   );
+  return mergeNotificationGroups(resolved);
+}
+
+function sortResolved(items: NotificationResponse[], query: ListNotificationsQuery) {
+  const mul = query.dir === "asc" ? 1 : -1;
+  return [...items].sort((a, b) => {
+    if (query.sort === "type") return a.type.localeCompare(b.type) * mul;
+    return a.createdAt.localeCompare(b.createdAt) * mul;
+  });
+}
+
+export async function listNotifications(
+  userId: string,
+  query: ListNotificationsQuery,
+): Promise<ListNotificationsResult> {
+  const seededPaperIds = await getSeededPaperIds();
   const unreadCount = await prisma.notification.count({
     where: { userId, isRead: false },
   });
 
-  return { notifications, unreadCount };
+  if (query.tab === "new") {
+    const [unreadRows, readRows] = await Promise.all([
+      prisma.notification.findMany({
+        where: { userId, isRead: false },
+        orderBy: { createdAt: "desc" },
+        select: ROW_SELECT,
+      }),
+      prisma.notification.findMany({
+        where: { userId, isRead: true },
+        orderBy: { createdAt: "desc" },
+        select: ROW_SELECT,
+      }),
+    ]);
+
+    const newNotifications = sortResolved(
+      await resolveAndGroup(unreadRows, seededPaperIds),
+      { ...query, sort: "date", dir: "desc" },
+    );
+    const readGrouped = sortResolved(
+      await resolveAndGroup(readRows, seededPaperIds),
+      { ...query, sort: "date", dir: "desc" },
+    );
+
+    return {
+      notifications: [],
+      newNotifications,
+      oldNotifications: readGrouped.slice(0, query.oldLimit),
+      oldTotal: readGrouped.length,
+      unreadCount,
+    };
+  }
+
+  const rows = await prisma.notification.findMany({
+    where: { userId, ...tabWhere(query.tab) },
+    orderBy:
+      query.sort === "type" ? { type: query.dir } : { createdAt: query.dir },
+    select: ROW_SELECT,
+  });
+
+  const notifications = sortResolved(await resolveAndGroup(rows, seededPaperIds), query);
+
+  return {
+    notifications,
+    newNotifications: [],
+    oldNotifications: [],
+    oldTotal: 0,
+    unreadCount,
+  };
 }
 
 export async function markNotificationRead(notificationId: string, userId: string) {
@@ -171,6 +272,14 @@ export async function markNotificationRead(notificationId: string, userId: strin
 
   await prisma.notification.update({
     where: { id: notificationId },
+    data: { isRead: true },
+  });
+}
+
+export async function markNotificationsRead(notificationIds: string[], userId: string) {
+  if (notificationIds.length === 0) return;
+  await prisma.notification.updateMany({
+    where: { id: { in: notificationIds }, userId },
     data: { isRead: true },
   });
 }

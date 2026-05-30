@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { fetchNotifications, markNotificationRead } from "@/lib/notifications-client";
+import {
+  fetchNotifications,
+  markNotificationsRead,
+} from "@/lib/notifications-client";
 import type {
   NotificationResponse,
   NotificationSortDir,
@@ -25,6 +28,8 @@ const TAB_TO_API: Record<NotifTabLabel, NotificationTab> = {
   Citations: "citations",
 };
 
+const OLD_PAGE_SIZE = 5;
+
 type SortKey = NotificationSortKey;
 type SortDir = NotificationSortDir;
 
@@ -35,10 +40,16 @@ export default function NotificationsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [items, setItems] = useState<NotificationResponse[]>([]);
+  const [newItems, setNewItems] = useState<NotificationResponse[]>([]);
+  const [oldItems, setOldItems] = useState<NotificationResponse[]>([]);
+  const [oldTotal, setOldTotal] = useState(0);
+  const [oldLimit, setOldLimit] = useState(OLD_PAGE_SIZE);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const activeTabRef = useRef(activeTab);
+
+  const isNewTab = activeTab === "New";
 
   useEffect(() => {
     activeTabRef.current = activeTab;
@@ -48,18 +59,26 @@ export default function NotificationsPage() {
     if (!isLoggedIn) router.replace("/login");
   }, [isLoggedIn, router]);
 
+  useEffect(() => {
+    if (!isNewTab) setOldLimit(OLD_PAGE_SIZE);
+  }, [isNewTab, activeTab]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { notifications, unreadCount: count } = await fetchNotifications({
+    const result = await fetchNotifications({
       tab: TAB_TO_API[activeTab],
       sort: sortKey,
       dir: sortDir,
+      oldLimit: isNewTab ? oldLimit : undefined,
     });
-    setItems(notifications);
-    setUnreadCount(count);
+    setItems(result.notifications);
+    setNewItems(result.newNotifications);
+    setOldItems(result.oldNotifications);
+    setOldTotal(result.oldTotal);
+    setUnreadCount(result.unreadCount);
     setLoading(false);
-  }, [activeTab, sortKey, sortDir]);
+  }, [activeTab, sortKey, sortDir, oldLimit, isNewTab]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -77,31 +96,45 @@ export default function NotificationsPage() {
     }
   }
 
+  function markReadInLists(n: NotificationResponse) {
+    const readRow: NotificationResponse = { ...n, isRead: true };
+
+    if (isNewTab) {
+      setNewItems((prev) => prev.filter((item) => item.id !== n.id));
+      setOldItems((prev) => {
+        const without = prev.filter((item) => item.id !== n.id);
+        return [readRow, ...without];
+      });
+      setOldTotal((t) => t + 1);
+      return;
+    }
+
+    setItems((prev) =>
+      prev.map((item) => (item.id === n.id ? readRow : item)),
+    );
+  }
+
   async function handleNotificationClick(n: NotificationResponse) {
     const tabAtClick = activeTab;
 
     if (!n.isRead) {
-      const result = await markNotificationRead(n.id);
+      const result = await markNotificationsRead(n.ids);
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      setUnreadCount((c) => Math.max(0, c - 1));
+      setUnreadCount((c) => Math.max(0, c - n.ids.length));
 
-      // Only mutate the list for the tab that was active when the user clicked.
-      // If they switched tabs while the request was in flight, load() already refetched.
-      setItems((prev) => {
-        if (activeTabRef.current !== tabAtClick) return prev;
-        if (tabAtClick === "New") {
-          return prev.filter((item) => item.id !== n.id);
-        }
-        return prev.map((item) =>
-          item.id === n.id ? { ...item, isRead: true } : item,
-        );
-      });
+      if (activeTabRef.current === tabAtClick) {
+        markReadInLists(n);
+      }
     }
     router.push(n.href);
   }
+
+  const hasNewTabContent = newItems.length > 0 || oldItems.length > 0;
+  const listEmpty = isNewTab ? !hasNewTabContent : items.length === 0;
+  const canLoadMoreOld = isNewTab && oldItems.length < oldTotal;
 
   return (
     <section className="mx-auto w-full max-w-[var(--page-max)]">
@@ -152,6 +185,7 @@ export default function NotificationsPage() {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-black/[0.06] text-xs font-semibold text-zinc-500">
+              <th className="w-8 px-4 py-3" aria-label="Status" />
               <th className="px-4 py-3">Notification</th>
               <th className="px-4 py-3">
                 <button
@@ -178,36 +212,70 @@ export default function NotificationsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-zinc-400">
+                <td colSpan={4} className="px-4 py-6 text-center text-zinc-400">
                   Loading notifications…
                 </td>
               </tr>
+            ) : isNewTab ? (
+              <>
+                {newItems.length > 0 ? (
+                  <>
+                    <tr className="bg-zinc-50/80">
+                      <td colSpan={4} className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                        New
+                      </td>
+                    </tr>
+                    {newItems.map((n) => (
+                      <NotificationRow
+                        key={n.id}
+                        notification={n}
+                        onClick={() => void handleNotificationClick(n)}
+                      />
+                    ))}
+                  </>
+                ) : null}
+                {oldItems.length > 0 ? (
+                  <>
+                    <tr className="bg-zinc-50/80">
+                      <td colSpan={4} className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                        Earlier
+                      </td>
+                    </tr>
+                    {oldItems.map((n) => (
+                      <NotificationRow
+                        key={n.id}
+                        notification={n}
+                        onClick={() => void handleNotificationClick(n)}
+                      />
+                    ))}
+                  </>
+                ) : null}
+                {canLoadMoreOld ? (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setOldLimit((l) => l + OLD_PAGE_SIZE)}
+                        className="text-sm font-medium text-[var(--brand)] hover:underline"
+                      >
+                        Load more
+                      </button>
+                    </td>
+                  </tr>
+                ) : null}
+              </>
             ) : (
               items.map((n) => (
-                <tr
+                <NotificationRow
                   key={n.id}
-                  className={[
-                    "border-b border-black/[0.04] last:border-0",
-                    !n.isRead ? "bg-blue-50/40" : "",
-                  ].join(" ")}
-                >
-                  <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => void handleNotificationClick(n)}
-                      className="text-left font-medium text-zinc-900 hover:text-[var(--brand)] hover:underline"
-                    >
-                      {n.text}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 text-zinc-500">{n.type}</td>
-                  <td className="px-4 py-3 text-zinc-500">{n.date}</td>
-                </tr>
+                  notification={n}
+                  onClick={() => void handleNotificationClick(n)}
+                />
               ))
             )}
-            {!loading && items.length === 0 ? (
+            {!loading && listEmpty ? (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-zinc-400">
+                <td colSpan={4} className="px-4 py-6 text-center text-zinc-400">
                   No notifications
                 </td>
               </tr>
@@ -216,6 +284,40 @@ export default function NotificationsPage() {
         </table>
       </div>
     </section>
+  );
+}
+
+function NotificationRow({
+  notification: n,
+  onClick,
+}: {
+  notification: NotificationResponse;
+  onClick: () => void;
+}) {
+  return (
+    <tr className="border-b border-black/[0.04] last:border-0">
+      <td className="px-4 py-3 align-middle">
+        {!n.isRead ? (
+          <span
+            className="mx-auto block h-2.5 w-2.5 shrink-0 rounded-full bg-blue-500"
+            aria-label="Unread"
+          />
+        ) : (
+          <span className="block h-2.5 w-2.5" aria-hidden />
+        )}
+      </td>
+      <td className="px-4 py-3">
+        <button
+          type="button"
+          onClick={onClick}
+          className="text-left font-medium text-zinc-900 hover:text-[var(--brand)] hover:underline"
+        >
+          {n.text}
+        </button>
+      </td>
+      <td className="px-4 py-3 text-zinc-500">{n.type}</td>
+      <td className="px-4 py-3 text-zinc-500">{n.date}</td>
+    </tr>
   );
 }
 
