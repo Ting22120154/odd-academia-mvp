@@ -91,6 +91,21 @@ export default function AdminTopNav() {
   }, []);
 
   const pendingCount = notifData?.pendingCount ?? 0;
+
+  // SYS-04: When admin is on the /reports page, save the current pendingCount as the
+  // "seen baseline" so the Reports nav badge shows only NEW reports since last visit.
+  useEffect(() => {
+    if (pathname.startsWith("/reports") && notifData !== null) {
+      localStorage.setItem("admin_reports_baseline", String(pendingCount));
+    }
+  }, [pathname, pendingCount, notifData]);
+
+  const reportsBaseline = (() => {
+    if (typeof window === "undefined") return 0;
+    return Number(localStorage.getItem("admin_reports_baseline") ?? "0");
+  })();
+  const reportsBadge = Math.max(0, pendingCount - reportsBaseline);
+
   // BADGE: unread = reports that arrived after the bell was last opened (0 until first open)
   const unread = seenCount === null ? 0 : Math.max(0, pendingCount - seenCount);
 
@@ -116,8 +131,8 @@ export default function AdminTopNav() {
             {NAV.map(item => {
               const active     = pathname === item.href || pathname.startsWith(item.href + "/");
               const isReports  = item.href === "/reports";
-              // BADGE: Unreviewed report count must be live, not hardcoded
-              const reportBadge = isReports ? pendingCount : 0;
+              // SYS-04: Show only NEW reports since last /reports visit, not the raw total
+              const reportBadge = isReports ? reportsBadge : 0;
               return (
                 <Link
                   key={item.href}

@@ -293,34 +293,35 @@ export function PaperDetailClient({ post }: Props) {
 
   async function submitReport(draft: ReportDraft) {
     if (!reportingCommentId || !user) return;
-    const c = comments.find(x => x.id === reportingCommentId);
-    await fetch("/api/reports", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
+    const res = await fetch("/api/reports", {
+      method:      "POST",
+      headers:     { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({
-        type:          "comment",
-        commentBody:   c?.text ?? "",
-        commentAuthor: c?.name ?? "Unknown",
-        reporterId:    user.id,
-        reason:        draft.subject ? `${draft.subject}: ${draft.description}` : draft.description,
+        type:      "comment",
+        commentId: reportingCommentId,
+        reason:    draft.subject ? `${draft.subject}: ${draft.description}` : draft.description,
       }),
     });
+    if (!res.ok) console.error("Comment report failed", await res.json().catch(() => null));
     setReportingCommentId(null);
   }
 
   async function submitPaperReport(draft: ReportDraft) {
     if (!user) return;
-    await fetch("/api/reports", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
+    const res = await fetch("/api/reports", {
+      method:      "POST",
+      headers:     { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({
         type:       "paper",
+        paperId:    post.id,
         paperTitle: post.title,
-        reporterId: user.id,
         subject:    draft.subject,
         reason:     draft.description,
       }),
     });
+    if (!res.ok) console.error("Paper report failed", await res.json().catch(() => null));
     setReportingPaper(false);
   }
 
@@ -418,9 +419,15 @@ export function PaperDetailClient({ post }: Props) {
               <button
                 type="button"
                 onClick={() => setReportingPaper(true)}
-                className="text-xs text-zinc-400 hover:text-red-500 underline-offset-2 hover:underline"
+                title="Report this paper"
+                aria-label="Report this paper"
+                className="inline-flex items-center gap-1.5 self-start rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs text-zinc-500 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-500"
               >
-                Report this paper
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+                  <line x1="4" y1="22" x2="4" y2="15"/>
+                </svg>
+                Report
               </button>
             )}
 

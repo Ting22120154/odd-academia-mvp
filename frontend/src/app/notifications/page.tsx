@@ -50,7 +50,7 @@ export default function NotificationsPage() {
 
   const [activeTab,     setActiveTab]     = useState<NotifTab>("New");
   const [sortKey,       setSortKey]       = useState<SortKey>("date");
-  const [sortDir,       setSortDir]       = useState<SortDir>("asc");
+  const [sortDir,       setSortDir]       = useState<SortDir>("desc");
   const [conversations,    setConversations]    = useState<Conversation[]>([]);
   const [moderationNotifs, setModerationNotifs] = useState<ModerationNotif[]>([]);
   const [chatWith,         setChatWith]         = useState<{ id: string; name: string } | null>(null);
@@ -104,7 +104,11 @@ export default function NotificationsPage() {
     // NOTIFICATION: Load moderation notifications created by admin review actions
     fetch("/api/notifications", { credentials: "include" })
       .then(r => r.ok ? r.json() as Promise<ModerationNotif[]> : Promise.resolve([]))
-      .then(data => setModerationNotifs(data.filter(n => n.type === "moderation")))
+      .then(data => setModerationNotifs(
+        data
+          .filter(n => n.type === "moderation")
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      ))
       .catch(() => null);
 
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
@@ -141,11 +145,23 @@ export default function NotificationsPage() {
     });
   }
 
-  // NOTIFICATION FILTER: include own messages for status-update notifications
-  // "New" tab: all conversations minus dismissed ones
-  const visibleMsgNotifs = conversations.filter(c => !dismissedMsgs.has(c.partnerId));
-  // "Messages" tab: all conversations minus removed ones
-  const visibleConvos = conversations.filter(c => !removedConvos.has(c.partnerId));
+  async function markNotifRead(id: string) {
+    setModerationNotifs(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    await fetch(`/api/notifications/${id}`, { method: "PATCH", credentials: "include" }).catch(() => null);
+  }
+
+  async function deleteModNotif(id: string) {
+    setModerationNotifs(prev => prev.filter(n => n.id !== id));
+    await fetch(`/api/notifications/${id}`, { method: "DELETE", credentials: "include" }).catch(() => null);
+  }
+
+  // UI-02: Only show conversations where the OTHER person has sent unread messages.
+  // This prevents senders from seeing their own outbound messages as new notifications.
+  const visibleMsgNotifs = conversations.filter(c => c.unread > 0 && !dismissedMsgs.has(c.partnerId));
+  // "Messages" tab: all conversations minus removed ones, newest first
+  const visibleConvos = conversations
+    .filter(c => !removedConvos.has(c.partnerId))
+    .sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime());
 
   // Badge counts received-unread, sent-unread, AND unread moderation notifications
   const unreadTabBadge  = visibleMsgNotifs.filter(
@@ -370,7 +386,11 @@ export default function NotificationsPage() {
                 if (row.kind === "moderation") {
                   const { notif } = row;
                   return (
-                    <tr key={`mod-${notif.id}`} className={`border-b border-black/[0.04] last:border-0 transition ${notif.isRead ? "hover:bg-zinc-50" : "bg-orange-50/40 hover:bg-orange-50/60"}`}>
+                    <tr
+                      key={`mod-${notif.id}`}
+                      onClick={() => { void markNotifRead(notif.id); }}
+                      className={`group border-b border-black/[0.04] last:border-0 cursor-pointer transition ${notif.isRead ? "hover:bg-zinc-50" : "bg-orange-50/40 hover:bg-orange-50/60"}`}
+                    >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
@@ -387,7 +407,19 @@ export default function NotificationsPage() {
                       <td className="px-4 py-3 text-zinc-500 text-xs">
                         {new Date(notif.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}
                       </td>
-                      <td className="px-4 py-3" />
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); void deleteModNotif(notif.id); }}
+                          className="rounded-lg p-1 text-zinc-300 opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+                          aria-label="Delete notification"
+                          title="Delete"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      </td>
                     </tr>
                   );
                 }
@@ -430,12 +462,10 @@ export default function NotificationsPage() {
           recipientName={chatWith.name}
           onClose={() => {
             setChatWith(null);
-            if (user) {
-              fetch(`/api/messages/inbox?userId=${user.id}`)
-                .then(r => r.ok ? r.json() as Promise<Conversation[]> : Promise.reject())
-                .then(data => setConversations(data))
-                .catch(() => {});
-            }
+            fetch("/api/messages/inbox", { credentials: "include" })
+              .then(r => r.ok ? r.json() as Promise<Conversation[]> : Promise.reject())
+              .then(data => setConversations(data))
+              .catch(() => {});
           }}
         />
       )}

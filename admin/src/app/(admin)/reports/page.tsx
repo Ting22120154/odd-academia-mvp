@@ -396,11 +396,15 @@ function SkeletonRows() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+const PAGE_SIZE = 10;
+
 export default function ReportsPage() {
   const [reports,     setReports]     = useState<NormalizedReport[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [fetchError,  setFetchError]  = useState(false);
   const [modalReport, setModalReport] = useState<NormalizedReport | null>(null);
+
+  const [page, setPage] = useState(0);
 
   // Filters
   const [search,       setSearch]       = useState("");
@@ -463,6 +467,11 @@ export default function ReportsPage() {
   });
 
   const pendingCount = reports.filter(r => r.status === "pending").length;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  // Reset to page 0 whenever filters change
+  useEffect(() => { setPage(0); }, [search, typeFilter, statusFilter]);
 
   return (
     <div className="space-y-6">
@@ -556,9 +565,9 @@ export default function ReportsPage() {
 
       {/* Table */}
       <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[520px]">
           <table className="w-full text-sm">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">Reporter</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">Type</th>
@@ -595,7 +604,7 @@ export default function ReportsPage() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((report, idx) => (
+                paged.map((report, idx) => (
                   <tr
                     key={report.id}
                     className={`border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors ${idx % 2 === 1 ? "bg-gray-50/40" : ""}`}
@@ -672,6 +681,36 @@ export default function ReportsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination footer */}
+        {!loading && !fetchError && filtered.length > 0 && (
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100">
+            <p className="text-xs text-gray-400">
+              {`${Math.min(page * PAGE_SIZE + 1, filtered.length)}–${Math.min((page + 1) * PAGE_SIZE, filtered.length)} of ${filtered.length} report${filtered.length !== 1 ? "s" : ""}`}
+            </p>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={page === 0}
+                  onClick={() => setPage(p => p - 1)}
+                  className="rounded border border-gray-200 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  ← Prev
+                </button>
+                <span className="px-2 text-xs text-gray-400">{page + 1} / {totalPages}</span>
+                <button
+                  type="button"
+                  disabled={page >= totalPages - 1}
+                  onClick={() => setPage(p => p + 1)}
+                  className="rounded border border-gray-200 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next →
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Review modal */}
