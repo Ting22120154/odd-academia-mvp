@@ -8,6 +8,7 @@ import {
   getPaperCoverFallbacks,
 } from "@/lib/papers/categoryCovers";
 import {
+  getPaperBrowseCategories,
   getPrimaryPaperCategory,
   type PaperCategory,
 } from "@/lib/papers/categories";
@@ -56,14 +57,24 @@ function CoverImage({
  * Figma-style paper card: topical cover photo + title, summary, tags, author.
  */
 export function SuggestedPaperCard({ post }: Props) {
+  const browseCategories = getPaperBrowseCategories(
+    post.categories ?? [],
+    post.tags ?? [],
+  );
   const primaryCategory = getPrimaryPaperCategory(
     post.categories,
     post.tags,
     post.subject,
   );
-  const browseCategories =
-    post.categories?.length ? post.categories : post.tags?.length ? post.tags : [post.subject];
-  const tags = browseCategories.filter(Boolean).slice(0, 2);
+  const tags = (
+    browseCategories.length > 0
+      ? browseCategories
+      : primaryCategory
+        ? [primaryCategory]
+        : post.subject
+          ? [post.subject]
+          : []
+  ).slice(0, 2);
 
   const initial = post.authorName.trim().charAt(0).toUpperCase() || "?";
 
@@ -71,7 +82,6 @@ export function SuggestedPaperCard({ post }: Props) {
     <li className="group relative list-none">
       <Link
         href={`/paper/${post.id}`}
-        aria-label={primaryCategory ? `${post.title}, ${primaryCategory}` : post.title}
         className="flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-[transform,box-shadow,opacity] hover:-translate-y-0.5 hover:opacity-[0.98] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] hover:ring-2 hover:ring-zinc-200/60 active:translate-y-0 active:opacity-95"
       >
         <CoverImage

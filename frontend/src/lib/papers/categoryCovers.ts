@@ -1,6 +1,7 @@
 import type { PaperCategory } from "@/lib/papers/categories";
 
-/** Bundled covers — no external CDN (reliable offline + presentation). */
+/** Bundled covers — no external CDN (reliable offline + presentation).
+ *  JPEGs live in public/paper-covers/; see download-covers.ps1 to refresh. */
 const BASE = "/paper-covers";
 
 export const PAPER_COVER_FALLBACK = `${BASE}/fallback.svg`;

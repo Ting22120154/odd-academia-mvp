@@ -12,7 +12,8 @@
  */
 
 // ── Interests ────────────────────────────────────────────────────────────────
-// Matches prisma/seed.ts from addLoginPage branch
+// Names must match frontend PAPER_CATEGORIES (see categoryEmojis.ts).
+// After editing, re-seed: pnpm db:seed
 export const interests = [
   { name: "AI",                   icon: "🤖" },
   { name: "Architecture",         icon: "🏛️" },

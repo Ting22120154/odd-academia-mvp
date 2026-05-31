@@ -2,27 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-
-const INTERESTS = [
-  { label: "AI", emoji: "🤖" },
-  { label: "Biohacking", emoji: "🧬" },
-  { label: "Business", emoji: "💼" },
-  { label: "Design", emoji: "🎨" },
-  { label: "Education", emoji: "📚" },
-  { label: "Engineering", emoji: "⚙️" },
-  { label: "Fashion", emoji: "👗" },
-  { label: "Gastronomy", emoji: "🍽️" },
-  { label: "Health", emoji: "❤️" },
-  { label: "History", emoji: "🏛️" },
-  { label: "Lifestyle", emoji: "🌿" },
-  { label: "Maths", emoji: "📐" },
-  { label: "Music", emoji: "🎵" },
-  { label: "Nature", emoji: "🌍" },
-  { label: "Politics", emoji: "🗳️" },
-  { label: "Pop Culture", emoji: "🎬" },
-  { label: "Sports", emoji: "⚽" },
-  { label: "Technology", emoji: "💻" },
-];
+import { ONBOARDING_INTEREST_OPTIONS } from "@/lib/papers/categoryEmojis";
 
 export default function InterestsPage() {
   const router = useRouter();
@@ -70,7 +50,7 @@ export default function InterestsPage() {
 
         {/* Interest grid */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-          {INTERESTS.map(({ label, emoji }) => {
+          {ONBOARDING_INTEREST_OPTIONS.map(({ label, emoji }) => {
             const isSelected = selected.includes(label);
             return (
               <button

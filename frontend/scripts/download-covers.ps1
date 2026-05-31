@@ -1,4 +1,13 @@
-# One-time: download paper cover JPEGs from Unsplash (ixlib URL format).
+# Optional maintainer script — re-download paper cover JPEGs from Unsplash.
+#
+# IMPORTANT: The committed files under frontend/public/paper-covers/ are the
+# source of truth for the app. Unsplash photo IDs expire or 404 over time;
+# a failed download must NOT overwrite an existing good JPEG. After running,
+# verify file sizes differ across categories and spot-check in the browser.
+#
+# Usage (from repo root):
+#   powershell -ExecutionPolicy Bypass -File frontend/scripts/download-covers.ps1
+#
 $dir = Join-Path $PSScriptRoot "..\public\paper-covers"
 $q = "ixlib=rb-4.0.3&auto=format&fit=crop&w=640&h=224&q=85"
 Set-Location $dir
@@ -72,11 +81,20 @@ $map = @{
 $ok = 0; $fail = @()
 foreach ($entry in $map.GetEnumerator()) {
   $url = "https://images.unsplash.com/$($entry.Value)?$q"
-  curl.exe -fsSL "$url" -o $entry.Key
-  if ((Test-Path $entry.Key) -and (Get-Item $entry.Key).Length -gt 2000) { $ok++ }
-  else {
-    if (Test-Path $entry.Key) { Remove-Item $entry.Key -Force }
-    $fail += $entry.Key
+  $dest = $entry.Key
+  $prevLen = if (Test-Path $dest) { (Get-Item $dest).Length } else { 0 }
+  curl.exe -fsSL "$url" -o "$dest.tmp"
+  if ((Test-Path "$dest.tmp") -and (Get-Item "$dest.tmp").Length -gt 2000) {
+    Move-Item -Force "$dest.tmp" $dest
+    $ok++
+  } else {
+    if (Test-Path "$dest.tmp") { Remove-Item "$dest.tmp" -Force }
+    if ($prevLen -gt 2000) {
+      Write-Host "Skipped (kept existing): $dest"
+      $ok++
+    } else {
+      $fail += $entry.Key
+    }
   }
 }
 Write-Host "OK: $ok / $($map.Count)"
