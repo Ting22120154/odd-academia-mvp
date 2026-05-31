@@ -1,24 +1,72 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import type { MockPost } from "@/lib/mockPosts";
-import { randomCardGradientStyle } from "@/lib/papers/cardGradient";
+import { CategoryIcon } from "@/lib/papers/categoryIcons";
+import {
+  getPaperCoverFallbacks,
+} from "@/lib/papers/categoryCovers";
+import {
+  getPrimaryPaperCategory,
+  type PaperCategory,
+} from "@/lib/papers/categories";
 
 type Props = {
   post: MockPost;
 };
 
+function CoverImage({
+  category,
+  paperId,
+  title,
+}: {
+  category: PaperCategory | null;
+  paperId: string;
+  title: string;
+}) {
+  const candidates = getPaperCoverFallbacks(category, paperId);
+  const [index, setIndex] = useState(0);
+  const src = candidates[Math.min(index, candidates.length - 1)]!;
+
+  return (
+    <div className="relative h-32 w-full shrink-0 overflow-hidden bg-[#eef4ff]" aria-hidden>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        key={src}
+        src={src}
+        alt=""
+        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+        loading="lazy"
+        decoding="async"
+        onError={() => {
+          setIndex((i) => (i + 1 < candidates.length ? i + 1 : i));
+        }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+      {category ? (
+        <span className="absolute bottom-2 left-2 inline-flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-zinc-800 shadow-sm backdrop-blur-sm">
+          <CategoryIcon category={category} className="h-3 w-3 shrink-0 text-[var(--brand)]" />
+          <span className="truncate">{category}</span>
+        </span>
+      ) : null}
+      <span className="sr-only">{title}</span>
+    </div>
+  );
+}
+
 /**
- * Card UI aligned with Figma "Suggested Paper For You":
- * - gradient header strip (mesh-like via multi-stop gradients)
- * - title + clamped summary
- * - tag pills
- * - author row + small decorative fold (visual only)
- *
- * The whole card links to `/paper/[id]` to meet the shareable URL requirement.
+ * Figma-style paper card: topical cover photo + title, summary, tags, author.
  */
 export function SuggestedPaperCard({ post }: Props) {
-  const tags =
+  const primaryCategory = getPrimaryPaperCategory(
+    post.categories,
+    post.tags,
+    post.subject,
+  );
+  const browseCategories =
     post.categories?.length ? post.categories : post.tags?.length ? post.tags : [post.subject];
-  const coverGradient = randomCardGradientStyle(post.id);
+  const tags = browseCategories.filter(Boolean).slice(0, 2);
 
   const initial = post.authorName.trim().charAt(0).toUpperCase() || "?";
 
@@ -28,11 +76,10 @@ export function SuggestedPaperCard({ post }: Props) {
         href={`/paper/${post.id}`}
         className="flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-[transform,box-shadow,opacity] hover:-translate-y-0.5 hover:opacity-[0.98] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] hover:ring-2 hover:ring-zinc-200/60 active:translate-y-0 active:opacity-95"
       >
-        {/* Decorative header — matches Figma “abstract gradient” strip */}
-        <div
-          className="relative h-28 w-full shrink-0"
-          style={{ background: coverGradient }}
-          aria-hidden
+        <CoverImage
+          category={primaryCategory}
+          paperId={post.id}
+          title={post.title}
         />
 
         <div className="flex flex-1 flex-col gap-3 p-4">
@@ -44,7 +91,7 @@ export function SuggestedPaperCard({ post }: Props) {
           </p>
 
           <div className="flex flex-wrap gap-2">
-            {tags.slice(0, 2).map((t) => (
+            {tags.map((t) => (
               <span
                 key={t}
                 className="inline-flex items-center rounded-full border border-black/[0.06] bg-zinc-50 px-2.5 py-0.5 text-xs font-medium text-zinc-700"
@@ -65,12 +112,6 @@ export function SuggestedPaperCard({ post }: Props) {
             </div>
           </div>
         </div>
-
-        {/* Bottom-right fold decoration (Figma “dog-ear”) */}
-        <span
-          className="pointer-events-none absolute bottom-0 right-0 h-0 w-0 border-b-[14px] border-l-[14px] border-b-sky-200/90 border-l-transparent"
-          aria-hidden
-        />
       </Link>
     </li>
   );

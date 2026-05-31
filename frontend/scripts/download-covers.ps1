@@ -1,0 +1,83 @@
+# One-time: download paper cover JPEGs from Unsplash (ixlib URL format).
+$dir = Join-Path $PSScriptRoot "..\public\paper-covers"
+$q = "ixlib=rb-4.0.3&auto=format&fit=crop&w=640&h=224&q=85"
+Set-Location $dir
+
+$map = @{
+  "ai-1.jpg" = "photo-1677442136019-21780ecad995"
+  "ai-2.jpg" = "photo-1485827404703-89b55fcc595e"
+  "architecture-1.jpg" = "photo-1487958449943-ccc76565352d"
+  "architecture-2.jpg" = "photo-1511818963802-90aebbac9247"
+  "arts-1.jpg" = "photo-1460661419201-fd4bcdf72535"
+  "arts-2.jpg" = "photo-1547891654-e66ed7ebb968"
+  "biohacking-1.jpg" = "photo-1571019613454-1cb2f99b2d8b"
+  "biohacking-2.jpg" = "photo-1559757175-5700bbe233b8"
+  "biology-1.jpg" = "photo-1530026405186-ed1f139313f8"
+  "biology-2.jpg" = "photo-1576086218319-68c19feaa629"
+  "business-1.jpg" = "photo-1454165804606-c3d57bc86b40"
+  "business-2.jpg" = "photo-1556761175-b413da4baf72"
+  "chemistry-1.jpg" = "photo-1532187863486-ab9a9ad31403"
+  "chemistry-2.jpg" = "photo-1582719471384-894fbb16e074"
+  "data-science-1.jpg" = "photo-1551288049-bebda4e38f71"
+  "data-science-2.jpg" = "photo-1460925895917-afdab827c52f"
+  "design-1.jpg" = "photo-1561070791-2526d30994b5"
+  "design-2.jpg" = "photo-1586717791821-3f875a562061"
+  "economics-1.jpg" = "photo-1611974789855-9c98a0b0360a"
+  "economics-2.jpg" = "photo-1590283603385-17ffb3a7f29f"
+  "education-1.jpg" = "photo-1523050854058-8df90110c9f1"
+  "education-2.jpg" = "photo-1503676260728-1c00da094a0b"
+  "engineering-1.jpg" = "photo-1485827404703-89b55fcc595e"
+  "engineering-2.jpg" = "photo-1535378623769-b8f0a3d2a151"
+  "fashion-1.jpg" = "photo-1445205170230-053b83016050"
+  "fashion-2.jpg" = "photo-1469334031218-e382a71b716b"
+  "gastronomy-1.jpg" = "photo-1414235077428-338989a2e8c0"
+  "gastronomy-2.jpg" = "photo-1504674900247-0877df9cc836"
+  "health-1.jpg" = "photo-1576091160399-112ba8d25d1d"
+  "health-2.jpg" = "photo-1579684385127-1ef15b5a9519"
+  "history-1.jpg" = "photo-1461360228754-6e81c4783f3d"
+  "history-2.jpg" = "photo-1471107349295-9b1ecf246e86"
+  "law-1.jpg" = "photo-1589829545855-d5d963f06c4b"
+  "law-2.jpg" = "photo-1450101499163-c8848c66ca85"
+  "lifestyle-1.jpg" = "photo-1511632765486-a01980e01a18"
+  "lifestyle-2.jpg" = "photo-1529156069898-49953e39b3ac"
+  "maths-1.jpg" = "photo-1635070041078-e363dbe005cb"
+  "maths-2.jpg" = "photo-1509228465518-324dd45745e3"
+  "music-1.jpg" = "photo-1511379939023-ca7dab6279af"
+  "music-2.jpg" = "photo-1493225457124-a3eb161ffa5f"
+  "nature-1.jpg" = "photo-1501785888041-af3ef285b470"
+  "nature-2.jpg" = "photo-1472214103451-9374bd1c798e"
+  "nature-3.jpg" = "photo-1506905925346-21bda4d32df4"
+  "philosophy-1.jpg" = "photo-1457369804613-52c61a468e7d"
+  "philosophy-2.jpg" = "photo-1507003211169-0a1dd7228f2d"
+  "physics-1.jpg" = "photo-1636466497215-26a378c0f9ed"
+  "physics-2.jpg" = "photo-1532094349884-54311bbf67af"
+  "politics-1.jpg" = "photo-1529107386315-d1ae706132a6"
+  "politics-2.jpg" = "photo-1541873673710-f7a77306806c"
+  "pop-culture-1.jpg" = "photo-1470229722913-7c0e2dbbafd3"
+  "pop-culture-2.jpg" = "photo-1493225457124-a3eb161ffa5f"
+  "psychology-1.jpg" = "photo-1551836022-deb4986cc585"
+  "psychology-2.jpg" = "photo-1507003211169-0a1dd7228f2d"
+  "science-1.jpg" = "photo-1507413245166-1170ec8f013a"
+  "science-2.jpg" = "photo-1532094349884-54311bbf67af"
+  "sociology-1.jpg" = "photo-1521737852567-6949f3f9f44b"
+  "sociology-2.jpg" = "photo-1529156069898-49953e39b3ac"
+  "sports-1.jpg" = "photo-1461896836934-ffe607ba8211"
+  "sports-2.jpg" = "photo-1574629810360-8951d1539fa9"
+  "technology-1.jpg" = "photo-1778146476147-5f8d4bd03c79"
+  "technology-2.jpg" = "photo-1762242298589-582f5f6c3fb1"
+  "default-1.jpg" = "photo-1507842217343-583bb7270f66"
+  "default-2.jpg" = "photo-1456513080510-7bf3a84b82f8"
+}
+
+$ok = 0; $fail = @()
+foreach ($entry in $map.GetEnumerator()) {
+  $url = "https://images.unsplash.com/$($entry.Value)?$q"
+  curl.exe -fsSL "$url" -o $entry.Key
+  if ((Test-Path $entry.Key) -and (Get-Item $entry.Key).Length -gt 2000) { $ok++ }
+  else {
+    if (Test-Path $entry.Key) { Remove-Item $entry.Key -Force }
+    $fail += $entry.Key
+  }
+}
+Write-Host "OK: $ok / $($map.Count)"
+if ($fail.Count) { Write-Host "Failed: $($fail -join ', ')" }

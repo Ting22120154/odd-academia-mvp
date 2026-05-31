@@ -8,6 +8,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { OddAcademiaLogo } from "@/components/OddAcademiaLogo";
 import { useAuth } from "@/context/AuthContext";
 
 type Props = {
@@ -135,7 +136,6 @@ export function TopNav({ isLoggedIn }: Props) {
   const pathname = usePathname();
 
   if (pathname === "/login") return null;
-  if (pathname?.startsWith("/paper")) return null;
 
   const isHome = pathname === "/" || pathname === "/home";
   const isFollowing = pathname?.startsWith("/following");
@@ -145,10 +145,7 @@ export function TopNav({ isLoggedIn }: Props) {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-black/[0.06] bg-white/80 backdrop-blur">
       <div className="mx-auto flex w-full max-w-[var(--page-max)] items-center justify-between px-6 py-4">
-        <Link href="/home" className="flex items-center gap-2 font-semibold tracking-tight">
-          <span className="text-[var(--brand)]">odd</span>
-          <span className="text-zinc-900">Academia</span>
-        </Link>
+        <OddAcademiaLogo href="/home" variant="color" heightClass="h-7" />
 
         <div className="flex items-center gap-3">
           {isLoggedIn ? (

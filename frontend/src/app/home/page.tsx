@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SearchIcon } from "@/components/icons";
 import { SuggestedPaperCard } from "@/components/SuggestedPaperCard";
+import { CategoryIcon } from "@/lib/papers/categoryIcons";
 import { usePublishedPapers } from "@/hooks/usePublishedPapers";
 import {
   PAPER_CATEGORIES,
@@ -180,6 +181,7 @@ export default function HomePage() {
                       >
                         {checked ? "✓" : ""}
                       </span>
+                      <CategoryIcon category={cat} className="h-4 w-4 shrink-0 text-[var(--brand)]" />
                       {cat}
                     </button>
                   );

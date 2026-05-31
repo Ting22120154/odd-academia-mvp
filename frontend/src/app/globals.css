@@ -9,8 +9,8 @@
   --foreground: #171717;
   --muted: rgba(24, 24, 27, 0.6); /* close to zinc-600 */
 
-  /* Brand (Figma primary blue approx) */
-  --brand: #0066ff;
+  /* Brand (logo blue #0661ff) */
+  --brand: #0661ff;
   --brand-foreground: #ffffff;
 
   /* Borders + shadows (Figma-like subtle black) */
