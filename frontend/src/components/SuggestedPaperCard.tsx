@@ -19,18 +19,16 @@ type Props = {
 function CoverImage({
   category,
   paperId,
-  title,
 }: {
   category: PaperCategory | null;
   paperId: string;
-  title: string;
 }) {
   const candidates = getPaperCoverFallbacks(category, paperId);
   const [index, setIndex] = useState(0);
   const src = candidates[Math.min(index, candidates.length - 1)]!;
 
   return (
-    <div className="relative h-32 w-full shrink-0 overflow-hidden bg-[#eef4ff]" aria-hidden>
+    <div className="relative h-32 w-full shrink-0 overflow-hidden bg-[#eef4ff]">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         key={src}
@@ -43,14 +41,13 @@ function CoverImage({
           setIndex((i) => (i + 1 < candidates.length ? i + 1 : i));
         }}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" aria-hidden />
       {category ? (
         <span className="absolute bottom-2 left-2 inline-flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-zinc-800 shadow-sm backdrop-blur-sm">
-          <CategoryIcon category={category} className="h-3 w-3 shrink-0 text-[var(--brand)]" />
+          <CategoryIcon category={category} className="h-3 w-3 shrink-0 text-[var(--brand)]" aria-hidden />
           <span className="truncate">{category}</span>
         </span>
       ) : null}
-      <span className="sr-only">{title}</span>
     </div>
   );
 }
@@ -74,12 +71,12 @@ export function SuggestedPaperCard({ post }: Props) {
     <li className="group relative list-none">
       <Link
         href={`/paper/${post.id}`}
+        aria-label={primaryCategory ? `${post.title}, ${primaryCategory}` : post.title}
         className="flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-[transform,box-shadow,opacity] hover:-translate-y-0.5 hover:opacity-[0.98] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] hover:ring-2 hover:ring-zinc-200/60 active:translate-y-0 active:opacity-95"
       >
         <CoverImage
           category={primaryCategory}
           paperId={post.id}
-          title={post.title}
         />
 
         <div className="flex flex-1 flex-col gap-3 p-4">
