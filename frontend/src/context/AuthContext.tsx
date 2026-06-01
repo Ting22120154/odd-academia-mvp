@@ -62,8 +62,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem("isGuest");
         return;
       }
+      // 401 = token invalid/expired, 404 = user deleted — clear the stale httpOnly cookie
+      // so the middleware stops redirecting /login back to home.
+      if (res.status === 401 || res.status === 404) {
+        await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => null);
+      }
     } catch {
-      // not logged in
+      // network error — keep existing cookie state, retry on next load
     }
     setUser(null);
   }, []);

@@ -1,22 +1,16 @@
-import { getMockPostById } from "@/lib/mockPosts";
+import {
+  getPublishedPaperByIdFromDb,
+  getRelatedPublishedPapersFromDb,
+} from "@/lib/papers/db";
 import { PaperDetailClient } from "@/app/paper/_components/PaperDetailClient";
 
 export default async function PaperDetailPage({
   params,
 }: {
-  /**
-   * Dynamic route: `/paper/:id`
-   *
-   * Requirement from client docs: generate a unique URL per paper so it can be shared.
-   *
-   * Note for reviewers:
-   * - This server component only resolves the data (mock for now) and delegates UI
-   *   to `PaperDetailClient` which matches the Figma layout.
-   */
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const post = getMockPostById(id);
+  const post = await getPublishedPaperByIdFromDb(id);
 
   if (!post) {
     return (
@@ -28,10 +22,14 @@ export default async function PaperDetailPage({
     );
   }
 
+  const relatedPosts = await getRelatedPublishedPapersFromDb(
+    post.id,
+    post.categories ?? [],
+  );
+
   return (
     <div className="mx-auto w-full max-w-[var(--page-max)]">
-      <PaperDetailClient post={post} />
+      <PaperDetailClient post={post} relatedPosts={relatedPosts} />
     </div>
   );
 }
-

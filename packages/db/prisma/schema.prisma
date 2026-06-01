@@ -91,6 +91,7 @@ model User {
   reports              CommentReport[]       @relation("Reporter")
   followers            Follow[]              @relation("Following")
   following            Follow[]              @relation("Follower")
+  followedPapers       PaperFollow[]
   notifications        Notification[]
   notificationSettings NotificationSettings?
   sentMessages         Message[]             @relation("SentMessages")
@@ -153,6 +154,7 @@ model Paper {
   comments       Comment[]
   linkedMessages Message[]
   reports        PaperReport[]
+  followers      PaperFollow[]
 
   @@index([authorId])
   @@index([status])
@@ -268,6 +270,21 @@ model Follow {
   @@unique([followerId, followingId])
   @@index([followingId])
   @@map("follows")
+}
+
+model PaperFollow {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  paperId   String   @map("paper_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paper Paper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, paperId])
+  @@index([paperId])
+  @@index([userId])
+  @@map("paper_follows")
 }
 
 model Notification {
