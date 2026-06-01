@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { MockPost } from "@/lib/mockPosts";
+import { randomCardGradientStyle } from "@/lib/papers/cardGradient";
 
 type Props = {
   post: MockPost;
@@ -24,10 +25,9 @@ export function SuggestedPaperCard({
   onToggleSave,
   showSave = false,
 }: Props) {
-  const tags = post.tags?.length ? post.tags : [post.subject];
-  const headerClass =
-    post.headerGradientClass ??
-    "bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300";
+  const tags =
+    post.categories?.length ? post.categories : post.tags?.length ? post.tags : [post.subject];
+  const coverGradient = randomCardGradientStyle(post.id);
 
   const initial = post.authorName.trim().charAt(0).toUpperCase() || "?";
 
@@ -35,7 +35,11 @@ export function SuggestedPaperCard({
     <li className="group relative list-none">
       <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
         <Link href={`/paper/${post.id}`} className="flex flex-1 flex-col">
-          <div className={`relative h-28 w-full shrink-0 ${headerClass}`} aria-hidden />
+          <div
+            className="relative h-28 w-full shrink-0"
+            style={{ background: coverGradient }}
+            aria-hidden
+          />
 
           <div className="flex flex-1 flex-col gap-3 p-4">
             <h2 className="line-clamp-2 text-[15px] font-semibold leading-snug text-zinc-900">

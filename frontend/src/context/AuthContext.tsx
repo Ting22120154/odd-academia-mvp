@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * Client auth state for the main app.
+ * - Logged-in: validated via GET /api/auth/me (httpOnly JWT cookie).
+ * - Guest: localStorage + auth-session=guest cookie (browse only; write APIs need login).
+ * - applySession (alias login): called after login/register; logout hits /api/auth/logout.
+ */
+
 import {
   createContext,
   useContext,
@@ -9,21 +16,35 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import type { MockUser } from "@/data/mockUser";
-import { AUTH_USER_COOKIE } from "@/lib/auth/session";
+import type { PublicUser } from "@/lib/auth/types";
 
-type AuthUser = Pick<MockUser, "id" | "fullName" | "email" | "avatarUrl">;
+export type AuthUser = Pick<PublicUser, "id" | "fullName" | "email" | "avatarUrl"> & {
+  role?: PublicUser["role"];
+};
 
 type AuthState = {
   user: AuthUser | null;
   isGuest: boolean;
   isLoggedIn: boolean;
-  login: (userData: AuthUser) => void;
-  logout: () => void;
+  applySession: (user: AuthUser) => void;
+  /** @deprecated Use applySession — kept so older callers using login() still work */
+  login: (user: AuthUser) => void;
+  logout: () => Promise<void>;
   continueAsGuest: () => void;
+  refreshSession: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
+
+function toAuthUser(u: PublicUser): AuthUser {
+  return {
+    id: u.id,
+    fullName: u.fullName,
+    email: u.email,
+    avatarUrl: u.avatarUrl,
+    role: u.role,
+  };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -31,67 +52,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isGuest, setIsGuest] = useState(false);
 
-  useEffect(() => {
-    // Rehydrate from localStorage — only runs client-side (SSR-safe)
-    const storedUser = localStorage.getItem("authUser");
-    const storedGuest = localStorage.getItem("isGuest");
-    if (storedUser) {
-      try {
-        const parsed = JSON.parse(storedUser) as AuthUser;
-        setUser(parsed);
-        // Sync Neon user id for APIs (fixes legacy mock ids like u_1)
-        if (parsed.email) {
-          void fetch("/api/auth/bridge", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ email: parsed.email }),
-          })
-            .then((res) => res.json())
-            .then((data: { success?: boolean; user?: AuthUser }) => {
-              if (!data.success || !data.user?.id) return;
-              const updated = { ...parsed, ...data.user };
-              localStorage.setItem("authUser", JSON.stringify(updated));
-              document.cookie = `${AUTH_USER_COOKIE}=${encodeURIComponent(data.user.id)}; path=/; max-age=604800; samesite=lax`;
-              setUser(updated);
-            })
-            .catch(() => {});
-        }
-      } catch {
-        localStorage.removeItem("authUser");
+  const refreshSession = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/me", { credentials: "include" });
+      const json = await res.json();
+      if (json.success && json.data?.user) {
+        setUser(toAuthUser(json.data.user));
+        setIsGuest(false);
+        localStorage.removeItem("isGuest");
+        return;
       }
-    } else if (storedGuest === "true") {
-      setIsGuest(true);
+    } catch {
+      // not logged in
     }
-    setHydrated(true);
+    setUser(null);
   }, []);
 
-  const login = useCallback(
-    (userData: AuthUser) => {
-      localStorage.setItem("authUser", JSON.stringify(userData));
-      localStorage.removeItem("isGuest");
-      // Mirror into cookies so proxy + comment APIs can read session server-side
-      document.cookie = "auth-session=user; path=/; max-age=604800";
-      document.cookie = `${AUTH_USER_COOKIE}=${encodeURIComponent(userData.id)}; path=/; max-age=604800; samesite=lax`;
-      setUser(userData);
-      setIsGuest(false);
-      router.push("/");
-    },
-    [router]
-  );
+  useEffect(() => {
+    async function hydrate() {
+      if (localStorage.getItem("isGuest") === "true") {
+        setIsGuest(true);
+        setUser(null);
+        setHydrated(true);
+        return;
+      }
+      await refreshSession();
+      setHydrated(true);
+    }
+    hydrate();
+  }, [refreshSession]);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("authUser");
+  const applySession = useCallback((userData: AuthUser) => {
+    localStorage.removeItem("isGuest");
+    setUser(userData);
+    setIsGuest(false);
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch {
+      // still clear local state
+    }
     localStorage.removeItem("isGuest");
     localStorage.removeItem("guestViewedPapers");
-    document.cookie = "auth-session=; path=/; max-age=0";
-    document.cookie = `${AUTH_USER_COOKIE}=; path=/; max-age=0`;
     setUser(null);
     setIsGuest(false);
     router.push("/login");
   }, [router]);
 
-  const continueAsGuest = useCallback(() => {
+  const continueAsGuest = useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch {
+      // still enter guest mode
+    }
     localStorage.setItem("isGuest", "true");
     document.cookie = "auth-session=guest; path=/; max-age=86400";
     setIsGuest(true);
@@ -99,7 +114,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/");
   }, [router]);
 
-  // Block render until localStorage is read — prevents hydration mismatch
   if (!hydrated) return null;
 
   return (
@@ -108,9 +122,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isGuest,
         isLoggedIn: user !== null,
-        login,
+        applySession,
+        login: applySession,
         logout,
         continueAsGuest,
+        refreshSession,
       }}
     >
       {children}

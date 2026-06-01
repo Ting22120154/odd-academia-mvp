@@ -1,79 +1,154 @@
-import { addPost, getPosts } from "@/lib/posts";
+import prisma from "@odd-academia/db/client";
+import { getRouteUserId } from "@/lib/auth/require-auth";
+import { splitKeywordsAndCategories } from "@/lib/papers/categories";
 
-export function GET() {
-  return Response.json(getPosts());
+const paperInclude = {
+  author: {
+    select: {
+      id: true,
+      fullName: true,
+      avatarUrl: true,
+      bio: true,
+    },
+  },
+  keywords: true,
+  categories: true,
+  contributors: true,
+  references: true,
+} as const;
+
+function parsePositiveInt(value: string | null, fallback: number): number {
+  const n = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const page = parsePositiveInt(searchParams.get("page"), 1);
+    const limit = parsePositiveInt(searchParams.get("limit"), 10);
+    const search = searchParams.get("search")?.trim() || undefined;
+    const skip = (page - 1) * limit;
+
+    const where = {
+      status: "published" as const,
+      ...(search
+        ? {
+            OR: [
+              { title: { contains: search, mode: "insensitive" as const } },
+              { abstract: { contains: search, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
+
+    const [posts, total] = await Promise.all([
+      prisma.paper.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        include: paperInclude,
+      }),
+      prisma.paper.count({ where }),
+    ]);
+
+    return Response.json({ posts, total, page, limit });
+  } catch (error) {
+    console.error("GET /api/posts failed:", error);
+    return Response.json(
+      { error: "Failed to fetch posts" },
+      { status: 500 },
+    );
+  }
 }
 
 export async function POST(req: Request) {
+  const userId = await getRouteUserId(req);
+  if (!userId) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = (await req.json().catch(() => null)) as unknown;
   if (!body || typeof body !== "object") {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
   const b = body as Record<string, unknown>;
-  if (typeof b.title !== "string" || typeof b.content !== "string") {
-    return Response.json(
-      { error: "Missing required fields: title, content" },
-      { status: 400 },
-    );
+  if (typeof b.title !== "string" || !b.title.trim()) {
+    return Response.json({ error: "Missing required field: title" }, { status: 400 });
   }
 
-  const created = addPost({
-    title: b.title,
-    content: b.content,
-    keywords: Array.isArray(b.keywords)
-      ? (b.keywords.filter((x) => typeof x === "string") as string[])
-      : [],
-    categories: Array.isArray(b.categories)
-      ? (b.categories.filter((x) => typeof x === "string") as string[])
-      : undefined,
-    publishedDate: typeof b.publishedDate === "string" ? b.publishedDate : undefined,
-    doi: typeof b.doi === "string" ? b.doi : undefined,
-    references: Array.isArray(b.references)
-      ? (b.references.filter((x) => typeof x === "string") as string[])
-      : undefined,
-    contributors: Array.isArray(b.contributors)
-      ? (b.contributors.filter(
-          (x) =>
-            x &&
-            typeof x === "object" &&
-            typeof (x as any).label === "string" &&
-            (typeof (x as any).href === "string" || typeof (x as any).href === "undefined"),
-        ) as { label: string; href?: string }[])
-      : undefined,
-    attachment:
-      b.attachment && typeof b.attachment === "object"
-        ? {
-            fileName:
-              typeof (b.attachment as any).fileName === "string"
-                ? (b.attachment as any).fileName
-                : "paper.pdf",
-            mimeType:
-              typeof (b.attachment as any).mimeType === "string"
-                ? (b.attachment as any).mimeType
-                : "application/pdf",
-            sizeBytes:
-              typeof (b.attachment as any).sizeBytes === "number"
-                ? (b.attachment as any).sizeBytes
-                : 0,
-          }
-        : undefined,
-    author:
-      b.author && typeof b.author === "object"
-        ? {
-            name:
-              typeof (b.author as any).name === "string"
-                ? (b.author as any).name
-                : "User",
-            bio: typeof (b.author as any).bio === "string" ? (b.author as any).bio : "",
-            avatar:
-              typeof (b.author as any).avatar === "string"
-                ? (b.author as any).avatar
-                : "/avatars/profile.svg",
-          }
-        : undefined,
-  });
+  const content = typeof b.content === "string" ? b.content : "";
+  const rawKeywords = Array.isArray(b.keywords)
+    ? (b.keywords.filter((x) => typeof x === "string") as string[])
+    : [];
+  const rawCategories = Array.isArray(b.categories)
+    ? (b.categories.filter((x) => typeof x === "string") as string[])
+    : [];
+  const { categories, keywords } = splitKeywordsAndCategories([
+    ...rawCategories,
+    ...rawKeywords,
+  ]);
+  const publishedDate =
+    typeof b.publishedDate === "string" ? b.publishedDate : undefined;
+  const doi = typeof b.doi === "string" ? b.doi.trim() || undefined : undefined;
+  const references = Array.isArray(b.references)
+    ? (b.references.filter((x) => typeof x === "string") as string[])
+    : [];
+  const contributors = Array.isArray(b.contributors)
+    ? (b.contributors.filter(
+        (x) =>
+          x &&
+          typeof x === "object" &&
+          typeof (x as { label?: unknown }).label === "string",
+      ) as { label: string; href?: string }[])
+    : [];
 
-  return Response.json(created, { status: 201 });
+  let publishedAt: Date | undefined;
+  if (publishedDate) {
+    const parsed = new Date(publishedDate);
+    if (!Number.isNaN(parsed.getTime())) publishedAt = parsed;
+  }
+
+  try {
+    const paper = await prisma.paper.create({
+      data: {
+        authorId: userId,
+        title: b.title.trim(),
+        abstract: content.trim() || null,
+        publishedAt: publishedAt ?? new Date(),
+        status: "published",
+        doi,
+        keywords:
+          keywords.length > 0
+            ? { create: keywords.map((keyword) => ({ keyword })) }
+            : undefined,
+        categories:
+          categories.length > 0
+            ? { create: categories.map((category) => ({ category })) }
+            : undefined,
+        contributors:
+          contributors.length > 0
+            ? {
+                create: contributors.map((c) => ({
+                  contributorName: c.label.trim(),
+                })),
+              }
+            : undefined,
+        references:
+          references.length > 0
+            ? {
+                create: references.map((citationText) => ({ citationText })),
+              }
+            : undefined,
+      },
+      include: paperInclude,
+    });
+
+    return Response.json(paper, { status: 201 });
+  } catch (error) {
+    console.error("POST /api/posts failed:", error);
+    return Response.json({ error: "Failed to create post" }, { status: 500 });
+  }
 }
-

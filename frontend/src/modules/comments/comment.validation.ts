@@ -45,17 +45,11 @@ export function parseCreateCommentBody(body: unknown): ParseResult<CreateComment
     parentCommentId = parent.data;
   }
 
-  const citation =
-    typeof body.citation === "string" && body.citation.trim()
-      ? body.citation.trim()
-      : undefined;
-
   return {
     ok: true,
     data: {
       paperId: paperId.data,
       content: content.data,
-      citation,
       parentCommentId,
     },
   };
@@ -68,12 +62,7 @@ export function parseUpdateCommentBody(body: unknown): ParseResult<UpdateComment
   const content = parseContent(body.content);
   if (!content.ok) return content;
 
-  const citation =
-    typeof body.citation === "string" && body.citation.trim()
-      ? body.citation.trim()
-      : undefined;
-
-  return { ok: true, data: { content: content.data, citation } };
+  return { ok: true, data: { content: content.data } };
 }
 
 /** GET /api/comments/paper/:paperId param */

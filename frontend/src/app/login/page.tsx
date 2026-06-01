@@ -1,9 +1,13 @@
 "use client";
 
+/**
+ * Login & sign-up — calls POST /api/auth/login and POST /api/auth/register.
+ * Session cookies are set by the API; client uses applySession for UI state.
+ */
+
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useAuth } from "@/context/AuthContext";
-import { mockUser } from "@/data/mockUser";
+import { useAuth, type AuthUser } from "@/context/AuthContext";
 
 type Mode = "login" | "signup";
 
@@ -42,13 +46,15 @@ function LeftPanel() {
 }
 
 function LoginPageInner() {
-  const { login, continueAsGuest } = useAuth();
+  const { applySession, continueAsGuest, refreshSession } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const isGuestLimit = searchParams.get("reason") === "guest_limit";
 
   const [mode, setMode] = useState<Mode>("login");
   const [linkedinNotice, setLinkedinNotice] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState("");
 
   // Login fields + errors
   const [email, setEmail] = useState("");
@@ -76,6 +82,22 @@ function LoginPageInner() {
     setSignupErrors({});
   }
 
+  function toAuthUser(u: {
+    id: string;
+    fullName: string;
+    email: string;
+    avatarUrl?: string;
+    role?: AuthUser["role"];
+  }): AuthUser {
+    return {
+      id: u.id,
+      fullName: u.fullName,
+      email: u.email,
+      avatarUrl: u.avatarUrl,
+      role: u.role,
+    };
+  }
+
   async function handleLogin() {
     const errs: { email?: string; password?: string } = {};
     if (!email.trim()) errs.email = "Email is required.";
@@ -85,43 +107,37 @@ function LoginPageInner() {
       return;
     }
     setLoginErrors({});
-
-    const loginEmail = email.trim().toLowerCase();
-    const res = await fetch("/api/auth/bridge", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email: loginEmail }),
-    });
-    const data = (await res.json()) as {
-      success?: boolean;
-      error?: string;
-      user?: { id: string; fullName: string; email: string; avatarUrl?: string };
-    };
-
-    if (!data.success || !data.user) {
-      setLoginErrors({
-        email:
-          data.error ??
-          "No account in the database for this email. Try rick.smith@example.com after pnpm db:seed.",
+    setFormError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: email.trim(), password }),
       });
-      return;
+      const json = await res.json();
+      if (!json.success) {
+        setFormError(json.error ?? "Login failed.");
+        return;
+      }
+      applySession(toAuthUser(json.data.user));
+      await refreshSession();
+      router.push("/home");
+    } catch {
+      setFormError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    login({
-      id: data.user.id,
-      fullName: data.user.fullName,
-      email: data.user.email,
-      avatarUrl: data.user.avatarUrl ?? mockUser.avatarUrl,
-    });
   }
 
-  function handleSignup() {
+  async function handleSignup() {
     const errs: typeof signupErrors = {};
     if (!fullName.trim()) errs.fullName = "Full name is required.";
     if (!username.trim()) errs.username = "Username is required.";
     if (!signupEmail.trim()) errs.email = "Email is required.";
     if (!signupPassword.trim()) errs.password = "Password is required.";
+    else if (signupPassword.length < 8) errs.password = "Password must be at least 8 characters.";
     if (!confirmPassword.trim()) {
       errs.confirmPassword = "Please confirm your password.";
     } else if (signupPassword !== confirmPassword) {
@@ -132,18 +148,40 @@ function LoginPageInner() {
       return;
     }
     setSignupErrors({});
-    if (typeof window !== "undefined") {
+    setFormError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          fullName: fullName.trim(),
+          username: username.trim(),
+          email: signupEmail.trim(),
+          password: signupPassword,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setFormError(json.error ?? "Sign up failed.");
+        return;
+      }
+      applySession(toAuthUser(json.data.user));
       localStorage.setItem(
         "pendingUser",
         JSON.stringify({
           fullName: fullName.trim(),
           username: username.trim(),
           email: signupEmail.trim(),
-          password: signupPassword,
         })
       );
+      router.push("/onboarding/interests");
+    } catch {
+      setFormError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    router.push("/onboarding/interests");
   }
 
   const inputClass =
@@ -185,6 +223,12 @@ function LoginPageInner() {
             </div>
           )}
 
+          {formError ? (
+            <div className="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              {formError}
+            </div>
+          ) : null}
+
           {/* ===== LOGIN MODE ===== */}
           {mode === "login" && (
             <>
@@ -224,7 +268,10 @@ function LoginPageInner() {
                     id="email"
                     type="email"
                     value={email}
-                    onChange={(e) => { setEmail(e.target.value); setLoginErrors((p) => ({ ...p, email: undefined })); }}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setLoginErrors((p) => ({ ...p, email: undefined }));
+                    }}
                     placeholder="you@example.com"
                     className={loginErrors.email ? inputErrorClass : inputClass}
                   />
@@ -240,7 +287,10 @@ function LoginPageInner() {
                     id="password"
                     type="password"
                     value={password}
-                    onChange={(e) => { setPassword(e.target.value); setLoginErrors((p) => ({ ...p, password: undefined })); }}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setLoginErrors((p) => ({ ...p, password: undefined }));
+                    }}
                     placeholder="••••••••"
                     className={loginErrors.password ? inputErrorClass : inputClass}
                   />
@@ -248,8 +298,8 @@ function LoginPageInner() {
                     <p className="mt-1 text-xs text-red-600">{loginErrors.password}</p>
                   )}
                 </div>
-                <button type="submit" className={primaryBtnClass}>
-                  Login
+                <button type="submit" disabled={loading} className={primaryBtnClass}>
+                  {loading ? "Signing in…" : "Login"}
                 </button>
               </form>
 
@@ -389,8 +439,8 @@ function LoginPageInner() {
                   )}
                 </div>
 
-                <button type="submit" className={primaryBtnClass}>
-                  Create Account
+                <button type="submit" disabled={loading} className={primaryBtnClass}>
+                  {loading ? "Creating account…" : "Create Account"}
                 </button>
               </form>
 

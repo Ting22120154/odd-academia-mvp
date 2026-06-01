@@ -116,8 +116,8 @@ export async function createComment(authorId: string, body: CreateCommentRequest
       authorId: created.authorId,
       parentId: created.parentId,
     });
-  } catch {
-    // Comment succeeds even if notification insert fails
+  } catch (e) {
+    console.error("[notifications] Failed to create after comment:", e);
   }
 
   const likeMeta = await getLikeMetaByCommentId([created.id], authorId);

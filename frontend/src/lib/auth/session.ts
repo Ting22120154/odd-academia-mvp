@@ -1,9 +1,41 @@
-import type { NextRequest } from "next/server";
+import type { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { signToken, type TokenPayload } from "@/lib/auth/jwt";
 
-const AUTH_USER_COOKIE = "auth-user-id";
+// ─── JWT session cookies (login/logout/proxy) ─────────────────────────────────
+export const USER_TOKEN_COOKIE = "oa_user_token";
+export const AUTH_SESSION_COOKIE = "auth-session";
 
-/** Read user id set on login (see AuthContext). */
+const WEEK = 60 * 60 * 24 * 7;
+const IS_PROD = process.env.NODE_ENV === "production";
+
+function sessionCookieOptions(maxAge: number) {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge,
+    secure: IS_PROD,
+  };
+}
+
+export function attachSessionCookies(res: NextResponse, payload: TokenPayload) {
+  const token = signToken(payload);
+  res.cookies.set(USER_TOKEN_COOKIE, token, sessionCookieOptions(WEEK));
+  res.cookies.set(AUTH_SESSION_COOKIE, "user", sessionCookieOptions(WEEK));
+  return res;
+}
+
+export function clearSessionCookies(res: NextResponse) {
+  res.cookies.set(USER_TOKEN_COOKIE, "", sessionCookieOptions(0));
+  res.cookies.set(AUTH_SESSION_COOKIE, "", sessionCookieOptions(0));
+  return res;
+}
+
+// ─── Legacy bridge session (comment / saved-paper / notification APIs) ────────
+export const AUTH_USER_COOKIE = "auth-user-id";
+
+/** Read legacy user id cookie set by auth bridge. */
 export function getUserIdFromRequest(req: NextRequest): string | null {
   const header = req.headers.get("x-user-id")?.trim();
   if (header) return header;
@@ -45,5 +77,3 @@ export async function requireAuthUser(req: NextRequest): Promise<AuthResult> {
 
   return { ok: true, user };
 }
-
-export { AUTH_USER_COOKIE };

@@ -1,3 +1,4 @@
+/** Root layout: AuthProvider + AppShell wrap all pages (feat/auth-user-follow-api). */
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/context/AuthContext";
