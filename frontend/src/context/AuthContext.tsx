@@ -26,6 +26,8 @@ type AuthState = {
   user: AuthUser | null;
   isGuest: boolean;
   isLoggedIn: boolean;
+  /** True while reading localStorage / validating the session cookie */
+  isHydrating: boolean;
   applySession: (user: AuthUser) => void;
   /** @deprecated Use applySession — kept so older callers using login() still work */
   login: (user: AuthUser) => void;
@@ -114,14 +116,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/");
   }, [router]);
 
-  if (!hydrated) return null;
-
   return (
     <AuthContext.Provider
       value={{
         user,
         isGuest,
         isLoggedIn: user !== null,
+        isHydrating: !hydrated,
         applySession,
         login: applySession,
         logout,

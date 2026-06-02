@@ -1,6 +1,11 @@
+"use client";
+
 import Link from "next/link";
 import type { MockPost } from "@/lib/mockPosts";
-import { randomCardGradientStyle } from "@/lib/papers/cardGradient";
+import { getCategoryCoverImage } from "@/lib/papers/cardGradient";
+
+const COVER_FALLBACK =
+  "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?w=800";
 
 type Props = {
   post: MockPost;
@@ -8,7 +13,7 @@ type Props = {
 
 /**
  * Card UI aligned with Figma "Suggested Paper For You":
- * - gradient header strip (mesh-like via multi-stop gradients)
+ * - category cover image header (curated Unsplash)
  * - title + clamped summary
  * - tag pills
  * - author row + small decorative fold (visual only)
@@ -18,7 +23,7 @@ type Props = {
 export function SuggestedPaperCard({ post }: Props) {
   const tags =
     post.categories?.length ? post.categories : post.tags?.length ? post.tags : [post.subject];
-  const coverGradient = randomCardGradientStyle(post.id);
+  const coverUrl = getCategoryCoverImage(tags, post.id, post.title);
 
   const initial = post.authorName.trim().charAt(0).toUpperCase() || "?";
 
@@ -28,11 +33,14 @@ export function SuggestedPaperCard({ post }: Props) {
         href={`/paper/${post.id}`}
         className="flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-[transform,box-shadow,opacity] hover:-translate-y-0.5 hover:opacity-[0.98] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] hover:ring-2 hover:ring-zinc-200/60 active:translate-y-0 active:opacity-95"
       >
-        {/* Decorative header — matches Figma “abstract gradient” strip */}
-        <div
-          className="relative h-28 w-full shrink-0"
-          style={{ background: coverGradient }}
-          aria-hidden
+        <img
+          key={post.id}
+          src={coverUrl}
+          alt=""
+          className="h-28 w-full shrink-0 object-cover bg-zinc-100"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = COVER_FALLBACK;
+          }}
         />
 
         <div className="flex flex-1 flex-col gap-3 p-4">

@@ -2,17 +2,12 @@
 
 /**
  * Top navigation. When logged in, avatar menu links to /profile and calls logout API.
- * isLoggedIn prop is passed from AppShell (AuthContext).
  */
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-
-type Props = {
-  isLoggedIn?: boolean;
-};
 
 function IconButton({
   children,
@@ -131,8 +126,9 @@ function UserMenu({ isProfile }: { isProfile: boolean }) {
   );
 }
 
-export function TopNav({ isLoggedIn }: Props) {
+export function TopNav() {
   const pathname = usePathname();
+  const { isLoggedIn } = useAuth();
 
   if (pathname === "/login") return null;
   if (pathname?.startsWith("/paper")) return null;
