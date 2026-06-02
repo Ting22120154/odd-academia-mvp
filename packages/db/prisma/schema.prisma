@@ -261,7 +261,7 @@ model CommentReport {
   reason        String
   status        ReportStatus @default(pending)
   createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
+  updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at")
   adminNote     String?      @map("admin_note")
   outcome       String?      @map("outcome")
   resolvedAt    DateTime?    @map("resolved_at")
