@@ -2,6 +2,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/context/AuthContext";
+import { ToastProvider } from "@/context/ToastContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 import { TopNav } from "@/components/TopNav";
 import "./globals.css";
 
@@ -31,14 +33,16 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased light`}
     >
       <body className="min-h-full font-sans text-[var(--foreground)]">
-        <div className="min-h-screen bg-[var(--background)]">
-          <AuthProvider>
-            <TopNav />
-            <main className="mx-auto w-full max-w-[var(--page-max)] px-6 py-6">
-              {children}
-            </main>
-          </AuthProvider>
-        </div>
+        <AuthProvider>
+          <ToastProvider>
+            <NotificationProvider>
+              <div className="min-h-screen bg-[var(--background)]">
+                <TopNav />
+                <main className="mx-auto w-full max-w-[var(--page-max)] px-6 py-6">{children}</main>
+              </div>
+            </NotificationProvider>
+          </ToastProvider>
+        </AuthProvider>
       </body>
     </html>
   );

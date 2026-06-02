@@ -29,7 +29,7 @@ export default async function PaperDetailPage({
 
   return (
     <div className="mx-auto w-full max-w-[var(--page-max)]">
-      <PaperDetailClient post={post} relatedPosts={relatedPosts} />
+      <PaperDetailClient post={post} commentsPaperId={post.id} relatedPosts={relatedPosts} />
     </div>
   );
 }

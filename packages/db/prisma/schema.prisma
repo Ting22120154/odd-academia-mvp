@@ -70,14 +70,17 @@ model User {
   interests            UserInterest[]
   papers               Paper[]               @relation("AuthoredPapers")
   comments             Comment[]
+  commentLikes         CommentLike[]
   reports              CommentReport[]       @relation("Reporter")
   followers            Follow[]              @relation("Following")
   following            Follow[]              @relation("Follower")
   followedPapers       PaperFollow[]
   notifications        Notification[]
+  actorNotifications   Notification[]        @relation("NotificationActor")
   notificationSettings NotificationSettings?
   sentMessages         Message[]             @relation("SentMessages")
   receivedMessages     Message[]             @relation("ReceivedMessages")
+  savedPapers          PaperSave[]
   adminUser            AdminUser?
 
   @@index([role])
@@ -131,6 +134,7 @@ model Paper {
   citedBy        PaperReference[]   @relation("CitedPaper")
   comments       Comment[]
   linkedMessages Message[]
+  saves          PaperSave[]
   followers      PaperFollow[]
 
   @@index([authorId])
@@ -187,7 +191,7 @@ model PaperReference {
   @@index([citedPaperId])
   @@map("paper_references")
 }
-
+ 
 model Comment {
   id        String   @id @default(uuid())
   paperId   String   @map("paper_id")
@@ -203,12 +207,26 @@ model Comment {
   author  User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
   parent  Comment?        @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies Comment[]       @relation("CommentReplies")
+  likes   CommentLike[]
   reports CommentReport[]
 
   @@index([paperId])
   @@index([authorId])
   @@index([parentId])
   @@map("comments")
+}
+
+model CommentLike {
+  userId    String   @map("user_id")
+  commentId String   @map("comment_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, commentId])
+  @@index([commentId])
+  @@map("comment_likes")
 }
 
 model CommentReport {
@@ -240,6 +258,20 @@ model Follow {
   @@map("follows")
 }
 
+model PaperSave {
+  userId    String   @map("user_id")
+  paperId   String   @map("paper_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paper Paper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+
+  @@id([userId, paperId])
+  @@index([userId])
+  @@index([paperId])
+  @@map("paper_saves")
+}
+
 model PaperFollow {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
@@ -261,10 +293,12 @@ model Notification {
   type          NotificationType
   referenceId   String?          @map("reference_id")
   referenceType ReferenceType?   @map("reference_type")
+  actorId       String?          @map("actor_id")
   isRead        Boolean          @default(false) @map("is_read")
   createdAt     DateTime         @default(now()) @map("created_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actor User? @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([isRead])

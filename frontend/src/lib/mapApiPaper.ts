@@ -14,6 +14,8 @@ export type ApiPaper = {
   abstract?: string | null;
   fileUrl?: string | null;
   publishedAt?: string | null;
+  citationCount?: number | null;
+  viewCount?: number | null;
   author?: ApiPaperAuthor | null;
   keywords?: { keyword: string }[];
   categories?: { category: string }[];
@@ -49,10 +51,14 @@ export function mapApiPaperToViewerPost(paper: ApiPaper): MockPost {
     authorId: paper.author?.id,
     authorName: paper.author?.fullName ?? "Unknown",
     authorAvatarUrl: paper.author?.avatarUrl ?? "/avatars/profile.svg",
+    authorBio: paper.author?.bio ?? undefined,
     subject,
     categories: browseCategories,
     tags,
     fileUrl: paper.fileUrl ?? "",
     fileType: inferFileType(paper.fileUrl),
+    publishedAt: paper.publishedAt ?? undefined,
+    citationCount: paper.citationCount ?? 0,
+    viewCount: paper.viewCount ?? 0,
   };
 }
