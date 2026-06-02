@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 const NAV = [
@@ -50,6 +51,21 @@ const NAV = [
 export default function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [pendingReports, setPendingReports] = useState(0);
+
+  useEffect(() => {
+    async function fetchCount() {
+      try {
+        const res = await fetch("/api/reports/count");
+        if (!res.ok) return;
+        const json = await res.json() as { data?: { pending?: number } };
+        setPendingReports(json.data?.pending ?? 0);
+      } catch { /* ignore */ }
+    }
+    void fetchCount();
+    const id = setInterval(() => { void fetchCount(); }, 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -74,6 +90,7 @@ export default function AdminSidebar() {
         {NAV.map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(item.href + "/");
+          const badge = item.label === "Reports" && pendingReports > 0 ? pendingReports : 0;
           return (
             <Link
               key={item.href}
@@ -85,7 +102,12 @@ export default function AdminSidebar() {
               }`}
             >
               {item.icon}
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {badge > 0 ? (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
+                  {badge > 99 ? "99+" : badge}
+                </span>
+              ) : null}
             </Link>
           );
         })}
