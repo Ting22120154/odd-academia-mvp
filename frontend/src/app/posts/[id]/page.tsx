@@ -196,7 +196,12 @@ export default async function LegacyPostDetailPage({
         <article className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm text-zinc-500">
-              {new Date(post.date).toLocaleDateString()}
+              {new Intl.DateTimeFormat("en-GB", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                timeZone: "UTC",
+              }).format(new Date(post.date))}
             </div>
             <div className="flex items-center gap-2">
               <Link

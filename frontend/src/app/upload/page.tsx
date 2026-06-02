@@ -141,6 +141,11 @@ export default function UploadPage() {
 
   const abstractCount = useMemo(() => Math.min(abstract.length, 200), [abstract]);
 
+  const isPdfFile = useCallback((f: File) => {
+    const name = f.name.toLowerCase();
+    return f.type === "application/pdf" || name.endsWith(".pdf");
+  }, []);
+
   const simulateUpload = useCallback((f: File) => {
     setFile(f);
     setUploadState("uploading");
@@ -159,6 +164,14 @@ export default function UploadPage() {
 
   function onChooseFile(f: File | null) {
     if (!f) return;
+    setError(null);
+    if (!isPdfFile(f)) {
+      setError("Only PDF files are allowed");
+      if (inputRef.current) {
+        inputRef.current.value = "";
+      }
+      return;
+    }
     simulateUpload(f);
   }
 
@@ -262,14 +275,16 @@ export default function UploadPage() {
       const created = (await res.json()) as { id: string };
 
       const uploadMime =
-        file.type ||
-        (file.name.toLowerCase().endsWith(".pdf")
+        file.type === "application/pdf"
           ? "application/pdf"
-          : file.name.toLowerCase().endsWith(".docx")
-            ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            : file.name.toLowerCase().endsWith(".doc")
-              ? "application/msword"
-              : "");
+          : file.name.toLowerCase().endsWith(".pdf")
+            ? "application/pdf"
+            : "";
+
+      if (!uploadMime) {
+        throw new Error("Only PDF files are allowed");
+      }
+
       const uploadFile =
         uploadMime && uploadMime !== file.type
           ? new File([file], file.name, { type: uploadMime })
@@ -362,7 +377,9 @@ export default function UploadPage() {
                 choose file
               </button>
             </div>
-            <div className="mt-1 text-xs text-zinc-400">PNG or Docx formats, up to 3 MB.</div>
+            <div className="mt-1 text-xs text-zinc-400">
+              PDF files only (max 10MB).
+            </div>
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
@@ -375,7 +392,7 @@ export default function UploadPage() {
               type="file"
               className="hidden"
               onChange={(e) => onChooseFile(e.target.files?.[0] ?? null)}
-              accept=".pdf,.doc,.docx,application/pdf"
+              accept=".pdf"
             />
           </div>
         ) : (

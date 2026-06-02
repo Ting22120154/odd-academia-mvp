@@ -336,6 +336,18 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   );
   const hasPdf = post.fileType === "pdf" && Boolean(post.fileUrl);
 
+  const publishedLabel = useMemo(() => {
+    if (!post.publishedAt) return "—";
+    const d = new Date(post.publishedAt);
+    // Avoid hydration mismatch from server/client locale differences.
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(d);
+  }, [post.publishedAt]);
+
   async function copyToClipboard(value: string) {
     await navigator.clipboard.writeText(value);
   }
@@ -750,7 +762,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Chip icon="📅">{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString() : "—"}</Chip>
+              <Chip icon="📅">{publishedLabel}</Chip>
               <Chip icon="✦">{(post.tags ?? [])[0] ?? post.subject ?? "AI infrastructure"}</Chip>
             </div>
 
