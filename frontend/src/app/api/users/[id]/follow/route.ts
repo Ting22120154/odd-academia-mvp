@@ -29,16 +29,31 @@ export async function POST(
   const resolved = await resolveTarget(id);
   if (resolved.error) return resolved.error;
 
+  let alreadyFollowing = false;
   try {
     await prisma.follow.create({
       data: { followerId: payload.sub, followingId: id },
     });
   } catch (e: unknown) {
     const code = (e as { code?: string })?.code;
-    if (code !== "P2002") {
+    if (code === "P2002") {
+      alreadyFollowing = true;
+    } else {
       console.error("[POST follow]", e);
       return err("Could not follow user.", 500);
     }
+  }
+
+  if (!alreadyFollowing) {
+    await prisma.notification.create({
+      data: {
+        userId: id,
+        type: "follow",
+        referenceId: payload.sub,
+        referenceType: "user",
+        actorId: payload.sub,
+      },
+    }).catch((e) => console.error("[follow] notification failed:", e));
   }
 
   const isFollowing = await viewerFollowsTarget(payload.sub, id);

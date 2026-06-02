@@ -16,7 +16,7 @@ async function resolvePublishedPaper(id: string) {
   if (!isValidPaperId(id)) return { error: err("Invalid paper id.", 400) };
   const paper = await prisma.paper.findUnique({
     where: { id },
-    select: { id: true, status: true },
+    select: { id: true, status: true, authorId: true },
   });
   if (!paper || paper.status !== "published") {
     return { error: err("Paper not found.", 404) };
@@ -43,16 +43,31 @@ export async function POST(
   const resolved = await resolvePublishedPaper(id);
   if (resolved.error) return resolved.error;
 
+  let alreadyFollowing = false;
   try {
     await prisma.paperFollow.create({
       data: { userId: payload.sub, paperId: id },
     });
   } catch (e: unknown) {
     const code = (e as { code?: string })?.code;
-    if (code !== "P2002") {
+    if (code === "P2002") {
+      alreadyFollowing = true;
+    } else {
       console.error("[POST paper follow]", e);
       return err("Could not follow paper.", 500);
     }
+  }
+
+  if (!alreadyFollowing && resolved.paper.authorId !== payload.sub) {
+    await prisma.notification.create({
+      data: {
+        userId: resolved.paper.authorId,
+        type: "follow",
+        referenceId: id,
+        referenceType: "paper",
+        actorId: payload.sub,
+      },
+    }).catch((e) => console.error("[paper follow] notification failed:", e));
   }
 
   return ok(await followPayload(payload.sub, id));
