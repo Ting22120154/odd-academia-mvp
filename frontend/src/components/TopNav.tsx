@@ -9,6 +9,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useNotificationCount } from "@/context/NotificationContext";
 
 function IconButton({
   children,
@@ -130,6 +131,7 @@ function UserMenu({ isProfile }: { isProfile: boolean }) {
 export function TopNav() {
   const pathname = usePathname();
   const { isLoggedIn } = useAuth();
+  const { unreadCount } = useNotificationCount();
 
   if (pathname === "/login") return null;
   if (pathname?.startsWith("/paper")) return null;
@@ -180,12 +182,22 @@ export function TopNav() {
               <path d="M22 21a5 5 0 0 0-7.5-4.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
             </svg>
           </IconButton>
-          <IconButton href="/notifications" label="Notifications" active={isNotifications}>
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 7h18s-3 0-3-7Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
-              <path d="M9.5 19a2.5 2.5 0 0 0 5 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-            </svg>
-          </IconButton>
+          <div className="relative">
+            <IconButton href="/notifications" label="Notifications" active={isNotifications}>
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 7h18s-3 0-3-7Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
+                <path d="M9.5 19a2.5 2.5 0 0 0 5 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
+            </IconButton>
+            {unreadCount > 0 ? (
+              <span
+                aria-label={`${unreadCount} unread notifications`}
+                className="pointer-events-none absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white"
+              >
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            ) : null}
+          </div>
           {isLoggedIn ? (
             <>
               <IconButton href="/saved-papers" label="Saved papers" active={isSavedPapers}>

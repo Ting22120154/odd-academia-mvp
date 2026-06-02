@@ -282,9 +282,6 @@ function PaperCard({ title, desc, tags }: { title: string; desc: string; tags: s
       <div className="h-32 bg-gradient-to-br from-indigo-400 via-blue-500 to-purple-600" />
       <div className="p-3">
         <div className="text-sm font-semibold text-zinc-900 line-clamp-2">{title}</div>
-        {author ? (
-          <div className="mt-1 text-xs font-medium text-zinc-600">{author}</div>
-        ) : null}
         <div className="mt-1 text-xs text-zinc-500 line-clamp-2">{desc}</div>
         {tags.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-1.5">

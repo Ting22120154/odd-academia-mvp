@@ -120,8 +120,14 @@ export async function createComment(authorId: string, body: CreateCommentRequest
     console.error("[notifications] Failed to create after comment:", e);
   }
 
-  const likeMeta = await getLikeMetaByCommentId([created.id], authorId);
-  return toCommentResponse(created, [], likeMeta.get(created.id)!);
+  let likeMeta = new Map<string, LikeMeta>();
+  try {
+    likeMeta = await getLikeMetaByCommentId([created.id], authorId);
+  } catch (e) {
+    console.error("[comments] Failed to fetch like meta after create:", e);
+  }
+  const meta = likeMeta.get(created.id) ?? { likesCount: 0, likedByMe: false };
+  return toCommentResponse(created, [], meta);
 }
 
 export async function getCommentsForPaper(paperId: string, viewerId: string | null = null) {

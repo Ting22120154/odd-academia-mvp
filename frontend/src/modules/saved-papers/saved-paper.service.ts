@@ -57,15 +57,32 @@ function toSavedPaperResponse(
 export async function savePaper(userId: string, paperId: string): Promise<SaveStatusResponse> {
   const paper = await prisma.paper.findUnique({
     where: { id: paperId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, authorId: true },
   });
   assertPaperExists(paper);
+
+  const alreadySaved = await prisma.paperSave.findUnique({
+    where: { userId_paperId: { userId, paperId } },
+    select: { userId: true },
+  });
 
   await prisma.paperSave.upsert({
     where: { userId_paperId: { userId, paperId } },
     create: { userId, paperId },
     update: {},
   });
+
+  if (!alreadySaved && paper.authorId !== userId) {
+    await prisma.notification.create({
+      data: {
+        userId: paper.authorId,
+        type: "paper",
+        referenceId: paperId,
+        referenceType: "paper",
+        actorId: userId,
+      },
+    }).catch((e) => console.error("[save paper] notification failed:", e));
+  }
 
   return { paperId, saved: true };
 }

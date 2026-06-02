@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { getMockPostById } from "@/lib/mockPosts";
 import { formatSavedAt } from "@/lib/format-saved-at";
+import { randomCardGradientStyle } from "@/lib/papers/cardGradient";
 import {
   fetchSavedPapers,
   unsavePaper as unsavePaperApi,
@@ -100,15 +100,14 @@ function SavedPaperCard({
   removing: boolean;
   onRemove: () => void;
 }) {
-  const mockPost = paper.routeId ? getMockPostById(paper.routeId) : null;
-  const headerClass =
-    mockPost?.headerGradientClass ??
-    "bg-gradient-to-br from-indigo-400 via-blue-500 to-purple-600";
-
   return (
     <article className="flex flex-col overflow-hidden rounded-xl border border-black/[0.06] bg-white shadow-[var(--shadow-sm)]">
       <Link href={`/paper/${paper.paperId}`} className="block flex-1">
-        <div className={`h-32 w-full ${headerClass}`} aria-hidden />
+        <div
+          className="h-32 w-full"
+          style={{ background: randomCardGradientStyle(paper.paperId) }}
+          aria-hidden
+        />
         <div className="p-3">
           <h3 className="line-clamp-2 text-sm font-semibold text-zinc-900">{paper.title}</h3>
           <p className="mt-1 text-xs font-medium text-zinc-600">{paper.author.fullName}</p>

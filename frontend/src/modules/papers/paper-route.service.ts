@@ -35,8 +35,7 @@ export async function listPaperRoutes(): Promise<{ routeId: string; paperId: str
   }));
 }
 
-/** Prefer mock route id (`/paper/1`) when paper is in seed order. */
-export function paperPathForId(paperId: string, seededIds: string[]): string {
-  const routeId = paperIdToRouteId(paperId, seededIds);
-  return `/paper/${routeId ?? paperId}`;
+/** Always use the real UUID — numeric mock routes are not supported by the live router. */
+export function paperPathForId(paperId: string, _seededIds?: string[]): string {
+  return `/paper/${paperId}`;
 }

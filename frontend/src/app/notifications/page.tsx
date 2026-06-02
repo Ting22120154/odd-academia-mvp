@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { useNotificationCount } from "@/context/NotificationContext";
 import { fetchNotifications, markNotificationRead } from "@/lib/notifications-client";
 import type {
   NotificationResponse,
@@ -30,6 +31,7 @@ type SortDir = NotificationSortDir;
 
 export default function NotificationsPage() {
   const { isLoggedIn } = useAuth();
+  const { decrementUnread } = useNotificationCount();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<NotifTabLabel>("New");
   const [sortKey, setSortKey] = useState<SortKey>("date");
@@ -87,14 +89,11 @@ export default function NotificationsPage() {
         return;
       }
       setUnreadCount((c) => Math.max(0, c - 1));
+      decrementUnread();
 
-      // Only mutate the list for the tab that was active when the user clicked.
-      // If they switched tabs while the request was in flight, load() already refetched.
+      // Mark as read in the list (unbold) without removing — same behaviour on all tabs.
       setItems((prev) => {
         if (activeTabRef.current !== tabAtClick) return prev;
-        if (tabAtClick === "New") {
-          return prev.filter((item) => item.id !== n.id);
-        }
         return prev.map((item) =>
           item.id === n.id ? { ...item, isRead: true } : item,
         );
@@ -195,7 +194,12 @@ export default function NotificationsPage() {
                     <button
                       type="button"
                       onClick={() => void handleNotificationClick(n)}
-                      className="text-left font-medium text-zinc-900 hover:text-[var(--brand)] hover:underline"
+                      className={[
+                        "text-left hover:text-[var(--brand)] hover:underline",
+                        n.isRead
+                          ? "font-normal text-zinc-500"
+                          : "font-semibold text-zinc-900",
+                      ].join(" ")}
                     >
                       {n.text}
                     </button>
