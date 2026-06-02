@@ -7,14 +7,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-
-const NOTIF_POLL_MS = 15_000;
-
-type Props = {
-  isLoggedIn?: boolean;
-};
+import { useNotificationCount } from "@/context/NotificationContext";
 
 function IconButton({
   children,
@@ -122,7 +117,7 @@ function UserMenu({ isProfile }: { isProfile: boolean }) {
             className="block w-full px-4 py-2.5 text-left text-sm text-zinc-700 hover:bg-zinc-50"
             onClick={() => {
               setOpen(false);
-              logout();
+              void logout();
             }}
           >
             Logout
@@ -133,26 +128,10 @@ function UserMenu({ isProfile }: { isProfile: boolean }) {
   );
 }
 
-export function TopNav({ isLoggedIn }: Props) {
+export function TopNav() {
   const pathname = usePathname();
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  const fetchUnread = useCallback(async () => {
-    if (!isLoggedIn) return;
-    try {
-      const res = await fetch("/api/notifications/unread-count", { credentials: "include" });
-      if (!res.ok) return;
-      const data = await res.json() as { count: number };
-      setUnreadCount(data.count);
-    } catch { /* keep stale count on network error */ }
-  }, [isLoggedIn]);
-
-  useEffect(() => { void fetchUnread(); }, [fetchUnread]);
-  useEffect(() => {
-    if (!isLoggedIn) return;
-    const id = setInterval(() => { void fetchUnread(); }, NOTIF_POLL_MS);
-    return () => clearInterval(id);
-  }, [isLoggedIn, fetchUnread]);
+  const { isLoggedIn } = useAuth();
+  const { unreadCount } = useNotificationCount();
 
   if (pathname === "/login") return null;
   if (pathname?.startsWith("/paper")) return null;
@@ -161,6 +140,7 @@ export function TopNav({ isLoggedIn }: Props) {
   const isFollowing = pathname?.startsWith("/following");
   const isNotifications = pathname?.startsWith("/notifications");
   const isProfile = pathname === "/profile" || pathname?.startsWith("/profile/") || pathname?.startsWith("/user/");
+  const isSavedPapers = pathname === "/saved-papers";
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-black/[0.06] bg-white/80 backdrop-blur">
@@ -209,21 +189,35 @@ export function TopNav({ isLoggedIn }: Props) {
                 <path d="M9.5 19a2.5 2.5 0 0 0 5 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
               </svg>
             </IconButton>
-            {unreadCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white leading-none pointer-events-none">
+            {unreadCount > 0 ? (
+              <span
+                aria-label={`${unreadCount} unread notifications`}
+                className="pointer-events-none absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white"
+              >
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
-            )}
+            ) : null}
           </div>
           {isLoggedIn ? (
-            <UserMenu isProfile={isProfile} />
+            <>
+              <IconButton href="/saved-papers" label="Saved papers" active={isSavedPapers}>
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path
+                    d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </IconButton>
+              <UserMenu isProfile={isProfile} />
+            </>
           ) : (
             <Link
               href="/login"
-              aria-label="Login"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-zinc-200 text-xs font-semibold text-zinc-700 hover:bg-zinc-300"
+              className="inline-flex h-10 items-center rounded-xl border border-black/[0.06] px-3 text-sm font-medium text-zinc-600 hover:bg-zinc-50"
             >
-              G
+              Log in
             </Link>
           )}
         </div>

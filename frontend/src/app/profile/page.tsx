@@ -9,6 +9,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { SavedPapersList } from "@/components/SavedPapersList";
+import { fetchSavedPapers } from "@/lib/saved-papers-client";
 import {
   fetchMyProfile,
   formatCount,
@@ -16,15 +18,16 @@ import {
   type ProfileUser,
 } from "@/lib/profile-client";
 
-type Tab = "papers";
+type Tab = "papers" | "saved-papers";
 
 export default function ProfilePage() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, logout } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("papers");
   const [profile, setProfile] = useState<ProfileUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [savedCount, setSavedCount] = useState(0);
 
   useEffect(() => {
     if (!isLoggedIn) router.replace("/login");
@@ -35,18 +38,26 @@ export default function ProfilePage() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const { user, error: err } = await fetchMyProfile();
+      const [{ user, error: err }, { count }] = await Promise.all([
+        fetchMyProfile(),
+        fetchSavedPapers(),
+      ]);
       if (cancelled) return;
       if (err || !user) setError(err ?? "Could not load profile.");
-      else {
-        setProfile(user);
-        setError(null);
-      }
+      else { setProfile(user); setError(null); }
+      setSavedCount(count);
       setLoading(false);
     })();
-    return () => {
-      cancelled = true;
+    return () => { cancelled = true; };
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    const onChanged = () => {
+      if (!isLoggedIn) return;
+      void fetchSavedPapers().then(({ count }) => setSavedCount(count));
     };
+    window.addEventListener("odd:saved-papers-changed", onChanged);
+    return () => window.removeEventListener("odd:saved-papers-changed", onChanged);
   }, [isLoggedIn]);
 
   if (!isLoggedIn) return null;
@@ -90,12 +101,21 @@ export default function ProfilePage() {
                 </span>
               </div>
             </div>
-            <Link
-              href="/profile/edit"
-              className="inline-flex h-9 items-center rounded-lg bg-[var(--brand)] px-5 text-xs font-semibold text-white hover:opacity-95"
-            >
-              Edit
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/profile/edit"
+                className="inline-flex h-9 items-center rounded-lg bg-[var(--brand)] px-5 text-xs font-semibold text-white hover:opacity-95"
+              >
+                Edit
+              </Link>
+              <button
+                type="button"
+                onClick={logout}
+                className="inline-flex h-9 items-center rounded-lg border border-black/[0.08] px-5 text-xs font-semibold text-zinc-600 hover:bg-zinc-50"
+              >
+                Log out
+              </button>
+            </div>
           </div>
 
           {profile.bio && <p className="mt-4 text-sm text-zinc-600">{profile.bio}</p>}
@@ -135,15 +155,29 @@ export default function ProfilePage() {
         <div className="mt-4 grid grid-cols-2 gap-4">
           <MetricCard icon="papers" label="Papers" value={String(profile.stats.papers)} />
           <MetricCard icon="followers" label="Followers" value={formatCount(profile.stats.followers)} />
+          <Link href="/saved-papers" className="block">
+            <MetricCard icon="saved" label="Saved Papers" value={String(savedCount)} />
+          </Link>
           <MetricCard icon="comments" label="Comments" value={String(profile.stats.citedComments)} />
         </div>
       </div>
 
       <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
-        <div className="flex items-center gap-3 border-b border-black/[0.06] pb-3">
+        <div className="flex flex-wrap items-center gap-3 border-b border-black/[0.06] pb-3">
           <TabButton active={tab === "papers"} onClick={() => setTab("papers")}>
             Papers
           </TabButton>
+          <TabButton active={tab === "saved-papers"} onClick={() => setTab("saved-papers")}>
+            Saved Papers
+          </TabButton>
+          {tab === "saved-papers" ? (
+            <Link
+              href="/saved-papers"
+              className="ml-auto text-xs font-medium text-[var(--brand)] hover:underline"
+            >
+              View all →
+            </Link>
+          ) : null}
         </div>
 
         {tab === "papers" && (
@@ -155,6 +189,15 @@ export default function ProfilePage() {
                 <PaperCard key={p.id} title={p.title} desc={p.description} tags={p.tags} />
               ))
             )}
+          </div>
+        )}
+
+        {tab === "saved-papers" && (
+          <div className="mt-4">
+            <SavedPapersList
+              active={tab === "saved-papers"}
+              onCountChange={setSavedCount}
+            />
           </div>
         )}
       </div>
@@ -240,13 +283,18 @@ function PaperCard({ title, desc, tags }: { title: string; desc: string; tags: s
       <div className="p-3">
         <div className="text-sm font-semibold text-zinc-900 line-clamp-2">{title}</div>
         <div className="mt-1 text-xs text-zinc-500 line-clamp-2">{desc}</div>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {tags.slice(0, 2).map((t) => (
-            <span key={t} className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600">
-              {t}
-            </span>
-          ))}
-        </div>
+        {tags.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {tags.slice(0, 2).map((t) => (
+              <span
+                key={t}
+                className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );

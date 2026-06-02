@@ -1,23 +1,31 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { useNotificationCount } from "@/context/NotificationContext";
 import { ChatModal } from "@/components/ChatModal";
+import { fetchNotifications, markNotificationRead } from "@/lib/notifications-client";
+import type {
+  NotificationResponse,
+  NotificationSortDir,
+  NotificationSortKey,
+  NotificationTab,
+} from "@/modules/notifications/types";
 
-type NotifTab = "New" | "All" | "Papers" | "Comments" | "Messages" | "Citations";
-const TABS: NotifTab[] = ["New", "All", "Papers", "Comments", "Messages", "Citations"];
+type NotifTabLabel = "New" | "All" | "Papers" | "Comments" | "Contact" | "Citations" | "Messages";
 
-type SortKey = "type" | "date";
-type SortDir = "asc" | "desc";
+const TABS: NotifTabLabel[] = ["New", "All", "Papers", "Comments", "Contact", "Citations", "Messages"];
 
-interface MockNotification {
-  id:   string;
-  text: string;
-  type: "Paper" | "Comment" | "Reply" | "Citation";
-  date: string;
-}
+const TAB_TO_API: Partial<Record<NotifTabLabel, NotificationTab>> = {
+  New: "new",
+  All: "all",
+  Papers: "papers",
+  Comments: "comments",
+  Contact: "contact",
+  Citations: "citations",
+};
 
 interface Conversation {
   partnerId:         string;
@@ -29,52 +37,25 @@ interface Conversation {
   senderLastMsgRead: boolean;
 }
 
-interface ModerationNotif {
-  id:        string;
-  type:      string;
-  body:      string | null;
-  isRead:    boolean;
-  createdAt: string;
-}
-
-const INITIAL_MOCK: MockNotification[] = [
-  { id: "n1", text: "New Paper Published: AI In Healthcare", type: "Paper",    date: "2023-10-01" },
-  { id: "n2", text: "New Comment on your Post",              type: "Comment",  date: "2023-10-02" },
-  { id: "n3", text: "New Reply to your Comment",             type: "Reply",    date: "2023-10-03" },
-  { id: "n5", text: "Your work was cited: AI practices",     type: "Citation", date: "2023-10-05" },
-];
+type SortKey = NotificationSortKey;
+type SortDir = NotificationSortDir;
 
 export default function NotificationsPage() {
-  const { user, isLoggedIn } = useAuth();
+  const { isLoggedIn } = useAuth();
+  const { decrementUnread } = useNotificationCount();
   const router = useRouter();
-
-  const [activeTab,     setActiveTab]     = useState<NotifTab>("New");
-  const [sortKey,       setSortKey]       = useState<SortKey>("date");
-  const [sortDir,       setSortDir]       = useState<SortDir>("desc");
-  const [conversations,    setConversations]    = useState<Conversation[]>([]);
-  const [moderationNotifs, setModerationNotifs] = useState<ModerationNotif[]>([]);
-  const [chatWith,         setChatWith]         = useState<{ id: string; name: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<NotifTabLabel>("New");
+  const [sortKey, setSortKey] = useState<SortKey>("date");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [items, setItems] = useState<NotificationResponse[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const activeTabRef = useRef(activeTab);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Persist deleted mock notification IDs to localStorage
-  const [deletedIds, setDeletedIds] = useState<Set<string>>(() => {
-    if (typeof window === "undefined") return new Set();
-    try {
-      const stored = localStorage.getItem("notif_deleted_ids");
-      return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
-    } catch { return new Set(); }
-  });
-
-  // Persist dismissed message conversation partner IDs to localStorage
-  const [dismissedMsgs, setDismissedMsgs] = useState<Set<string>>(() => {
-    if (typeof window === "undefined") return new Set();
-    try {
-      const stored = localStorage.getItem("notif_dismissed_msgs");
-      return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
-    } catch { return new Set(); }
-  });
-
-  // Persist dismissed Messages-tab conversations to localStorage
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [chatWith, setChatWith] = useState<{ id: string; name: string } | null>(null);
   const [removedConvos, setRemovedConvos] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
     try {
@@ -83,15 +64,16 @@ export default function NotificationsPage() {
     } catch { return new Set(); }
   });
 
-  const mockNotifs = INITIAL_MOCK.filter(n => !deletedIds.has(n.id));
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
 
   useEffect(() => {
     if (!isLoggedIn) router.replace("/login");
   }, [isLoggedIn, router]);
 
-  // Poll inbox every 5 s; fetch moderation notifications once on mount
   useEffect(() => {
-    if (!user) return;
+    if (!isLoggedIn) return;
     function fetchInbox() {
       fetch("/api/messages/inbox", { credentials: "include" })
         .then(r => r.ok ? r.json() as Promise<Conversation[]> : Promise.reject())
@@ -100,41 +82,39 @@ export default function NotificationsPage() {
     }
     fetchInbox();
     intervalRef.current = setInterval(fetchInbox, 5000);
-
-    // NOTIFICATION: Load moderation notifications created by admin review actions
-    fetch("/api/notifications", { credentials: "include" })
-      .then(r => r.ok ? r.json() as Promise<ModerationNotif[]> : Promise.resolve([]))
-      .then(data => setModerationNotifs(
-        data
-          .filter(n => n.type === "moderation")
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      ))
-      .catch(() => null);
-
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [user]);
+  }, [isLoggedIn]);
+
+  const load = useCallback(async () => {
+    if (activeTab === "Messages") return;
+    const apiTab = TAB_TO_API[activeTab];
+    if (!apiTab) return;
+    setLoading(true);
+    setError(null);
+    const { notifications, unreadCount: count } = await fetchNotifications({
+      tab: apiTab,
+      sort: sortKey,
+      dir: sortDir,
+    });
+    setItems(notifications);
+    setUnreadCount(count);
+    setLoading(false);
+  }, [activeTab, sortKey, sortDir]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    void load();
+  }, [isLoggedIn, load]);
 
   if (!isLoggedIn) return null;
 
   function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortKey(key); setSortDir("asc"); }
-  }
-
-  function deleteMockNotif(id: string) {
-    setDeletedIds(prev => {
-      const next = new Set([...prev, id]);
-      localStorage.setItem("notif_deleted_ids", JSON.stringify([...next]));
-      return next;
-    });
-  }
-
-  function dismissMsgNotif(partnerId: string) {
-    setDismissedMsgs(prev => {
-      const next = new Set([...prev, partnerId]);
-      localStorage.setItem("notif_dismissed_msgs", JSON.stringify([...next]));
-      return next;
-    });
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
   }
 
   function removeConvo(partnerId: string) {
@@ -145,87 +125,65 @@ export default function NotificationsPage() {
     });
   }
 
-  async function markNotifRead(id: string) {
-    setModerationNotifs(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-    await fetch(`/api/notifications/${id}`, { method: "PATCH", credentials: "include" }).catch(() => null);
+  async function handleNotificationClick(n: NotificationResponse) {
+    const tabAtClick = activeTab;
+
+    if (!n.isRead) {
+      const result = await markNotificationRead(n.id);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setUnreadCount((c) => Math.max(0, c - 1));
+      decrementUnread();
+
+      setItems((prev) => {
+        if (activeTabRef.current !== tabAtClick) return prev;
+        return prev.map((item) =>
+          item.id === n.id ? { ...item, isRead: true } : item,
+        );
+      });
+    }
+    router.push(n.href);
   }
 
-  async function deleteModNotif(id: string) {
-    setModerationNotifs(prev => prev.filter(n => n.id !== id));
-    await fetch(`/api/notifications/${id}`, { method: "DELETE", credentials: "include" }).catch(() => null);
-  }
-
-  // UI-02: Only show conversations where the OTHER person has sent unread messages.
-  // This prevents senders from seeing their own outbound messages as new notifications.
-  const visibleMsgNotifs = conversations.filter(c => c.unread > 0 && !dismissedMsgs.has(c.partnerId));
-  // "Messages" tab: all conversations minus removed ones, newest first
   const visibleConvos = conversations
     .filter(c => !removedConvos.has(c.partnerId))
     .sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime());
 
-  // Badge counts received-unread, sent-unread, AND unread moderation notifications
-  const unreadTabBadge  = visibleMsgNotifs.filter(
-    c => c.unread > 0 || (c.isSent && !c.senderLastMsgRead)
-  ).length + moderationNotifs.filter(n => !n.isRead).length;
   const unreadMsgsBadge = visibleConvos.reduce((s, c) => s + c.unread, 0);
-
-  const staticFiltered = mockNotifs.filter(n => {
-    if (activeTab === "All")       return true;
-    if (activeTab === "New")       return true;
-    if (activeTab === "Papers")    return n.type === "Paper";
-    if (activeTab === "Comments")  return n.type === "Comment" || n.type === "Reply";
-    if (activeTab === "Citations") return n.type === "Citation";
-    return false;
-  });
-
-  // Combined rows for non-Messages tabs
-  type CombinedRow =
-    | { kind: "msg";        conv: Conversation; }
-    | { kind: "moderation"; notif: ModerationNotif; }
-    | { kind: "static";     notif: MockNotification; };
-
-  const combinedRows: CombinedRow[] =
-    activeTab === "New"
-      ? [
-          ...visibleMsgNotifs.map(c => ({ kind: "msg" as const, conv: c })),
-          ...moderationNotifs.map(n => ({ kind: "moderation" as const, notif: n })),
-          ...staticFiltered.map(n  => ({ kind: "static" as const, notif: n })),
-        ]
-      : activeTab === "Comments"
-        ? [
-            ...moderationNotifs.map(n => ({ kind: "moderation" as const, notif: n })),
-            ...staticFiltered.map(n  => ({ kind: "static" as const, notif: n })),
-          ]
-        : staticFiltered.map(n => ({ kind: "static" as const, notif: n }));
-
-  // Sort combined rows
-  const sortedRows = [...combinedRows].sort((a, b) => {
-    const mul   = sortDir === "asc" ? 1 : -1;
-    const typeA = a.kind === "msg" ? "Message" : a.kind === "moderation" ? "Moderation" : a.notif.type;
-    const typeB = b.kind === "msg" ? "Message" : b.kind === "moderation" ? "Moderation" : b.notif.type;
-    const dateA = a.kind === "msg" ? a.conv.lastAt : a.kind === "moderation" ? a.notif.createdAt : a.notif.date;
-    const dateB = b.kind === "msg" ? b.conv.lastAt : b.kind === "moderation" ? b.notif.createdAt : b.notif.date;
-    if (sortKey === "type") return typeA.localeCompare(typeB) * mul;
-    return dateA.localeCompare(dateB) * mul;
-  });
 
   return (
     <section className="mx-auto w-full max-w-[var(--page-max)]">
       <div className="flex items-center justify-between">
-        <h1 className="text-base font-semibold text-zinc-900">Notifications</h1>
+        <div>
+          <h1 className="text-base font-semibold text-zinc-900">Notifications</h1>
+          {unreadCount > 0 ? (
+            <p className="mt-0.5 text-xs text-zinc-500">{unreadCount} unread</p>
+          ) : null}
+        </div>
         <Link href="/notifications/settings" className="text-zinc-400 hover:text-zinc-600">
-          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          <svg
+            className="h-5 w-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
           </svg>
         </Link>
       </div>
 
+      {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+
       <div className="mt-4 rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-sm)]">
-        {/* Tabs */}
-        <div className="flex items-center gap-1 overflow-x-auto border-b border-black/[0.06] px-4 pt-3">
+        <div className="flex items-center gap-2 overflow-x-auto border-b border-black/[0.06] px-4 pt-3">
           {TABS.map((t) => {
-            const badge = t === "New" ? unreadTabBadge : t === "Messages" ? unreadMsgsBadge : 0;
+            const badge = t === "Messages" ? unreadMsgsBadge : 0;
             return (
               <button
                 key={t}
@@ -239,11 +197,11 @@ export default function NotificationsPage() {
                 ].join(" ")}
               >
                 {t}
-                {badge > 0 && (
-                  <span className="ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white leading-none">
+                {badge > 0 ? (
+                  <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white">
                     {badge}
                   </span>
-                )}
+                ) : null}
               </button>
             );
           })}
@@ -267,11 +225,11 @@ export default function NotificationsPage() {
                       >
                         <div className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-200 to-blue-400 text-sm font-bold text-white">
                           {conv.partnerName[0]}
-                          {unseen && (
-                            <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-[var(--brand)]" />
-                          )}
+                          {unseen ? (
+                            <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-[var(--brand)]" />
+                          ) : null}
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
                             <span className={`truncate text-sm ${unseen ? "font-bold text-zinc-900" : "font-semibold text-zinc-700"}`}>
                               {conv.partnerName}
@@ -284,13 +242,12 @@ export default function NotificationsPage() {
                             {conv.isSent ? "You: " : ""}{conv.lastMessage}
                           </p>
                         </div>
-                        {unseen && (
-                          <span className="flex-shrink-0 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-bold text-white">
+                        {unseen ? (
+                          <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-bold text-white">
                             {conv.unread}
                           </span>
-                        )}
+                        ) : null}
                       </button>
-                      {/* Delete button */}
                       <button
                         type="button"
                         onClick={() => removeConvo(conv.partnerId)}
@@ -299,7 +256,7 @@ export default function NotificationsPage() {
                         title="Remove from list"
                       >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                         </svg>
                       </button>
                     </li>
@@ -309,154 +266,81 @@ export default function NotificationsPage() {
             )}
           </div>
         ) : (
-          /* ── All other tabs ── */
+          /* ── All other tabs — real DB notifications ── */
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-black/[0.06] text-xs font-semibold text-zinc-500">
                 <th className="px-4 py-3">Notification</th>
                 <th className="px-4 py-3">
-                  <button type="button" onClick={() => toggleSort("type")} className="inline-flex items-center gap-1 hover:text-zinc-900">
-                    Type <SortArrow active={sortKey === "type"} dir={sortDir}/>
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("type")}
+                    className="inline-flex items-center gap-1 hover:text-zinc-900"
+                  >
+                    Type
+                    <SortArrow active={sortKey === "type"} dir={sortDir} />
                   </button>
                 </th>
                 <th className="px-4 py-3">
-                  <button type="button" onClick={() => toggleSort("date")} className="inline-flex items-center gap-1 hover:text-zinc-900">
-                    Date <SortArrow active={sortKey === "date"} dir={sortDir}/>
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("date")}
+                    className="inline-flex items-center gap-1 hover:text-zinc-900"
+                  >
+                    Date
+                    <SortArrow active={sortKey === "date"} dir={sortDir} />
                   </button>
                 </th>
-                <th className="px-4 py-3 w-10" />
               </tr>
             </thead>
             <tbody>
-              {sortedRows.map((row) => {
-                if (row.kind === "msg") {
-                  const { conv } = row;
-                  // unseen = received unread OR sent but recipient hasn't opened yet
-                  const unseen = conv.unread > 0 || (conv.isSent && !conv.senderLastMsgRead);
-                  const statusLabel = conv.isSent
-                    ? (conv.senderLastMsgRead ? "Message · Seen" : "Message · Sent")
-                    : (conv.unread > 0        ? "Message · Unread" : "Message · Read");
-                  return (
-                    <tr
-                      key={`msg-${conv.partnerId}`}
-                      className={`group border-b border-black/[0.04] last:border-0 cursor-pointer transition ${unseen ? "bg-blue-50/60 hover:bg-blue-50" : "hover:bg-zinc-50"}`}
-                      onClick={() => setChatWith({ id: conv.partnerId, name: conv.partnerName })}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-[var(--brand)]">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                            </svg>
-                          </span>
-                          <span className={unseen ? "font-semibold text-zinc-900" : "text-zinc-600"}>
-                            {conv.partnerName}:{" "}
-                            <span className={unseen ? "font-normal" : "text-zinc-500"}>
-                              &ldquo;{conv.lastMessage.length > 55 ? conv.lastMessage.slice(0, 55) + "…" : conv.lastMessage}&rdquo;
-                            </span>
-                          </span>
-                          {conv.unread > 0 && (
-                            <span className="ml-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-[var(--brand)] px-1 text-[10px] font-bold text-white leading-none">
-                              {conv.unread}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-zinc-400">{statusLabel}</td>
-                      <td className="px-4 py-3 text-zinc-400 text-xs">
-                        {new Date(conv.lastAt).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); dismissMsgNotif(conv.partnerId); }}
-                          className="rounded-lg p-1 text-zinc-300 opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                          aria-label="Dismiss"
-                          title="Dismiss notification"
-                        >
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                          </svg>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                }
-
-                if (row.kind === "moderation") {
-                  const { notif } = row;
-                  return (
-                    <tr
-                      key={`mod-${notif.id}`}
-                      onClick={() => { void markNotifRead(notif.id); }}
-                      className={`group border-b border-black/[0.04] last:border-0 cursor-pointer transition ${notif.isRead ? "hover:bg-zinc-50" : "bg-orange-50/40 hover:bg-orange-50/60"}`}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                            </svg>
-                          </span>
-                          <span className={notif.isRead ? "text-zinc-500" : "font-semibold text-zinc-900"}>
-                            {notif.body ?? "Your content was reviewed by a moderator."}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-zinc-500">Moderation</td>
-                      <td className="px-4 py-3 text-zinc-500 text-xs">
-                        {new Date(notif.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          type="button"
-                          onClick={e => { e.stopPropagation(); void deleteModNotif(notif.id); }}
-                          className="rounded-lg p-1 text-zinc-300 opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                          aria-label="Delete notification"
-                          title="Delete"
-                        >
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                          </svg>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                }
-
-                const { notif } = row;
-                return (
-                  <tr key={notif.id} className="group border-b border-black/[0.04] last:border-0 hover:bg-zinc-50 transition">
-                    <td className="px-4 py-3 text-zinc-900">{notif.text}</td>
-                    <td className="px-4 py-3 text-zinc-500">{notif.type}</td>
-                    <td className="px-4 py-3 text-zinc-500">{notif.date}</td>
+              {loading ? (
+                <tr>
+                  <td colSpan={3} className="px-4 py-6 text-center text-zinc-400">
+                    Loading notifications…
+                  </td>
+                </tr>
+              ) : (
+                items.map((n) => (
+                  <tr
+                    key={n.id}
+                    className={[
+                      "border-b border-black/[0.04] last:border-0",
+                      !n.isRead ? "bg-blue-50/40" : "",
+                    ].join(" ")}
+                  >
                     <td className="px-4 py-3">
                       <button
                         type="button"
-                        onClick={() => deleteMockNotif(notif.id)}
-                        className="rounded-lg p-1 text-zinc-300 opacity-0 transition hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                        aria-label="Delete notification"
-                        title="Delete"
+                        onClick={() => void handleNotificationClick(n)}
+                        className={[
+                          "text-left hover:text-[var(--brand)] hover:underline",
+                          n.isRead
+                            ? "font-normal text-zinc-500"
+                            : "font-semibold text-zinc-900",
+                        ].join(" ")}
                       >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                        </svg>
+                        {n.text}
                       </button>
                     </td>
+                    <td className="px-4 py-3 text-zinc-500">{n.type}</td>
+                    <td className="px-4 py-3 text-zinc-500">{n.date}</td>
                   </tr>
-                );
-              })}
-              {sortedRows.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-zinc-400">No notifications</td>
-                </tr>
+                ))
               )}
+              {!loading && items.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-4 py-6 text-center text-zinc-400">
+                    No notifications
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         )}
       </div>
 
-      {chatWith && (
+      {chatWith ? (
         <ChatModal
           recipientId={chatWith.id}
           recipientName={chatWith.name}
@@ -468,15 +352,21 @@ export default function NotificationsPage() {
               .catch(() => {});
           }}
         />
-      )}
+      ) : null}
     </section>
   );
 }
 
 function SortArrow({ active, dir }: { active: boolean; dir: SortDir }) {
   return (
-    <svg className={`h-3 w-3 ${active ? "text-zinc-900" : "text-zinc-300"}`} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
-      {dir === "asc" ? <path d="M6 2v8M3 7l3 3 3-3"/> : <path d="M6 10V2M3 5l3-3 3 3"/>}
+    <svg
+      className={`h-3 w-3 ${active ? "text-zinc-900" : "text-zinc-300"}`}
+      viewBox="0 0 12 12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      {dir === "asc" ? <path d="M6 2v8M3 7l3 3 3-3" /> : <path d="M6 10V2M3 5l3-3 3 3" />}
     </svg>
   );
 }

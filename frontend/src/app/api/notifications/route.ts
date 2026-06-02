@@ -1,34 +1,21 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getAuthPayload } from "@/lib/auth/require-auth";
-import { err } from "@/lib/response";
+import type { NextRequest } from "next/server";
+import { jsonError, jsonOk } from "@/lib/api/response";
+import { requireAuthUser } from "@/lib/auth/session";
+import * as notificationService from "@/modules/notifications/notification.service";
+import { parseListNotificationsQuery } from "@/modules/notifications/notification.validation";
 
-/** GET /api/notifications
- *  Returns all notifications for the session user, newest first.
- */
-export async function GET() {
-  const payload = await getAuthPayload();
-  if (!payload) return err("Not authenticated.", 401);
+/** GET /api/notifications?tab=all&sort=date&dir=desc */
+export async function GET(req: NextRequest) {
+  const auth = await requireAuthUser(req);
+  if (!auth.ok) return jsonError(auth.error, auth.status);
 
-  const notifications = await prisma.notification.findMany({
-    where:   { userId: payload.sub },
-    orderBy: { createdAt: "desc" },
-  });
+  const parsed = parseListNotificationsQuery(req.nextUrl.searchParams);
+  if (!parsed.ok) return jsonError(parsed.error, 400);
 
-  return NextResponse.json(notifications);
-}
-
-/** PATCH /api/notifications
- *  Marks all unread notifications for the session user as read.
- */
-export async function PATCH() {
-  const payload = await getAuthPayload();
-  if (!payload) return err("Not authenticated.", 401);
-
-  await prisma.notification.updateMany({
-    where: { userId: payload.sub, isRead: false },
-    data:  { isRead: true },
-  });
-
-  return NextResponse.json({ ok: true });
+  try {
+    const result = await notificationService.listNotifications(auth.user.id, parsed.data);
+    return jsonOk(result);
+  } catch {
+    return jsonError("Failed to load notifications", 500);
+  }
 }
