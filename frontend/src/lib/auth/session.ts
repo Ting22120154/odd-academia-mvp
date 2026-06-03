@@ -33,7 +33,7 @@ export function clearSessionCookies(res: NextResponse) {
   return res;
 }
 
-// ─── Legacy bridge session (comment / saved-paper / notification APIs) ────────
+// ─── Legacy bridge session (comment / notification APIs) ────────
 export const AUTH_USER_COOKIE = "auth-user-id";
 
 /** Read user id from request — checks JWT cookie first, then legacy bridge cookie. */

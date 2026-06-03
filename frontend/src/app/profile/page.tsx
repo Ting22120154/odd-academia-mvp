@@ -9,8 +9,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { SavedPapersList } from "@/components/SavedPapersList";
-import { fetchSavedPapers } from "@/lib/saved-papers-client";
 import {
   fetchMyProfile,
   formatCount,
@@ -18,16 +16,12 @@ import {
   type ProfileUser,
 } from "@/lib/profile-client";
 
-type Tab = "papers" | "saved-papers";
-
 export default function ProfilePage() {
   const { isLoggedIn, logout } = useAuth();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("papers");
   const [profile, setProfile] = useState<ProfileUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [savedCount, setSavedCount] = useState(0);
 
   useEffect(() => {
     if (!isLoggedIn) router.replace("/login");
@@ -38,26 +32,13 @@ export default function ProfilePage() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const [{ user, error: err }, { count }] = await Promise.all([
-        fetchMyProfile(),
-        fetchSavedPapers(),
-      ]);
+      const { user, error: err } = await fetchMyProfile();
       if (cancelled) return;
       if (err || !user) setError(err ?? "Could not load profile.");
       else { setProfile(user); setError(null); }
-      setSavedCount(count);
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [isLoggedIn]);
-
-  useEffect(() => {
-    const onChanged = () => {
-      if (!isLoggedIn) return;
-      void fetchSavedPapers().then(({ count }) => setSavedCount(count));
-    };
-    window.addEventListener("odd:saved-papers-changed", onChanged);
-    return () => window.removeEventListener("odd:saved-papers-changed", onChanged);
   }, [isLoggedIn]);
 
   if (!isLoggedIn) return null;
@@ -152,79 +133,28 @@ export default function ProfilePage() {
 
       <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
         <div className="text-sm font-semibold text-zinc-900">Engagement Metrics</div>
-        <div className="mt-4 grid grid-cols-2 gap-4">
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <MetricCard icon="papers" label="Papers" value={String(profile.stats.papers)} />
           <MetricCard icon="followers" label="Followers" value={formatCount(profile.stats.followers)} />
-          <Link href="/saved-papers" className="block">
-            <MetricCard icon="saved" label="Saved Papers" value={String(savedCount)} />
-          </Link>
           <MetricCard icon="comments" label="Comments" value={String(profile.stats.citedComments)} />
         </div>
       </div>
 
       <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
-        <div className="flex flex-wrap items-center gap-3 border-b border-black/[0.06] pb-3">
-          <TabButton active={tab === "papers"} onClick={() => setTab("papers")}>
-            Papers
-          </TabButton>
-          <TabButton active={tab === "saved-papers"} onClick={() => setTab("saved-papers")}>
-            Saved Papers
-          </TabButton>
-          {tab === "saved-papers" ? (
-            <Link
-              href="/saved-papers"
-              className="ml-auto text-xs font-medium text-[var(--brand)] hover:underline"
-            >
-              View all →
-            </Link>
-          ) : null}
+        <div className="border-b border-black/[0.06] pb-3 text-sm font-semibold text-zinc-900">
+          Papers
         </div>
-
-        {tab === "papers" && (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {profile.papers.length === 0 ? (
-              <p className="col-span-full text-sm text-zinc-500">No published papers yet.</p>
-            ) : (
-              profile.papers.map((p) => (
-                <PaperCard key={p.id} title={p.title} desc={p.description} tags={p.tags} />
-              ))
-            )}
-          </div>
-        )}
-
-        {tab === "saved-papers" && (
-          <div className="mt-4">
-            <SavedPapersList
-              active={tab === "saved-papers"}
-              onCountChange={setSavedCount}
-            />
-          </div>
-        )}
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {profile.papers.length === 0 ? (
+            <p className="col-span-full text-sm text-zinc-500">No published papers yet.</p>
+          ) : (
+            profile.papers.map((p) => (
+              <PaperCard key={p.id} title={p.title} desc={p.description} tags={p.tags} />
+            ))
+          )}
+        </div>
       </div>
     </section>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "rounded-lg px-4 py-1.5 text-sm font-medium transition",
-        active ? "bg-[rgba(0,102,255,0.12)] text-[var(--brand)]" : "text-zinc-500 hover:text-zinc-900",
-      ].join(" ")}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -233,7 +163,7 @@ function MetricCard({
   label,
   value,
 }: {
-  icon: "papers" | "followers" | "saved" | "comments";
+  icon: "papers" | "followers" | "comments";
   label: string;
   value: string;
 }) {
@@ -249,11 +179,6 @@ function MetricCard({
         <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" strokeLinecap="round" />
         <circle cx="9" cy="7" r="4" />
         <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" strokeLinecap="round" />
-      </svg>
-    ),
-    saved: (
-      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" strokeLinejoin="round" />
       </svg>
     ),
     comments: (

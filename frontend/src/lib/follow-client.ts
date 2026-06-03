@@ -49,13 +49,13 @@ export async function unfollowUser(id: string): Promise<{ isFollowing?: boolean;
 
 export async function fetchFollowStatus(
   userId: string,
-): Promise<{ isFollowing?: boolean; error?: string }> {
+): Promise<{ isFollowing?: boolean; followerCount?: number; error?: string }> {
   const res = await fetch(`/api/users/${userId}/follow-status`, {
     credentials: "include",
   });
-  const json = (await res.json()) as ApiRes<{ isFollowing: boolean }>;
+  const json = (await res.json()) as ApiRes<{ isFollowing: boolean; followerCount: number }>;
   if (!json.success) return { error: json.error };
-  return { isFollowing: json.data.isFollowing };
+  return { isFollowing: json.data.isFollowing, followerCount: json.data.followerCount };
 }
 
 export async function toggleFollow(

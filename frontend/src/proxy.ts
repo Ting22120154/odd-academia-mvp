@@ -13,7 +13,6 @@ const PUBLIC_ROUTES = ["/login"];
 const AUTH_ONLY_PREFIXES = [
   "/profile",
   "/notifications",
-  "/saved-papers",
   "/upload",
   "/following",
 ];

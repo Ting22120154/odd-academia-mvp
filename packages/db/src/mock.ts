@@ -313,6 +313,8 @@ export interface FrontendViewerPost {
   authorName:           string
   authorAvatarUrl?:     string
   authorBio?:           string
+  authorJobTitle?:      string
+  contributors?:        string[]
   subject:              string
   categories?:          string[]
   tags?:                string[]

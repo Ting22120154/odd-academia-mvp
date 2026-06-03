@@ -54,8 +54,7 @@ function toNotificationResponse(
 
   if (row.type === "paper" && row.referenceType === "paper" && row.referenceId) {
     const title = paperMap.get(row.referenceId) ?? "your paper";
-    const actor = row.actorId ? (userMap.get(row.actorId) ?? "Someone") : "Someone";
-    text = `${actor} saved your paper: ${title}`;
+    text = `Update on your paper: ${title}`;
     href = `/paper/${row.referenceId}`;
   } else if (row.type === "comment" && row.referenceType === "comment" && row.referenceId) {
     const paperId = commentMap.get(row.referenceId);

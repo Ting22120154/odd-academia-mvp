@@ -140,7 +140,6 @@ export function TopNav() {
   const isFollowing = pathname?.startsWith("/following");
   const isNotifications = pathname?.startsWith("/notifications");
   const isProfile = pathname === "/profile" || pathname?.startsWith("/profile/") || pathname?.startsWith("/user/");
-  const isSavedPapers = pathname === "/saved-papers";
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-black/[0.06] bg-white/80 backdrop-blur">
@@ -196,19 +195,7 @@ export function TopNav() {
             ) : null}
           </div>
           {isLoggedIn ? (
-            <>
-              <IconButton href="/saved-papers" label="Saved papers" active={isSavedPapers}>
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path
-                    d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </IconButton>
-              <UserMenu isProfile={isProfile} />
-            </>
+            <UserMenu isProfile={isProfile} />
           ) : (
             <Link
               href="/login"
