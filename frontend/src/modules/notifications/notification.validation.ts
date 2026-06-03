@@ -38,7 +38,17 @@ export function parseListNotificationsQuery(
     ? (dirRaw as NotificationSortDir)
     : "desc";
 
-  return { ok: true, data: { tab, sort, dir } };
+  const readOffsetRaw = searchParams.get("readOffset");
+  let readOffset = 0;
+  if (readOffsetRaw != null && readOffsetRaw !== "") {
+    const n = Number.parseInt(readOffsetRaw, 10);
+    if (!Number.isFinite(n) || n < 0) {
+      return { ok: false, error: "readOffset must be a non-negative integer" };
+    }
+    readOffset = n;
+  }
+
+  return { ok: true, data: { tab, sort, dir, readOffset } };
 }
 
 export function parseNotificationIdParam(id: string): ParseResult<string> {

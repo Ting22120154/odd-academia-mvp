@@ -70,6 +70,8 @@ function CalendarIcon() {
   );
 }
 
+const MAX_PDF_BYTES = 10 * 1024 * 1024;
+
 const MOCK_REFERENCES = [
   {
     id: "ref-1",
@@ -141,6 +143,11 @@ export default function UploadPage() {
 
   const abstractCount = useMemo(() => Math.min(abstract.length, 200), [abstract]);
 
+  const isPdfFile = useCallback((f: File) => {
+    const name = f.name.toLowerCase();
+    return f.type === "application/pdf" || name.endsWith(".pdf");
+  }, []);
+
   const simulateUpload = useCallback((f: File) => {
     setFile(f);
     setUploadState("uploading");
@@ -159,6 +166,17 @@ export default function UploadPage() {
 
   function onChooseFile(f: File | null) {
     if (!f) return;
+    setError(null);
+    if (!isPdfFile(f)) {
+      setError("Only PDF files are allowed");
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+    if (f.size > MAX_PDF_BYTES) {
+      setError("PDF must be 10MB or smaller");
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
     simulateUpload(f);
   }
 
@@ -224,9 +242,7 @@ export default function UploadPage() {
 
     setSubmitting(true);
     try {
-      // Paper metadata (title, abstract, categories, etc.) → POST /api/posts.
-      // Binary file upload (after we have created.id) → POST /api/papers/upload.
-      const res = await fetch("/api/posts", {
+      const res = await fetch("/api/papers", {
         method: "POST",
         credentials: "include",
         headers: {
@@ -234,23 +250,13 @@ export default function UploadPage() {
         },
         body: JSON.stringify({
           title: title.trim(),
-          content: abstract.trim(),
+          abstract: abstract.trim(),
           categories: selectedCategories,
           keywords: [],
-          publishedDate,
+          publishedAt: publishedDate,
           doi: doi.trim() || undefined,
-          references: citations.map((c) => c.label),
+          references: citations.map((c) => ({ citationText: c.label })),
           contributors: contributorList,
-          author: {
-            name: anonymous ? "Anonymous" : user?.fullName || "User",
-            bio: "",
-            avatar: "/avatars/profile.svg",
-          },
-          attachment: {
-            fileName: file.name,
-            mimeType: file.type || "application/pdf",
-            sizeBytes: file.size,
-          },
         }),
       });
 
@@ -261,17 +267,23 @@ export default function UploadPage() {
 
       const created = (await res.json()) as { id: string };
 
+      if (!isPdfFile(file)) {
+        throw new Error("Only PDF files are allowed");
+      }
+
       const uploadMime =
-        file.type ||
-        (file.name.toLowerCase().endsWith(".pdf")
+        file.type === "application/pdf"
           ? "application/pdf"
-          : file.name.toLowerCase().endsWith(".docx")
-            ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            : file.name.toLowerCase().endsWith(".doc")
-              ? "application/msword"
-              : "");
+          : file.name.toLowerCase().endsWith(".pdf")
+            ? "application/pdf"
+            : "";
+
+      if (!uploadMime) {
+        throw new Error("Only PDF files are allowed");
+      }
+
       const uploadFile =
-        uploadMime && uploadMime !== file.type
+        uploadMime !== file.type
           ? new File([file], file.name, { type: uploadMime })
           : file;
 
@@ -287,7 +299,10 @@ export default function UploadPage() {
 
       if (!uploadRes.ok) {
         const body = (await uploadRes.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? "Paper saved but file upload failed");
+        const detail = body?.error ?? "PDF upload failed";
+        throw new Error(
+          `${detail} Your paper was saved — open /paper/${created.id} to attach the PDF.`,
+        );
       }
 
       const url = `${window.location.origin}/paper/${created.id}`;
@@ -362,7 +377,7 @@ export default function UploadPage() {
                 choose file
               </button>
             </div>
-            <div className="mt-1 text-xs text-zinc-400">PNG or Docx formats, up to 3 MB.</div>
+            <div className="mt-1 text-xs text-zinc-400">PDF files only (max 10MB).</div>
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
@@ -375,7 +390,7 @@ export default function UploadPage() {
               type="file"
               className="hidden"
               onChange={(e) => onChooseFile(e.target.files?.[0] ?? null)}
-              accept=".pdf,.doc,.docx,application/pdf"
+              accept=".pdf,application/pdf"
             />
           </div>
         ) : (

@@ -2,7 +2,6 @@
 
 /**
  * Top navigation. When logged in, avatar menu links to /profile and calls logout API.
- * isLoggedIn prop is passed from AppShell (AuthContext).
  */
 
 import Link from "next/link";

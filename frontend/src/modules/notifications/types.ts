@@ -15,10 +15,21 @@ export type NotificationResponse = {
   isRead: boolean;
   href: string;
   createdAt: string;
+  /** Present when multiple similar notifications were merged. */
+  groupCount?: number;
+  groupedIds?: string[];
 };
 
 export type ListNotificationsQuery = {
   tab: NotificationTab;
   sort: NotificationSortKey;
   dir: NotificationSortDir;
+  readOffset?: number;
+};
+
+export type ListNotificationsResult = {
+  notifications: NotificationResponse[];
+  unreadCount: number;
+  readHasMore?: boolean;
+  readTotal?: number;
 };

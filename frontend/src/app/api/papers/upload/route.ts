@@ -10,11 +10,7 @@ import { paperInclude } from "@/lib/papers/constants";
 const UPLOAD_LIMIT = 10;
 const WINDOW_MS = 60_000;
 
-const ALLOWED_TYPES = new Set([
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-]);
+const ALLOWED_TYPES = new Set(["application/pdf"]);
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
@@ -31,8 +27,15 @@ export async function POST(req: Request) {
   let formData: FormData;
   try {
     formData = await req.formData();
-  } catch {
-    return Response.json({ error: "Invalid form data" }, { status: 400 });
+  } catch (err) {
+    console.error("POST /api/papers/upload formData parse failed:", err);
+    return Response.json(
+      {
+        error:
+          "Could not read upload. Use a PDF under 10MB and restart the dev server if this persists.",
+      },
+      { status: 400 },
+    );
   }
 
   const paperIdRaw = formData.get("paperId");

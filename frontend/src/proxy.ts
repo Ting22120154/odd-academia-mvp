@@ -52,6 +52,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // Skip file upload API so proxy does not truncate multipart bodies (see proxyClientMaxBodySize).
+    "/((?!_next/static|_next/image|favicon.ico|api/papers/upload|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

@@ -35,7 +35,7 @@ export async function GET(
 
   const papers = await prisma.paper.findMany({
     where: { authorId: id, status: "published" },
-    include: { keywords: true },
+    include: { keywords: true, categories: true },
     orderBy: { createdAt: "desc" },
     take: 12,
   });

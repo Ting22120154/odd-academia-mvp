@@ -16,13 +16,32 @@ export type PaperFollowStatus = {
   followerCount: number;
 };
 
+async function safeReadApiJson<T>(res: Response): Promise<ApiRes<T>> {
+  // Some error paths (proxy/dev overlay) can produce an empty body.
+  const text = await res.text().catch(() => "");
+  if (!text) {
+    return {
+      success: false,
+      error: `Empty response (status ${res.status})`,
+    };
+  }
+  try {
+    return JSON.parse(text) as ApiRes<T>;
+  } catch {
+    return {
+      success: false,
+      error: `Non-JSON response (status ${res.status})`,
+    };
+  }
+}
+
 export async function fetchPaperFollowStatus(
   paperId: string,
 ): Promise<PaperFollowStatus & { error?: string }> {
   const res = await fetch(`/api/papers/${paperId}/follow-status`, {
     credentials: "include",
   });
-  const json = (await res.json()) as ApiRes<PaperFollowStatus>;
+  const json = await safeReadApiJson<PaperFollowStatus>(res);
   if (!json.success) return { isFollowing: false, followerCount: 0, error: json.error };
   return json.data;
 }
@@ -34,7 +53,7 @@ export async function followPaper(
     method: "POST",
     credentials: "include",
   });
-  const json = (await res.json()) as ApiRes<PaperFollowStatus>;
+  const json = await safeReadApiJson<PaperFollowStatus>(res);
   if (!json.success) return { error: json.error };
   return {
     isFollowing: json.data.isFollowing,
@@ -49,7 +68,7 @@ export async function unfollowPaper(
     method: "DELETE",
     credentials: "include",
   });
-  const json = (await res.json()) as ApiRes<PaperFollowStatus>;
+  const json = await safeReadApiJson<PaperFollowStatus>(res);
   if (!json.success) return { error: json.error };
   return {
     isFollowing: json.data.isFollowing,
@@ -71,7 +90,7 @@ export async function fetchFollowedPapersList(): Promise<{
   const res = await fetch("/api/users/me/followed-papers", {
     credentials: "include",
   });
-  const json = (await res.json()) as ApiRes<{ papers: FollowedPaper[] }>;
+  const json = await safeReadApiJson<{ papers: FollowedPaper[] }>(res);
   if (!json.success) return { error: json.error };
   return { papers: json.data.papers };
 }

@@ -23,7 +23,13 @@ export type ProfileUser = {
     following: number;
     citedComments: number;
   };
-  papers: { id: string; title: string; description: string; tags: string[] }[];
+  papers: {
+    id: string;
+    title: string;
+    description: string;
+    categories: string[];
+    tags: string[];
+  }[];
   isOwnProfile: boolean;
 };
 

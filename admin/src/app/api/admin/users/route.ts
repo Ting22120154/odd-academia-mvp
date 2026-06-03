@@ -13,7 +13,16 @@ export async function GET(req: NextRequest) {
   const limit  = Math.max(1, Number(searchParams.get("limit") ?? "20"));
   const skip   = (page - 1) * limit;
 
-  const where = search.trim()
+  const fromRaw = searchParams.get("from");
+  const toRaw   = searchParams.get("to");
+  const from    = fromRaw ? new Date(fromRaw) : null;
+  const to      = toRaw ? new Date(toRaw) : null;
+  const createdAt =
+    from && to && !Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime())
+      ? { gte: from, lte: to }
+      : undefined;
+
+  const searchWhere = search.trim()
     ? {
         OR: [
           { fullName: { contains: search, mode: "insensitive" as const } },
@@ -22,6 +31,11 @@ export async function GET(req: NextRequest) {
         ],
       }
     : {};
+
+  const where = {
+    ...searchWhere,
+    ...(createdAt ? { createdAt } : {}),
+  };
 
   const [users, total] = await prisma.$transaction([
     prisma.user.findMany({

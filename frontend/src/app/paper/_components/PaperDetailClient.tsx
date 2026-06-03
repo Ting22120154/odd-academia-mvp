@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MockPost } from "@/lib/mockPosts";
 import { EmbeddedPdfViewer } from "@/app/paper/_components/EmbeddedPdfViewer";
+import { PaperPdfAttach } from "@/app/paper/_components/PaperPdfAttach";
 import { GuestTracker } from "@/app/paper/_components/GuestTracker";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
@@ -147,7 +148,7 @@ function initials(name: string) {
   return (a + b).toUpperCase();
 }
 
-function NonPdfDownloadButton({
+function NonPdfSaveButton({
   fileSrc,
   downloadFilename,
 }: {
@@ -172,7 +173,7 @@ function NonPdfDownloadButton({
       onClick={() => void handleDownload()}
       className={`mt-2 text-sm font-semibold text-[var(--brand)] ${linkHover}`}
     >
-      Download {downloadFilename}
+      Save {downloadFilename}
     </button>
   );
 }
@@ -362,6 +363,29 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
     [post.title, post.fileType, post.fileUrl],
   );
   const hasPdf = post.fileType === "pdf" && Boolean(post.fileUrl);
+  const [pdfFileOk, setPdfFileOk] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!hasPdf) {
+      setPdfFileOk(false);
+      return;
+    }
+    let cancelled = false;
+    void fetch(fileApiSrc, { method: "HEAD", credentials: "include" })
+      .then((res) => {
+        if (!cancelled) setPdfFileOk(res.ok);
+      })
+      .catch(() => {
+        if (!cancelled) setPdfFileOk(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPdf, fileApiSrc]);
+
+  const isPaperOwner = Boolean(
+    sessionUser?.id && authorId && sessionUser.id === authorId,
+  );
 
   async function copyToClipboard(value: string) {
     await navigator.clipboard.writeText(value);
@@ -863,7 +887,22 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
           </section>
 
           {/* Reader — embedded PDF (no browser native viewer) */}
-          {hasPdf ? (
+          {hasPdf && pdfFileOk === null ? (
+            <section className="rounded-2xl border border-black/[0.06] bg-white p-10 text-center text-sm text-zinc-500 shadow-[var(--shadow-sm)]">
+              Loading PDF…
+            </section>
+          ) : hasPdf && pdfFileOk === false ? (
+            isPaperOwner ? (
+              <PaperPdfAttach
+                paperId={post.id}
+                onAttached={() => router.refresh()}
+              />
+            ) : (
+              <section className="rounded-2xl border border-black/[0.06] bg-white p-8 text-center text-sm text-zinc-600 shadow-[var(--shadow-sm)]">
+                The PDF for this paper is not available yet.
+              </section>
+            )
+          ) : hasPdf ? (
             <EmbeddedPdfViewer
               fileSrc={fileApiSrc}
               downloadFilename={downloadFilename}
@@ -876,7 +915,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
           ) : post.fileUrl ? (
             <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white p-6 text-center shadow-[var(--shadow-sm)]">
               <p className="text-sm text-zinc-600">This paper is not a PDF preview.</p>
-              <NonPdfDownloadButton
+              <NonPdfSaveButton
                 fileSrc={fileApiSrc}
                 downloadFilename={downloadFilename}
               />

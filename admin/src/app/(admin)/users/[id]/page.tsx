@@ -1,8 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
+import {
+  DateRangePicker,
+  lastNDaysRange,
+  type DateRange,
+} from "@/components/DateRangePicker";
+import { isIsoInRange } from "@/lib/dateRange";
 
 // ---------------------------------------------------------------------------
 // Types matching GET /api/admin/users/:id response shape
@@ -253,50 +259,6 @@ function RemoveUserModal({
 }
 
 // ---------------------------------------------------------------------------
-// Inline Calendar
-// ---------------------------------------------------------------------------
-const CAL_DAYS   = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
-const CAL_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-
-function Calendar() {
-  const [year, setYear]   = useState(2025);
-  const [month, setMonth] = useState(0);
-
-  const firstDay    = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  function prev() { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); }
-  function next() { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); }
-
-  const cells: (number | null)[] = [
-    ...Array(firstDay).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-md p-4 w-64">
-      <div className="flex items-center justify-between mb-3">
-        <button onClick={prev} className="p-1 hover:bg-gray-100 rounded text-gray-500 text-sm">‹</button>
-        <span className="text-sm font-semibold text-gray-800">{CAL_MONTHS[month]} {year}</span>
-        <button onClick={next} className="p-1 hover:bg-gray-100 rounded text-gray-500 text-sm">›</button>
-      </div>
-      <div className="grid grid-cols-7 mb-1">
-        {CAL_DAYS.map(d => (
-          <div key={d} className="text-[10px] text-center text-gray-400 font-medium py-1">{d}</div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7">
-        {cells.map((day, i) => (
-          <div key={i} className={`text-xs text-center py-1 rounded ${day ? "text-gray-700 hover:bg-blue-50 cursor-pointer" : ""}`}>
-            {day ?? ""}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 export default function UserDetailPage() {
@@ -309,7 +271,7 @@ export default function UserDetailPage() {
   const [loading,        setLoading]        = useState(true);
   const [notFound,       setNotFound]       = useState(false);
   const [actionBusy,     setActionBusy]     = useState(false);
-  const [calendarOpen,   setCalendarOpen]   = useState(false);
+  const [range, setRange] = useState<DateRange>(() => lastNDaysRange(31));
   const [paperSearch,    setPaperSearch]    = useState("");
   const [showAllPapers,  setShowAllPapers]  = useState(false);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
@@ -344,10 +306,21 @@ export default function UserDetailPage() {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
-  const filteredPapers = papers.filter(p =>
-    p.title.toLowerCase().includes(paperSearch.toLowerCase())
+  const filteredPapers = useMemo(
+    () =>
+      papers.filter(
+        (p) =>
+          p.title.toLowerCase().includes(paperSearch.toLowerCase()) &&
+          isIsoInRange(p.createdAt, range),
+      ),
+    [papers, paperSearch, range],
   );
   const visiblePapers = showAllPapers ? filteredPapers : filteredPapers.slice(0, 3);
+
+  const filteredComments = useMemo(
+    () => comments.filter((c) => isIsoInRange(c.createdAt, range)),
+    [comments, range],
+  );
 
   async function moderateUser(action: "warn" | "ban" | "unban") {
     setActionBusy(true);
@@ -532,7 +505,7 @@ export default function UserDetailPage() {
       <div>
         <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
           <h2 className="text-base font-semibold text-gray-800">
-            Papers <span className="text-gray-400 font-normal">({papers.length})</span>
+            Papers <span className="text-gray-400 font-normal">({filteredPapers.length})</span>
           </h2>
 
           <div className="flex items-center gap-3 flex-wrap">
@@ -549,28 +522,7 @@ export default function UserDetailPage() {
               />
             </div>
 
-            <div className="relative">
-              <button
-                onClick={() => setCalendarOpen(o => !o)}
-                className="flex items-center gap-1.5 border border-gray-300 rounded-md px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2"/>
-                  <line x1="16" y1="2" x2="16" y2="6"/>
-                  <line x1="8"  y1="2" x2="8"  y2="6"/>
-                  <line x1="3"  y1="10" x2="21" y2="10"/>
-                </svg>
-                15.01.2025–14.02.2025
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
-              </button>
-              {calendarOpen && (
-                <div className="absolute right-0 mt-2 z-50">
-                  <Calendar />
-                </div>
-              )}
-            </div>
+            <DateRangePicker value={range} onChange={setRange} />
           </div>
         </div>
 
@@ -646,11 +598,11 @@ export default function UserDetailPage() {
           Comments <span className="inline-block w-2 h-2 rounded-full bg-yellow-400 ml-1 align-middle" />
         </h2>
 
-        {comments.length === 0 ? (
-          <p className="text-sm text-gray-400">No comments yet.</p>
+        {filteredComments.length === 0 ? (
+          <p className="text-sm text-gray-400">No comments in this date range.</p>
         ) : (
           <div className="space-y-5">
-            {comments.map(c => (
+            {filteredComments.map(c => (
               <div key={c.id} className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-200 to-blue-400 flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
                   {user.fullName[0]}

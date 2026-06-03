@@ -18,6 +18,8 @@ import {
   type ProfileUser,
 } from "@/lib/profile-client";
 import { ChatModal } from "@/components/ChatModal";
+import { SuggestedPaperCard } from "@/components/SuggestedPaperCard";
+import { profilePaperToViewerPost } from "@/lib/auth/profile";
 
 export default function UserProfilePage() {
   const { id } = useParams<{ id: string }>();
@@ -221,28 +223,22 @@ export default function UserProfilePage() {
 
       <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
         <div className="mb-4 text-sm font-semibold text-zinc-900">Papers</div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {profile.papers.length === 0 ? (
-            <p className="col-span-full text-sm text-zinc-500">No published papers yet.</p>
-          ) : (
-            profile.papers.map((p) => (
-              <div key={p.id} className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
-                <div className="h-32 bg-gradient-to-br from-indigo-400 via-blue-500 to-purple-600" />
-                <div className="p-3">
-                  <div className="text-sm font-semibold text-zinc-900 line-clamp-2">{p.title}</div>
-                  <div className="mt-1 text-xs text-zinc-500 line-clamp-2">{p.description}</div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {p.tags.slice(0, 2).map((t) => (
-                      <span key={t} className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600">
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+        {profile.papers.length === 0 ? (
+          <p className="text-sm text-zinc-500">No published papers yet.</p>
+        ) : (
+          <ul className="grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-4">
+            {profile.papers.map((p, i) => (
+              <SuggestedPaperCard
+                key={p.id}
+                post={profilePaperToViewerPost(p, {
+                  fullName: profile.fullName,
+                  avatarUrl: profile.avatarUrl,
+                })}
+                eager={i < 4}
+              />
+            ))}
+          </ul>
+        )}
       </div>
       {chatOpen && profile && (
         <ChatModal
