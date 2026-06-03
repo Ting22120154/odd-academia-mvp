@@ -7,6 +7,7 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { OddAcademiaLogo } from "@/components/OddAcademiaLogo";
 import { useAuth, type AuthUser } from "@/context/AuthContext";
 
 type Mode = "login" | "signup";
@@ -24,12 +25,7 @@ function LeftPanel() {
     <div className="relative hidden w-[30%] min-w-[280px] overflow-hidden bg-[#2563EB] lg:flex lg:flex-col">
       {/* Logo */}
       <div className="relative z-10 p-8">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/odd-academia_logo.svg"
-          alt="odd Academia"
-          className="h-7 w-auto"
-        />
+        <OddAcademiaLogo variant="white" heightClass="h-7" />
       </div>
 
       {/* Decorative circles */}
