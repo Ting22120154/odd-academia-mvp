@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/auth/jwt";
 import { ok, err } from "@/lib/response";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { prisma } from "@/lib/prisma";
 
 // REALTIME: Notifications must update via WebSocket/SSE, not on page load only
@@ -9,8 +8,8 @@ import { prisma } from "@/lib/prisma";
 // This endpoint is polled by the admin bell — returns pending report counts + preview list.
 
 export async function GET(_req: NextRequest) {
-  const token = (await cookies()).get("oa_admin_token")?.value;
-  if (!token || !verifyToken(token)) return err("Unauthorised.", 401);
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
 
   const [commentCount, paperCount, userCount, recentComments] = await Promise.all([
     prisma.commentReport.count({ where: { status: "pending" } }),

@@ -65,28 +65,15 @@ export async function POST(req: NextRequest) {
   }
 
   if (type === "paper") {
-    const { paperId, paperTitle: clientTitle, subject, reason } = body as Record<string, string>;
-    if (!subject || !reason) {
-      return NextResponse.json({ error: "subject and reason are required." }, { status: 400 });
+    const { paperId, subject, reason } = body as Record<string, string>;
+    if (!paperId || !subject || !reason) {
+      return NextResponse.json({ error: "paperId, subject and reason are required." }, { status: 400 });
     }
-
-    let resolvedPaperId: string | null = null;
-    let resolvedTitle: string | null = clientTitle ?? null;
-
-    if (paperId) {
-      try {
-        const paper = await prisma.paper.findUnique({ where: { id: paperId }, select: { title: true } });
-        if (paper) {
-          resolvedPaperId = paperId;
-          resolvedTitle = paper.title;
-        }
-      } catch {
-        // Invalid UUID format or DB error — fall back to client-provided title snapshot
-      }
-    }
+    const paper = await prisma.paper.findUnique({ where: { id: paperId }, select: { title: true } }).catch(() => null);
+    if (!paper) return NextResponse.json({ error: "Paper not found." }, { status: 404 });
 
     const report = await prisma.paperReport.create({
-      data: { paperId: resolvedPaperId, paperTitle: resolvedTitle, reporterId, subject, reason },
+      data: { paperId, paperTitle: paper.title, reporterId, subject, reason },
     });
     return NextResponse.json(report, { status: 201 });
   }

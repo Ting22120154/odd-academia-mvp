@@ -1,11 +1,10 @@
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/auth/jwt";
 import { ok, err } from "@/lib/response";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const token = (await cookies()).get("oa_admin_token")?.value;
-  if (!token || !verifyToken(token)) return err("Unauthorised.", 401);
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
 
   const logs = await prisma.moderationLog.findMany({
     include: { admin: { select: { fullName: true } } },

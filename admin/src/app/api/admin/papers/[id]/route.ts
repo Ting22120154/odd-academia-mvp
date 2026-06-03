@@ -1,16 +1,15 @@
 import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/auth/jwt";
 import { ok, err } from "@/lib/response";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { prisma } from "@/lib/prisma";
 
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const token   = (await cookies()).get("oa_admin_token")?.value;
-  const payload = token ? verifyToken(token) : null;
-  if (!payload) return err("Unauthorised.", 401);
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { payload } = auth;
 
   const { id } = await params;
 

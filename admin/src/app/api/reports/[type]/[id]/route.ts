@@ -1,16 +1,15 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/auth/jwt";
 import { ok, err } from "@/lib/response";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ type: string; id: string }> },
 ) {
-  const token = (await cookies()).get("oa_admin_token")?.value;
-  if (!token || !verifyToken(token)) return err("Unauthorised.", 401);
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
 
   const { type, id } = await params;
   const body    = await req.json().catch(() => null);
@@ -73,7 +72,7 @@ export async function PATCH(
     // MODERATION: Admin notes and outcome must be persisted on the report record
     const adminNote = body?.adminNote as string | undefined;
     const outcome   = body?.outcome   as string | undefined;
-    const payload   = verifyToken(token)!;
+    const { payload } = auth;
 
     const report = await prisma.commentReport.findUnique({
       where:   { id },

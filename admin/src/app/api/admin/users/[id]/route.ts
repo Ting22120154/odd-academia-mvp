@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/auth/jwt";
 import { ok, err } from "@/lib/response";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { prisma } from "@/lib/prisma";
 
 // APPEAL INFO: Admin contact email must be surfaced in both email and UI error message
@@ -12,8 +11,8 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const token = (await cookies()).get("oa_admin_token")?.value;
-  if (!token || !verifyToken(token)) return err("Unauthorised.", 401);
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
 
   const { id } = await params;
 
@@ -48,9 +47,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const token   = (await cookies()).get("oa_admin_token")?.value;
-  const payload = token ? verifyToken(token) : null;
-  if (!payload) return err("Unauthorised.", 401);
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  const { payload } = auth;
 
   const { id }   = await params;
   const body     = await req.json().catch(() => null);

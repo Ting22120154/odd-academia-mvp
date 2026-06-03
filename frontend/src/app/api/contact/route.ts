@@ -7,6 +7,12 @@ export async function POST(req: NextRequest) {
   const payload = await getAuthPayload();
   if (!payload) return err("Must be logged in to send a message.", 401);
 
+  const sender = await prisma.user.findUnique({
+    where: { id: payload.sub },
+    select: { isBanned: true },
+  });
+  if (sender?.isBanned) return err("Account suspended.", 403);
+
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Invalid body." }, { status: 400 });

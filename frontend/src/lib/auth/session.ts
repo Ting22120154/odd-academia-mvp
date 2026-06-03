@@ -37,9 +37,6 @@ export const AUTH_USER_COOKIE = "auth-user-id";
 
 /** Read user id from request — checks JWT cookie first, then legacy bridge cookie. */
 export function getUserIdFromRequest(req: NextRequest): string | null {
-  const header = req.headers.get("x-user-id")?.trim();
-  if (header) return header;
-
   const cookieHeader = req.headers.get("cookie");
   if (!cookieHeader) return null;
 
@@ -79,9 +76,11 @@ export async function requireAuthUser(req: NextRequest): Promise<AuthResult> {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, fullName: true, avatarUrl: true, email: true, role: true },
+    select: { id: true, fullName: true, avatarUrl: true, email: true, role: true, isBanned: true },
   });
   if (!user) return { ok: false, error: "User not found", status: 401 };
+  if (user.isBanned) return { ok: false, error: "Account suspended. Contact support@oddacademia.com to appeal.", status: 403 };
 
-  return { ok: true, user };
+  const { isBanned: _banned, ...safeUser } = user;
+  return { ok: true, user: safeUser };
 }
