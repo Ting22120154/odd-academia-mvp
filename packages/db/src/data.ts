@@ -12,24 +12,37 @@
  */
 
 // ── Interests ────────────────────────────────────────────────────────────────
-// Matches prisma/seed.ts from addLoginPage branch
+// Names must match frontend PAPER_CATEGORIES (see categoryEmojis.ts).
+// After editing, re-seed: pnpm db:seed
 export const interests = [
   { name: "AI",                   icon: "🤖" },
+  { name: "Architecture",         icon: "🏛️" },
+  { name: "Arts",                 icon: "🎭" },
   { name: "Biohacking",           icon: "🧬" },
+  { name: "Biology",              icon: "🔬" },
   { name: "Business",             icon: "💼" },
+  { name: "Chemistry",            icon: "⚗️" },
+  { name: "Data Science",         icon: "📊" },
   { name: "Design",               icon: "🎨" },
+  { name: "Economics",            icon: "📈" },
   { name: "Education",            icon: "🎓" },
   { name: "Engineering/Robotics", icon: "⚙️" },
   { name: "Fashion",              icon: "👗" },
   { name: "Gastronomy",           icon: "🍳" },
   { name: "Health",               icon: "🏥" },
   { name: "History",              icon: "📜" },
+  { name: "Law",                  icon: "⚖️" },
   { name: "Lifestyle/Culture",    icon: "🌐" },
   { name: "Maths",                icon: "➗" },
   { name: "Music",                icon: "🎵" },
   { name: "Nature",               icon: "🌿" },
+  { name: "Philosophy",           icon: "📖" },
+  { name: "Physics",              icon: "⚛️" },
   { name: "Politics",             icon: "🗳️" },
   { name: "Pop Culture",          icon: "🎬" },
+  { name: "Psychology",           icon: "🧠" },
+  { name: "Science",              icon: "🔭" },
+  { name: "Sociology",            icon: "👥" },
   { name: "Sports",               icon: "⚽" },
   { name: "Technology",           icon: "💻" },
 ]
@@ -199,7 +212,7 @@ export const papers = [
     title:       "Sustainable Energy Practices in Urban Environments",
     abstract:    "This research paper thoroughly examines Sustainable Energy Practices in Urban Environments. It extensively discusses the challenges and opportunities associated with implementing sustainable energy systems in urban settings, taking into account factors like resource availability, infrastructure, and community engagement.",
     keywords:    ["Sustainable energy", "AI infrastructure", "Urban planning"],
-    categories:  ["Sustainable Energy"],
+    categories:  ["Nature"], // was "Sustainable Energy" — normalised to match PAPER_CATEGORIES
     publishedAt: new Date("2025-01-29"),
     viewCount:   3023,
   },
@@ -235,7 +248,7 @@ export const papers = [
     title:       "Biofuel Production Methods and Environmental Impact",
     abstract:    "Comparative analysis of first-, second-, and third-generation biofuel production pathways and their net environmental footprint.",
     keywords:    ["Biofuel", "Environment", "Life-cycle analysis"],
-    categories:  ["Sustainable Energy"],
+    categories:  ["Nature"], // was "Sustainable Energy" — normalised to match PAPER_CATEGORIES
     publishedAt: new Date("2025-01-29"),
     viewCount:   1700,
   },
@@ -244,7 +257,7 @@ export const papers = [
     title:       "Green Hydrogen: The Future of Clean Energy Storage",
     abstract:    "An overview of green hydrogen production via electrolysis and its role in solving long-duration energy storage challenges.",
     keywords:    ["Hydrogen", "Clean energy", "Electrolysis"],
-    categories:  ["Sustainable Energy"],
+    categories:  ["Nature"], // was "Sustainable Energy" — normalised to match PAPER_CATEGORIES
     publishedAt: new Date("2025-01-29"),
     viewCount:   1500,
   },
@@ -253,7 +266,7 @@ export const papers = [
     title:       "Carbon Capture Technologies for Urban Industrial Areas",
     abstract:    "Review of direct air capture and point-source capture technologies applicable in urban industrial corridors.",
     keywords:    ["Carbon capture", "Industry", "Climate"],
-    categories:  ["Sustainable Energy"],
+    categories:  ["Nature"], // was "Sustainable Energy" — normalised to match PAPER_CATEGORIES
     publishedAt: new Date("2025-01-29"),
     viewCount:   1350,
   },
@@ -262,7 +275,7 @@ export const papers = [
     title:       "Smart Grid Technology and Urban Energy Efficiency",
     abstract:    "How AI-driven smart grid systems are optimising real-time energy distribution and reducing waste in modern cities.",
     keywords:    ["Smart grid", "AI", "Energy efficiency"],
-    categories:  ["Sustainable Energy"],
+    categories:  ["Nature"], // was "Sustainable Energy" — normalised to match PAPER_CATEGORIES
     publishedAt: new Date("2025-01-29"),
     viewCount:   1200,
   },
@@ -271,7 +284,7 @@ export const papers = [
     title:       "Urban Heat Islands and Passive Cooling Strategies",
     abstract:    "Analysis of the urban heat island effect and evidence-based passive cooling design strategies for architects and city planners.",
     keywords:    ["Urban heat", "Passive cooling", "Architecture"],
-    categories:  ["Sustainable Energy"],
+    categories:  ["Nature"], // was "Sustainable Energy" — normalised to match PAPER_CATEGORIES
     publishedAt: new Date("2025-01-29"),
     viewCount:   1000,
   },

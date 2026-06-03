@@ -1,21 +1,33 @@
 /** Fixed category list used across the app (home filter, submit form, paper mapping). */
 export const PAPER_CATEGORIES = [
   "AI",
+  "Architecture",
+  "Arts",
   "Biohacking",
+  "Biology",
   "Business",
+  "Chemistry",
+  "Data Science",
   "Design",
+  "Economics",
   "Education",
   "Engineering/Robotics",
   "Fashion",
   "Gastronomy",
   "Health",
   "History",
+  "Law",
   "Lifestyle/Culture",
   "Maths",
   "Music",
   "Nature",
+  "Philosophy",
+  "Physics",
   "Politics",
   "Pop Culture",
+  "Psychology",
+  "Science",
+  "Sociology",
   "Sports",
   "Technology",
 ] as const;
@@ -34,8 +46,20 @@ const CATEGORY_ALIASES: Record<string, PaperCategory> = {
   "artificial intelligence": "AI",
   "ai infrastructure": "AI",
   "ai infrastructure.": "AI",
+  "machine learning": "AI",
+  "data science": "Data Science",
+  analytics: "Data Science",
+  architecture: "Architecture",
+  arts: "Arts",
+  art: "Arts",
+  humanities: "Arts",
   biohacking: "Biohacking",
+  biology: "Biology",
+  "life sciences": "Biology",
   business: "Business",
+  finance: "Economics",
+  economics: "Economics",
+  chemistry: "Chemistry",
   design: "Design",
   education: "Education",
   "engineering/robotics": "Engineering/Robotics",
@@ -45,7 +69,10 @@ const CATEGORY_ALIASES: Record<string, PaperCategory> = {
   gastronomy: "Gastronomy",
   food: "Gastronomy",
   health: "Health",
+  medicine: "Health",
   history: "History",
+  law: "Law",
+  legal: "Law",
   "lifestyle/culture": "Lifestyle/Culture",
   lifestyle: "Lifestyle/Culture",
   culture: "Lifestyle/Culture",
@@ -58,8 +85,13 @@ const CATEGORY_ALIASES: Record<string, PaperCategory> = {
   "sustainable energy": "Nature",
   "sustainable energy practices": "Nature",
   environment: "Nature",
+  philosophy: "Philosophy",
+  physics: "Physics",
   politics: "Politics",
   "pop culture": "Pop Culture",
+  psychology: "Psychology",
+  science: "Science",
+  sociology: "Sociology",
   sports: "Sports",
   technology: "Technology",
   "computer science": "Technology",
@@ -83,15 +115,25 @@ export function normalizeCategory(value: string): PaperCategory | null {
   return null;
 }
 
+/** Primary category for card header icon (first match from paper data). */
+export function getPrimaryPaperCategory(
+  categories: string[] = [],
+  keywords: string[] = [],
+  subject?: string,
+): PaperCategory | null {
+  const fromPaper = getPaperBrowseCategories(categories, keywords);
+  if (fromPaper.length > 0) return fromPaper[0];
+  if (subject) return normalizeCategory(subject);
+  return null;
+}
+
 /** All raw category strings in the DB that should match a canonical category. */
 export function getCategoryDbAliases(canonical: PaperCategory): string[] {
   const out = new Set<string>([canonical]);
   for (const [alias, target] of Object.entries(CATEGORY_ALIASES)) {
     if (target === canonical) {
       out.add(alias);
-      out.add(
-        alias.replace(/\b\w/g, (c) => c.toUpperCase()),
-      );
+      out.add(alias.replace(/\b\w/g, (c) => c.toUpperCase()));
     }
   }
   return [...out];

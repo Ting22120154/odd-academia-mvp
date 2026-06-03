@@ -359,6 +359,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1147,6 +1148,20 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
           </section>
         </div>
       </div>
+
+      <ReportModal
+        open={reportingCommentId !== null}
+        onClose={() => setReportingCommentId(null)}
+        onSubmit={(draft) => {
+          void fetch(`/api/comments/${reportingCommentId}/report`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ reason: `${draft.subject}: ${draft.description}` }),
+          }).catch(() => null);
+          setReportingCommentId(null);
+        }}
+      />
     </div>
   );
 }
