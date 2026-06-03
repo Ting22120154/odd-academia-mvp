@@ -10,7 +10,13 @@ import { verifyTokenEdge } from "@/lib/auth/jwt-edge";
 import { USER_TOKEN_COOKIE, AUTH_SESSION_COOKIE } from "@/lib/auth/session";
 
 const PUBLIC_ROUTES = ["/login"];
-const AUTH_ONLY_PREFIXES = ["/profile", "/notifications", "/upload", "/following"];
+const AUTH_ONLY_PREFIXES = [
+  "/profile",
+  "/notifications",
+  "/saved-papers",
+  "/upload",
+  "/following",
+];
 
 async function getSession(req: NextRequest) {
   const token = req.cookies.get(USER_TOKEN_COOKIE)?.value;
@@ -34,7 +40,6 @@ export async function proxy(request: NextRequest) {
   }
 
   if (PUBLIC_ROUTES.includes(pathname)) {
-    if (isLoggedIn) return NextResponse.redirect(new URL("/", request.url));
     return NextResponse.next();
   }
 

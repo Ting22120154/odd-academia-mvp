@@ -312,12 +312,16 @@ export interface FrontendViewerPost {
   authorId?:            string
   authorName:           string
   authorAvatarUrl?:     string
+  authorBio?:           string
   subject:              string
   categories?:          string[]
   tags?:                string[]
   fileUrl?:             string
   fileType?:            "pdf" | "docx" | "doc" | "unknown"
   headerGradientClass?: string
+  publishedAt?:         string
+  citationCount?:       number
+  viewCount?:           number
 }
 
 export const mockFrontendViewerPosts: FrontendViewerPost[] = papers.map((p, i) => ({
