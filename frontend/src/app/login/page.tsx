@@ -51,6 +51,7 @@ function LoginPageInner() {
   const [linkedinNotice, setLinkedinNotice] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState("");
+  const [suspensionInfo, setSuspensionInfo] = useState<{ message: string; appealEmail: string } | null>(null);
 
   // Login fields + errors
   const [email, setEmail] = useState("");
@@ -104,6 +105,7 @@ function LoginPageInner() {
     }
     setLoginErrors({});
     setFormError("");
+    setSuspensionInfo(null);
     setLoading(true);
     try {
       const res = await fetch("/api/auth/login", {
@@ -113,6 +115,13 @@ function LoginPageInner() {
         body: JSON.stringify({ email: email.trim(), password }),
       });
       const json = await res.json();
+      if (res.status === 403) {
+        setSuspensionInfo({
+          message: json.error ?? "Your account has been suspended.",
+          appealEmail: "support@oddacademia.com",
+        });
+        return;
+      }
       if (!json.success) {
         setFormError(json.error ?? "Login failed.");
         return;
@@ -216,6 +225,22 @@ function LoginPageInner() {
           {isGuestLimit && (
             <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               You&apos;ve reached your 5 free article limit. Sign up or log in to keep reading.
+            </div>
+          )}
+
+          {suspensionInfo && (
+            <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
+              <p className="font-semibold mb-1">Account Suspended</p>
+              <p>{suspensionInfo.message}</p>
+              <p className="mt-2 text-xs text-red-600">
+                To appeal, contact:{" "}
+                <a
+                  href={`mailto:${suspensionInfo.appealEmail}`}
+                  className="font-medium underline hover:text-red-800"
+                >
+                  {suspensionInfo.appealEmail}
+                </a>
+              </p>
             </div>
           )}
 

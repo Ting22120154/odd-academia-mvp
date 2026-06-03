@@ -8,7 +8,6 @@ import { EmbeddedPdfViewer } from "@/app/paper/_components/EmbeddedPdfViewer";
 import { GuestTracker } from "@/app/paper/_components/GuestTracker";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
-import { notifySavedPapersChanged } from "@/lib/saved-papers-events";
 import {
   createComment as createCommentApi,
   deleteComment as deleteCommentApi,
@@ -17,11 +16,6 @@ import {
   unlikeComment as unlikeCommentApi,
   updateComment as updateCommentApi,
 } from "@/lib/comments-client";
-import {
-  fetchPaperSaveStatus,
-  savePaper as savePaperApi,
-  unsavePaper as unsavePaperApi,
-} from "@/lib/saved-papers-client";
 import type { CommentResponse } from "@/modules/comments/types";
 import { isValidUserId } from "@/lib/auth/user-id";
 import { fetchFollowStatus, toggleFollow } from "@/lib/follow-client";
@@ -238,10 +232,14 @@ function ReportModal({
   open,
   onClose,
   onSubmit,
+  title,
+  description,
 }: {
   open: boolean;
   onClose: () => void;
   onSubmit: (draft: ReportDraft) => void;
+  title: string;
+  description: string;
 }) {
   const [draft, setDraft] = useState<ReportDraft>({ subject: "", description: "" });
 
@@ -258,10 +256,10 @@ function ReportModal({
         <div className="flex items-start justify-between gap-4">
           <div>
             <div id="report-title" className="text-base font-semibold text-zinc-900">
-              Report comment
+              {title}
             </div>
             <div className="mt-1 text-sm text-zinc-500">
-              Help us understand what went wrong.
+              {description}
             </div>
           </div>
           <button
@@ -319,6 +317,35 @@ function ReportModal({
   );
 }
 
+function formatPaperDate(value?: string) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+  });
+}
+
+function PlusIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+      <path d="M12 8v8M8 12h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PersonIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="2" />
+      <path d="M5 20c0-3.3 3.1-5 7-5s7 1.7 7 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: Props) {
   const router = useRouter();
   const { showToast } = useToast();
@@ -350,16 +377,14 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   const [paperFollowerCount, setPaperFollowerCount] = useState(0);
   const [followPaperBusy, setFollowPaperBusy] = useState(false);
   const [followAuthor, setFollowAuthor] = useState(false);
+  const [authorFollowerCount, setAuthorFollowerCount] = useState(0);
   const [followAuthorBusy, setFollowAuthorBusy] = useState(false);
-  const [paperSaved, setPaperSaved] = useState(false);
-  const [saveStatusLoading, setSaveStatusLoading] = useState(false);
-  const [saveActionLoading, setSaveActionLoading] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [comments, setComments] = useState<UiComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
+  const [reportingPaper, setReportingPaper] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -373,14 +398,17 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   }, [post.id]);
 
   useEffect(() => {
-    if (!isLoggedIn || !canFollowAuthor || !authorId) {
+    if (!authorId || !isValidUserId(authorId)) {
       setFollowAuthor(false);
+      setAuthorFollowerCount(0);
       return;
     }
     let cancelled = false;
     (async () => {
-      const { isFollowing } = await fetchFollowStatus(authorId);
-      if (!cancelled) setFollowAuthor(!!isFollowing);
+      const { isFollowing, followerCount } = await fetchFollowStatus(authorId);
+      if (cancelled) return;
+      setFollowAuthor(isLoggedIn && canFollowAuthor ? !!isFollowing : false);
+      if (typeof followerCount === "number") setAuthorFollowerCount(followerCount);
     })();
     return () => { cancelled = true; };
   }, [isLoggedIn, authorId, canFollowAuthor]);
@@ -391,11 +419,24 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
     setFollowAuthorBusy(true);
     const { isFollowing, error } = await toggleFollow(authorId, followAuthor);
     setFollowAuthorBusy(false);
-    if (!error && typeof isFollowing === "boolean") setFollowAuthor(isFollowing);
+    if (!error && typeof isFollowing === "boolean") {
+      setFollowAuthor(isFollowing);
+      setAuthorFollowerCount((c) => Math.max(0, c + (isFollowing ? 1 : -1)));
+    }
   }, [authorId, canFollowAuthor, followAuthor, followAuthorBusy, isLoggedIn, router]);
 
-  const followAuthorLabel = followAuthorBusy ? "…" : followAuthor ? "Unfollow" : "Follow Author";
-  const followAuthorSidebarLabel = followAuthorBusy ? "…" : followAuthor ? "Unfollow" : "Follow";
+  const followAuthorSidebarLabel = followAuthorBusy ? "…" : followAuthor ? "Following" : "Follow";
+  const followPaperLabel = followPaperBusy ? "…" : followPaper ? "Following Paper" : "Follow Paper";
+  const followAuthorMainLabel = followAuthorBusy ? "…" : followAuthor ? "Following Author" : "Follow Author";
+
+  const contributorLine = (post.contributors ?? []).length
+    ? `Contributions by ${(post.contributors ?? []).join(", ")}`
+    : null;
+  const metaTags = [
+    formatPaperDate(post.publishedAt),
+    ...(post.tags ?? post.categories ?? []).slice(0, 2),
+  ].filter(Boolean);
+  const authorProfileHref = authorId && isValidUserId(authorId) ? `/user/${authorId}` : null;
 
   const handleFollowPaper = useCallback(async () => {
     if (followPaperBusy) return;
@@ -408,8 +449,6 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
       if (typeof followerCount === "number") setPaperFollowerCount(followerCount);
     }
   }, [followPaper, followPaperBusy, isLoggedIn, post.id, router]);
-
-  const followPaperLabel = followPaperBusy ? "…" : followPaper ? "Unfollow Paper" : "Follow Paper";
 
   const [composer, setComposer] = useState("");
   const [composerCitation, setComposerCitation] = useState("");
@@ -469,55 +508,6 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
     const retry = window.setTimeout(scrollToComment, 400);
     return () => window.clearTimeout(retry);
   }, [commentsLoading, comments]);
-
-  const loadSaveStatus = useCallback(async () => {
-    if (!commentsPaperId || !isLoggedIn) {
-      setPaperSaved(false);
-      return;
-    }
-    setSaveStatusLoading(true);
-    setSaveError(null);
-    const status = await fetchPaperSaveStatus(commentsPaperId);
-    setSaveStatusLoading(false);
-    if (status) setPaperSaved(status.saved);
-  }, [commentsPaperId, isLoggedIn]);
-
-  useEffect(() => {
-    void loadSaveStatus();
-  }, [loadSaveStatus]);
-
-  async function toggleSavePaper() {
-    if (!commentsPaperId) {
-      const msg = "Save is not available for this paper yet.";
-      setSaveError(msg);
-      showToast(msg, "error");
-      return;
-    }
-    if (!isLoggedIn) {
-      const msg = "Login to save papers.";
-      setSaveError(msg);
-      showToast(msg, "error");
-      return;
-    }
-    setSaveActionLoading(true);
-    setSaveError(null);
-    const result = paperSaved
-      ? await unsavePaperApi(commentsPaperId)
-      : await savePaperApi(commentsPaperId);
-    setSaveActionLoading(false);
-    if (!result.ok) {
-      setSaveError(result.error);
-      showToast(result.error, "error");
-      return;
-    }
-    setPaperSaved(result.saved);
-    setSaveError(null);
-    notifySavedPapersChanged();
-    showToast(
-      result.saved ? "Paper saved to your library" : "Removed from saved papers",
-      "success",
-    );
-  }
 
   const related = relatedPosts;
 
@@ -653,6 +643,38 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
     await loadComments();
   }
 
+  async function submitReport(commentId: string, draft: ReportDraft) {
+    const reason = [draft.subject, draft.description].filter(Boolean).join(": ");
+    await fetch("/api/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ type: "comment", commentId, reason }),
+    }).catch(() => null);
+    setReportingCommentId(null);
+    showToast("Report submitted. Our team will review it.", "success");
+  }
+
+  async function submitPaperReport(draft: ReportDraft) {
+    const reason = draft.description.trim();
+    const subject = draft.subject.trim();
+    if (!commentsPaperId) return;
+    const res = await fetch("/api/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        type: "paper",
+        paperId: commentsPaperId,
+        subject,
+        reason,
+      }),
+    });
+    setReportingPaper(false);
+    if (res.ok) showToast("Report submitted. Our team will review it.", "success");
+    else showToast("Could not submit report. Please try again.", "error");
+  }
+
   return (
     <div className="space-y-6">
       {/* Tracks guest article views and enforces the 5-article limit */}
@@ -665,17 +687,27 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
         <aside className="space-y-4">
           <section className="rounded-2xl border border-black/[0.06] bg-white p-5 shadow-[var(--shadow-sm)]">
             <div className="flex items-start gap-3">
-              <div className="h-12 w-12 overflow-hidden rounded-full bg-zinc-200" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={post.authorAvatarUrl ?? "/avatars/profile.svg"}
+                alt=""
+                className="h-14 w-14 shrink-0 rounded-full object-cover bg-zinc-200"
+              />
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-zinc-900">{post.authorName}</div>
+                {post.authorJobTitle ? (
+                  <div className="text-xs text-zinc-500">{post.authorJobTitle}</div>
+                ) : null}
               </div>
             </div>
             {post.authorBio ? (
-              <p className="mt-3 text-sm leading-6 text-zinc-500">{post.authorBio}</p>
+              <p className="mt-3 line-clamp-4 text-sm leading-6 text-zinc-500">{post.authorBio}</p>
             ) : null}
-            <Link href="#" className={`text-sm font-semibold text-[var(--brand)] ${linkHover}`}>
-              Read More…
-            </Link>
+            {authorProfileHref ? (
+              <Link href={authorProfileHref} className={`mt-2 inline-block text-sm font-semibold text-[var(--brand)] ${linkHover}`}>
+                Read More…
+              </Link>
+            ) : null}
 
             <div className="mt-4">
               {isLoggedIn && canFollowAuthor ? (
@@ -692,7 +724,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                   href="/login"
                   className={`inline-flex h-10 w-full items-center justify-center rounded-xl bg-[var(--brand)] text-sm font-medium text-white ${brandButtonHover}`}
                 >
-                  Login to Follow
+                  Follow
                 </Link>
               ) : null}
             </div>
@@ -737,70 +769,96 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={post.authorAvatarUrl ?? "/avatars/profile.svg"}
-                alt=""
-                className="h-9 w-9 shrink-0 rounded-full object-cover bg-zinc-200"
-              />
-              <p className="text-sm text-zinc-600">
-                Authored by{" "}
-                <span className="font-semibold text-zinc-900">{post.authorName}</span>
-              </p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={post.authorAvatarUrl ?? "/avatars/profile.svg"}
+                  alt=""
+                  className="h-9 w-9 shrink-0 rounded-full object-cover bg-zinc-200"
+                />
+                <p className="text-sm text-zinc-600">
+                  Authored by{" "}
+                  {authorProfileHref ? (
+                    <Link href={authorProfileHref} className="font-semibold text-zinc-900 hover:underline">
+                      {post.authorName}
+                    </Link>
+                  ) : (
+                    <span className="font-semibold text-zinc-900">{post.authorName}</span>
+                  )}
+                </p>
+              </div>
+              {contributorLine ? (
+                <p className="text-sm text-zinc-500">{contributorLine}</p>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Chip icon="📅">{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString() : "—"}</Chip>
-              <Chip icon="✦">{(post.tags ?? [])[0] ?? post.subject ?? "AI infrastructure"}</Chip>
+              {metaTags.map((tag, i) => (
+                <Chip key={`${tag}-${i}`} icon={i === 0 ? "📅" : i === 1 ? "🌿" : "✦"}>
+                  {tag}
+                </Chip>
+              ))}
             </div>
 
-            {/* Follow + save row (login-gated). */}
+            {/* Figma: Follow Paper + Follow Author side by side */}
             {isLoggedIn ? (
-              <div className="space-y-2">
-                {paperSaved ? (
-                  <div className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 text-sm font-semibold text-emerald-700 cursor-default select-none">
-                    ✓ Paper Saved
-                  </div>
-                ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <PrimaryButton
-                    onClick={() => void toggleSavePaper()}
-                    disabled={!commentsPaperId || saveStatusLoading || saveActionLoading}
-                    className="w-full justify-center"
+                    onClick={() => void handleFollowPaper()}
+                    disabled={followPaperBusy}
+                    aria-pressed={followPaper}
+                    className="w-full justify-between px-4"
                   >
-                    {saveActionLoading ? "Saving…" : saveStatusLoading ? "Loading…" : "☆ Save Paper"}
+                    <span className="flex items-center gap-2">
+                      <PlusIcon />
+                      {followPaperLabel}
+                    </span>
+                    <span className="text-white/90">{paperFollowerCount}</span>
                   </PrimaryButton>
-                )}
-                {saveError ? (
-                  <p className="text-xs text-red-600">{saveError}</p>
-                ) : null}
-                <PrimaryButton
-                  onClick={() => void handleFollowPaper()}
-                  disabled={followPaperBusy}
-                  aria-pressed={followPaper}
-                  className="justify-between"
-                >
-                  <span className="flex items-center gap-2">⤴ {followPaperLabel}</span>
-                  <span className="text-white/90">{paperFollowerCount}</span>
-                </PrimaryButton>
-                {canFollowAuthor ? (
-                  <PrimaryButton
-                    onClick={() => void handleFollowAuthor()}
-                    disabled={followAuthorBusy}
-                    aria-pressed={followAuthor}
-                    className="justify-between"
+                  {canFollowAuthor ? (
+                    <PrimaryButton
+                      onClick={() => void handleFollowAuthor()}
+                      disabled={followAuthorBusy}
+                      aria-pressed={followAuthor}
+                      className="w-full justify-between px-4"
+                    >
+                      <span className="flex items-center gap-2">
+                        <PersonIcon />
+                        {followAuthorMainLabel}
+                      </span>
+                      <span className="text-white/90">{authorFollowerCount}</span>
+                    </PrimaryButton>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-4 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setReportingPaper(true)}
+                    className="font-medium text-zinc-500 hover:text-zinc-800 hover:underline"
                   >
-                    <span className="flex items-center gap-2">👤 {followAuthorLabel}</span>
-                  </PrimaryButton>
-                ) : null}
+                    Report paper
+                  </button>
+                </div>
               </div>
             ) : (
-              <Link
-                href="/login"
-                className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-[var(--brand)] text-sm font-medium text-[var(--brand)] hover:bg-[rgba(0,102,255,0.04)]"
-              >
-                Login to save this paper
-              </Link>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Link
+                  href="/login"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 text-sm font-medium text-white hover:opacity-95"
+                >
+                  <PlusIcon />
+                  Follow Paper
+                </Link>
+                <Link
+                  href="/login"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 text-sm font-medium text-white hover:opacity-95"
+                >
+                  <PersonIcon />
+                  Follow Author
+                </Link>
+              </div>
             )}
           </section>
 
@@ -1152,15 +1210,16 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
       <ReportModal
         open={reportingCommentId !== null}
         onClose={() => setReportingCommentId(null)}
-        onSubmit={(draft) => {
-          void fetch(`/api/comments/${reportingCommentId}/report`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ reason: `${draft.subject}: ${draft.description}` }),
-          }).catch(() => null);
-          setReportingCommentId(null);
-        }}
+        title="Report comment"
+        description="Help us understand what went wrong."
+        onSubmit={(draft) => void submitReport(reportingCommentId ?? "", draft)}
+      />
+      <ReportModal
+        open={reportingPaper}
+        onClose={() => setReportingPaper(false)}
+        title="Report paper"
+        description="Tell us why this paper should be reviewed."
+        onSubmit={(draft) => void submitPaperReport(draft)}
       />
     </div>
   );

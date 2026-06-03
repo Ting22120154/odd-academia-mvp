@@ -10,8 +10,9 @@
 
 import jwt from "jsonwebtoken";
 
-// Falls back to a dev-only secret if JWT_SECRET is not set in the environment
-const SECRET = process.env.JWT_SECRET ?? "oa-admin-dev-secret";
+const SECRET = process.env.JWT_SECRET;
+if (!SECRET) throw new Error("JWT_SECRET environment variable is required");
+const JWT_SECRET: string = SECRET;
 
 /** Shape of the data encoded inside every admin JWT */
 export interface TokenPayload {
@@ -25,7 +26,7 @@ export interface TokenPayload {
  * Called by the login route after credentials are verified.
  */
 export function signToken(payload: TokenPayload): string {
-  return jwt.sign(payload, SECRET, { expiresIn: "1d" });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "1d" });
 }
 
 /**
@@ -34,7 +35,7 @@ export function signToken(payload: TokenPayload): string {
  */
 export function verifyToken(token: string): TokenPayload | null {
   try {
-    return jwt.verify(token, SECRET) as TokenPayload;
+    return jwt.verify(token, JWT_SECRET) as TokenPayload;
   } catch {
     // Covers expired tokens, wrong signature, malformed tokens, etc.
     return null;

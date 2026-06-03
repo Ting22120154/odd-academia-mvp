@@ -53,14 +53,17 @@ function Calendar() {
 // TODO: wire "Remove Comment" to DELETE /api/comments/:id
 // ---------------------------------------------------------------------------
 function ReportCommentModal({
+  commentId,
   onKeep,
   onRemove,
 }: {
-  onKeep:   () => void;
-  onRemove: () => void;
+  commentId: string;
+  onKeep:    () => void;
+  onRemove:  () => void;
 }) {
   const [subject,     setSubject]     = useState("");
   const [description, setDescription] = useState("");
+  const [busy,        setBusy]        = useState(false);
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -105,12 +108,17 @@ function ReportCommentModal({
           >
             Keep Comment
           </button>
-          {/* Remove Comment — TODO: call DELETE /api/comments/:id */}
           <button
-            onClick={onRemove}
-            className="flex-1 py-2 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              await fetch(`/api/admin/comments/${commentId}`, { method: "DELETE" });
+              setBusy(false);
+              onRemove();
+            }}
+            className="flex-1 py-2 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600 disabled:opacity-60"
           >
-            Remove Comment
+            {busy ? "Removing…" : "Remove Comment"}
           </button>
         </div>
       </div>
@@ -438,9 +446,9 @@ export default function PaperDetailPage() {
       {/* Report Comment modal — opens when admin clicks a Pending Review badge */}
       {reportTarget !== null && (
         <ReportCommentModal
+          commentId={reportTarget}
           onKeep={() => setReportTarget(null)}
           onRemove={() => {
-            // TODO: call DELETE /api/comments/:id (reportTarget) once backend is ready
             setComments(prev => prev.map(c => ({
               ...c,
               replies: c.replies.filter(r => r.id !== reportTarget),

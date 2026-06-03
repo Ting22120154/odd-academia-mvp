@@ -11,7 +11,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <TopNav isLoggedIn={isLoggedIn} />
+      <TopNav />
       <main className="mx-auto w-full max-w-[var(--page-max)] px-6 py-6">{children}</main>
     </div>
   );

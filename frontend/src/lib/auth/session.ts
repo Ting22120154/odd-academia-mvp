@@ -29,17 +29,15 @@ export function attachSessionCookies(res: NextResponse, payload: TokenPayload) {
 export function clearSessionCookies(res: NextResponse) {
   res.cookies.set(USER_TOKEN_COOKIE, "", sessionCookieOptions(0));
   res.cookies.set(AUTH_SESSION_COOKIE, "", sessionCookieOptions(0));
+  res.cookies.set(AUTH_USER_COOKIE, "", sessionCookieOptions(0));
   return res;
 }
 
-// ─── Legacy bridge session (comment / saved-paper / notification APIs) ────────
+// ─── Legacy bridge session (comment / notification APIs) ────────
 export const AUTH_USER_COOKIE = "auth-user-id";
 
 /** Read user id from request — checks JWT cookie first, then legacy bridge cookie. */
 export function getUserIdFromRequest(req: NextRequest): string | null {
-  const header = req.headers.get("x-user-id")?.trim();
-  if (header) return header;
-
   const cookieHeader = req.headers.get("cookie");
   if (!cookieHeader) return null;
 
@@ -56,8 +54,11 @@ export function getUserIdFromRequest(req: NextRequest): string | null {
     if (payload?.sub) return payload.sub;
   }
 
-  // Fallback: legacy bridge cookie
-  return cookies[AUTH_USER_COOKIE] || null;
+  // Legacy bridge cookie — dev only (bridge route returns 404 in production)
+  if (!IS_PROD) {
+    return cookies[AUTH_USER_COOKIE] || null;
+  }
+  return null;
 }
 
 type AuthUser = {
@@ -79,9 +80,11 @@ export async function requireAuthUser(req: NextRequest): Promise<AuthResult> {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, fullName: true, avatarUrl: true, email: true, role: true },
+    select: { id: true, fullName: true, avatarUrl: true, email: true, role: true, isBanned: true },
   });
   if (!user) return { ok: false, error: "User not found", status: 401 };
+  if (user.isBanned) return { ok: false, error: "Account suspended. Contact support@oddacademia.com to appeal.", status: 403 };
 
-  return { ok: true, user };
+  const { isBanned: _banned, ...safeUser } = user;
+  return { ok: true, user: safeUser };
 }

@@ -22,7 +22,6 @@ export type ProfileUser = {
     followers: number;
     following: number;
     citedComments: number;
-    savedPapers: number;
   };
   papers: { id: string; title: string; description: string; tags: string[] }[];
   isOwnProfile: boolean;

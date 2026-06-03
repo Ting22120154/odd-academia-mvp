@@ -1,23 +1,25 @@
 "use client";
 
-/**
- * Users list page — matches Figma design.
- *
- * TODO (backend integration):
- *   - Replace HARDCODED_USERS with a fetch to GET /api/users?page=&limit=&search=
- *   - Wire Suspend action to PATCH /api/users/:id  { status: "suspended" }
- *   - Wire Activate action to PATCH /api/users/:id { status: "active" }
- *   - Wire Remove action to DELETE /api/users/:id
- *   - Replace client-side search filter with a debounced API query param
- *   - Replace Show More with real pagination against the API total count
- */
-
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { mockAdminUsers, type AdminUser as User } from "@odd-academia/db";
+
+type Status = "Active" | "Suspended";
+
+type DbUser = {
+  id:        string;
+  fullName:  string;
+  email:     string;
+  username:  string;
+  jobTitle:  string | null;
+  createdAt: string;
+  isBanned:  boolean;
+  warnCount: number;
+  role:      string;
+  _count: { papers: number; followers: number; following: number };
+};
 
 // ---------------------------------------------------------------------------
-// Inline Calendar (same pattern as Dashboard and Papers pages)
+// Inline Calendar
 // ---------------------------------------------------------------------------
 const CAL_DAYS   = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 const CAL_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -63,8 +65,6 @@ function Calendar() {
 // ---------------------------------------------------------------------------
 // Sort icon
 // ---------------------------------------------------------------------------
-type Status = User["status"];
-
 function SortIcon() {
   return (
     <svg className="inline ml-1 w-3 h-3 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -79,60 +79,71 @@ function SortIcon() {
 function StatusBadge({ status }: { status: Status }) {
   const colour: Record<Status, string> = {
     Active:    "text-green-600",
-    Inactive:  "text-gray-400",
     Suspended: "text-red-500",
   };
   return <span className={`text-xs font-medium ${colour[status]}`}>{status}</span>;
 }
 
+function toStatus(isBanned: boolean): Status {
+  return isBanned ? "Suspended" : "Active";
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
-const INITIAL_ROWS = 5;
+const PAGE_LIMIT = 20;
 
 export default function UsersPage() {
   const router = useRouter();
 
-  // TODO (backend): replace with fetch to GET /api/users?page=&limit=&search=
-  const [users]        = useState<User[]>(mockAdminUsers);
+  const [users,        setUsers]        = useState<DbUser[]>([]);
+  const [total,        setTotal]        = useState(0);
+  const [page,         setPage]         = useState(1);
   const [search,       setSearch]       = useState("");
+  const [loading,      setLoading]      = useState(true);
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [showAll,      setShowAll]      = useState(false);
 
-  // Client-side search filter — replace with API debounce once backend is ready
-  const filtered = users.filter(u =>
-    u.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const fetchUsers = useCallback(async (q: string, p: number, append = false) => {
+    setLoading(true);
+    const params = new URLSearchParams({ search: q, page: String(p), limit: String(PAGE_LIMIT) });
+    try {
+      const res  = await fetch(`/api/admin/users?${params.toString()}`);
+      const json = await res.json() as { success: boolean; data: { users: DbUser[]; total: number } };
+      if (json.success) {
+        setUsers(prev => append ? [...prev, ...json.data.users] : json.data.users);
+        setTotal(json.data.total);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const visible = showAll ? filtered : filtered.slice(0, INITIAL_ROWS);
+  // Debounced search — reset to page 1 on each new query
+  useEffect(() => {
+    setPage(1);
+    const timer = setTimeout(() => { void fetchUsers(search, 1, false); }, 300);
+    return () => clearTimeout(timer);
+  }, [search, fetchUsers]);
+
+  function loadMore() {
+    const next = page + 1;
+    setPage(next);
+    void fetchUsers(search, next, true);
+  }
+
+  const hasMore = users.length < total;
 
   return (
     <div>
-      {/* ── Placeholder notice for reviewers ─────────────────────────────────
-          This banner is intentional — it signals that the UI is wired up and
-          ready, but live data requires the backend API (GET /api/users) and
-          Prisma database to be connected. Remove this banner once the API is
-          integrated.
-      ────────────────────────────────────────────────────────────────────── */}
-      <div className="mb-5 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
-        <span className="mt-0.5 text-base">🚧</span>
-        <div>
-          <p className="font-semibold">UI Placeholder — Backend Integration Pending</p>
-          <p className="text-amber-700 mt-0.5">
-            The table below uses hardcoded sample data that matches the Figma design.
-            Once <code className="bg-amber-100 rounded px-1">GET /api/users</code> is connected,
-            real users will appear here and all actions (Suspend, Activate, Remove) will
-            persist to the database. Search and Show More will also switch to server-side pagination.
-          </p>
-        </div>
-      </div>
-
       {/* ── Header ── */}
       <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
         <h1 className="text-2xl font-bold text-gray-900">Users</h1>
 
         <div className="flex items-center gap-3">
-          {/* Search — currently filters hardcoded data client-side */}
           <div className="relative">
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -141,12 +152,11 @@ export default function UsersPage() {
               type="text"
               placeholder="Search..."
               value={search}
-              onChange={e => { setSearch(e.target.value); setShowAll(false); }}
+              onChange={e => setSearch(e.target.value)}
               className="pl-9 pr-4 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0066ff]/30 focus:border-[#0066ff] w-48"
             />
           </div>
 
-          {/* Date range filter — calendar is cosmetic only until backend date filtering is added */}
           <div className="relative">
             <button
               onClick={() => setCalendarOpen(o => !o)}
@@ -175,60 +185,71 @@ export default function UsersPage() {
       {/* ── Table ── */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[650px]">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
-              {/* TODO: add server-side sort once API supports ?sortBy=&sortDir= */}
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Name <SortIcon /></th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Registered Date</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">No. Papers Published</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Following</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Followers</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {visible.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="text-center py-12 text-gray-400">No users found.</td>
+          <table className="w-full text-sm min-w-[650px]">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Name <SortIcon /></th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Registered Date</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">No. Papers Published</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Following</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Followers</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Warnings</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                <th className="px-4 py-3" />
               </tr>
-            ) : visible.map(u => (
-              <tr
-                key={u.id}
-                className="hover:bg-gray-50 transition-colors cursor-pointer"
-                // Clicking the row navigates to the user detail page
-                onClick={() => router.push(`/users/${u.id}`)}
-              >
-                <td className="px-4 py-3 font-medium text-gray-900">{u.name}</td>
-                <td className="px-4 py-3 text-gray-500">{u.registered}</td>
-                <td className="px-4 py-3 text-gray-500">{u.papers}</td>
-                <td className="px-4 py-3 text-gray-500">{u.following}</td>
-                <td className="px-4 py-3 text-gray-500">{u.followers}</td>
-                <td className="px-4 py-3"><StatusBadge status={u.status} /></td>
-                <td className="px-4 py-3 text-right">
-                  {/* ••• navigates to user detail page where Suspend/Remove actions live */}
-                  <button
-                    onClick={e => { e.stopPropagation(); router.push(`/users/${u.id}`); }}
-                    className="text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition-colors text-base leading-none tracking-widest"
-                  >
-                    •••
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading && users.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="text-center py-12 text-gray-400">Loading…</td>
+                </tr>
+              ) : users.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="text-center py-12 text-gray-400">No users found.</td>
+                </tr>
+              ) : users.map(u => (
+                <tr
+                  key={u.id}
+                  className="hover:bg-gray-50 transition-colors cursor-pointer"
+                  onClick={() => router.push(`/users/${u.id}`)}
+                >
+                  <td className="px-4 py-3 font-medium text-gray-900">{u.fullName}</td>
+                  <td className="px-4 py-3 text-gray-500">{formatDate(u.createdAt)}</td>
+                  <td className="px-4 py-3 text-gray-500">{u._count.papers}</td>
+                  <td className="px-4 py-3 text-gray-500">{u._count.following}</td>
+                  <td className="px-4 py-3 text-gray-500">{u._count.followers}</td>
+                  <td className="px-4 py-3">
+                    {u.warnCount > 0 ? (
+                      <span className={`text-xs font-semibold ${u.warnCount >= 3 ? "text-red-500" : "text-orange-500"}`}>
+                        {u.warnCount}/4
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3"><StatusBadge status={toStatus(u.isBanned)} /></td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={e => { e.stopPropagation(); router.push(`/users/${u.id}`); }}
+                      className="text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition-colors text-base leading-none tracking-widest"
+                    >
+                      •••
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
-        {/* Show More — client-side for now, will become server-side pagination */}
-        {filtered.length > INITIAL_ROWS && (
+        {hasMore && (
           <div className="flex justify-end px-4 py-3 border-t border-gray-100">
             <button
-              onClick={() => setShowAll(v => !v)}
-              className="text-sm text-[#0066ff] hover:underline font-medium"
+              onClick={loadMore}
+              disabled={loading}
+              className="text-sm text-[#0066ff] hover:underline font-medium disabled:opacity-60"
             >
-              {showAll ? "Show Less" : "Show More"}
+              {loading ? "Loading…" : "Show More"}
             </button>
           </div>
         )}

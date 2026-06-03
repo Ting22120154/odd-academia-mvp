@@ -4,7 +4,7 @@
  */
 import { NextRequest } from "next/server";
 import prisma from "@odd-academia/db/client";
-import { getAuthPayload } from "@/lib/auth/require-auth";
+import { requireAuthPayload } from "@/lib/auth/require-auth";
 import {
   countPaperFollowers,
   isValidPaperId,
@@ -36,8 +36,9 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const payload = await getAuthPayload();
-  if (!payload) return err("Not authenticated.", 401);
+  const auth = await requireAuthPayload();
+  if (!auth.ok) return err(auth.error, auth.status);
+  const payload = auth.payload;
 
   const { id } = await params;
   const resolved = await resolvePublishedPaper(id);
@@ -77,8 +78,9 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const payload = await getAuthPayload();
-  if (!payload) return err("Not authenticated.", 401);
+  const auth = await requireAuthPayload();
+  if (!auth.ok) return err(auth.error, auth.status);
+  const payload = auth.payload;
 
   const { id } = await params;
   const resolved = await resolvePublishedPaper(id);

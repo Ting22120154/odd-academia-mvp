@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { CATEGORIES, type PostCategory } from "@/data/mockPosts";
+import { PAPER_CATEGORIES as CATEGORIES, type PaperCategory as PostCategory } from "@/lib/papers/categories";
 
 type ContributorTag = {
   label: string;
@@ -115,7 +115,8 @@ export default function EditPaperPage() {
         setAnonymous(post.author?.name === "Anonymous");
 
         const cats = (post.categories ?? post.keywords ?? []) as string[];
-        const valid = cats.filter((c) => (CATEGORIES as string[]).includes(c)) as PostCategory[];
+        const catSet: readonly string[] = CATEGORIES;
+        const valid = cats.filter((c) => catSet.includes(c)) as PostCategory[];
         setCategories(valid);
       } catch (e) {
         setLoadError(e instanceof Error ? e.message : "Unknown error");

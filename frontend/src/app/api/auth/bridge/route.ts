@@ -8,6 +8,8 @@ import { prisma } from "@/lib/prisma";
  * so comment/save APIs can authenticate until real auth ships.
  */
 export async function POST(req: NextRequest) {
+  if (process.env.NODE_ENV === "production") return jsonError("Not found", 404);
+
   const body = (await req.json().catch(() => null)) as { email?: string } | null;
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!email) return jsonError("email is required", 400);

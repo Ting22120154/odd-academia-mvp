@@ -5,7 +5,7 @@
  */
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthPayload } from "@/lib/auth/require-auth";
+import { requireAuthPayload } from "@/lib/auth/require-auth";
 import { isValidUserId, viewerFollowsTarget } from "@/lib/auth/follow";
 import { ok, err } from "@/lib/response";
 
@@ -20,8 +20,9 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const payload = await getAuthPayload();
-  if (!payload) return err("Not authenticated.", 401);
+  const auth = await requireAuthPayload();
+  if (!auth.ok) return err(auth.error, auth.status);
+  const payload = auth.payload;
 
   const { id } = await params;
   if (id === payload.sub) return err("You cannot follow yourself.", 400);
@@ -64,8 +65,9 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const payload = await getAuthPayload();
-  if (!payload) return err("Not authenticated.", 401);
+  const auth = await requireAuthPayload();
+  if (!auth.ok) return err(auth.error, auth.status);
+  const payload = auth.payload;
 
   const { id } = await params;
   const resolved = await resolveTarget(id);
