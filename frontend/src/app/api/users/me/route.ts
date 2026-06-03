@@ -5,7 +5,7 @@
  */
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthPayload } from "@/lib/auth/require-auth";
+import { requireAuthPayload } from "@/lib/auth/require-auth";
 import {
   profileInclude,
   toProfilePaper,
@@ -36,18 +36,19 @@ async function loadProfile(userId: string) {
 }
 
 export async function GET() {
-  const payload = await getAuthPayload();
-  if (!payload) return err("Not authenticated.", 401);
+  const auth = await requireAuthPayload();
+  if (!auth.ok) return err(auth.error, auth.status);
 
-  const profile = await loadProfile(payload.sub);
+  const profile = await loadProfile(auth.payload.sub);
   if (!profile) return err("User not found.", 404);
 
   return ok({ user: profile });
 }
 
 export async function PATCH(req: NextRequest) {
-  const payload = await getAuthPayload();
-  if (!payload) return err("Not authenticated.", 401);
+  const auth = await requireAuthPayload();
+  if (!auth.ok) return err(auth.error, auth.status);
+  const payload = auth.payload;
 
   const body = await req.json().catch(() => null);
   if (!body) return err("Invalid request body.", 400);

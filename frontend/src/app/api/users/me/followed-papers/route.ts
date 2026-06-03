@@ -1,12 +1,12 @@
 /** GET /api/users/me/followed-papers — papers the current user follows. */
-import { getAuthPayload } from "@/lib/auth/require-auth";
+import { requireAuthPayload } from "@/lib/auth/require-auth";
 import { listFollowedPapers } from "@/lib/auth/paper-follow";
 import { ok, err } from "@/lib/response";
 
 export async function GET() {
-  const payload = await getAuthPayload();
-  if (!payload) return err("Not authenticated.", 401);
+  const auth = await requireAuthPayload();
+  if (!auth.ok) return err(auth.error, auth.status);
 
-  const papers = await listFollowedPapers(payload.sub);
+  const papers = await listFollowedPapers(auth.payload.sub);
   return ok({ papers });
 }

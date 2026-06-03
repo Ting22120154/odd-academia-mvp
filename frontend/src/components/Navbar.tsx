@@ -64,10 +64,10 @@ export function Navbar() {
   const fetchUnread = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const res  = await fetch("/api/notifications/unread-count", { credentials: "include" });
+      const res  = await fetch("/api/notifications/count", { credentials: "include" });
       if (!res.ok) return;
-      const data = await res.json() as { count: number };
-      setUnreadCount(data.count);
+      const data = await res.json() as { success: boolean; count?: number };
+      if (data.success) setUnreadCount(data.count ?? 0);
     } catch { /* keep stale count on network error */ }
   }, [user?.id]);
 
@@ -86,7 +86,7 @@ export function Navbar() {
   useEffect(() => {
     if (pathname !== "/notifications" || !user?.id || unreadCount === 0) return;
     setUnreadCount(0); // optimistic reset
-    fetch("/api/notifications", {
+    fetch("/api/notifications/read-all", {
       method:      "PATCH",
       credentials: "include",
     }).catch(() => null);

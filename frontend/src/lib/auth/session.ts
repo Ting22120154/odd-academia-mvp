@@ -29,6 +29,7 @@ export function attachSessionCookies(res: NextResponse, payload: TokenPayload) {
 export function clearSessionCookies(res: NextResponse) {
   res.cookies.set(USER_TOKEN_COOKIE, "", sessionCookieOptions(0));
   res.cookies.set(AUTH_SESSION_COOKIE, "", sessionCookieOptions(0));
+  res.cookies.set(AUTH_USER_COOKIE, "", sessionCookieOptions(0));
   return res;
 }
 
@@ -53,8 +54,11 @@ export function getUserIdFromRequest(req: NextRequest): string | null {
     if (payload?.sub) return payload.sub;
   }
 
-  // Fallback: legacy bridge cookie
-  return cookies[AUTH_USER_COOKIE] || null;
+  // Legacy bridge cookie — dev only (bridge route returns 404 in production)
+  if (!IS_PROD) {
+    return cookies[AUTH_USER_COOKIE] || null;
+  }
+  return null;
 }
 
 type AuthUser = {

@@ -38,16 +38,18 @@ export async function fetchNotifications(opts?: {
   return { notifications: data.notifications, unreadCount: data.unreadCount };
 }
 
-/** PATCH /api/notifications/:id/read */
+/** PATCH /api/notifications/:id */
 export async function markNotificationRead(
   id: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const res = await fetch(`/api/notifications/${id}/read`, {
+  const res = await fetch(`/api/notifications/${id}`, {
     method: "PATCH",
     credentials: "include",
   });
-  const data = await parseJson<ApiSuccess<{ read: boolean }>>(res);
-  if (!data.success) return { ok: false, error: data.error };
+  if (!res.ok) {
+    const data = await parseJson<ApiError>(res);
+    return { ok: false, error: !data.success ? data.error : "Failed to mark read" };
+  }
   return { ok: true };
 }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthPayload } from "@/lib/auth/require-auth";
+import { requireAuthPayload } from "@/lib/auth/require-auth";
 import { err } from "@/lib/response";
 import { checkRateLimit, getClientIp } from "@/lib/auth/rate-limit";
 
@@ -14,14 +14,8 @@ import { checkRateLimit, getClientIp } from "@/lib/auth/rate-limit";
  * Content snapshots (commentBody, paperTitle) are fetched server-side from the DB.
  */
 export async function POST(req: NextRequest) {
-  const payload = await getAuthPayload();
-  if (!payload) return err("Must be logged in to report.", 401);
-
-  const reporter = await prisma.user.findUnique({
-    where:  { id: payload.sub },
-    select: { isBanned: true },
-  });
-  if (reporter?.isBanned) return err("Account suspended.", 403);
+  const auth = await requireAuthPayload();
+  if (!auth.ok) return err(auth.error, auth.status);
 
   const ip = getClientIp(req);
   if (!checkRateLimit(`reports:${ip}`, 5, 60_000)) {
@@ -33,7 +27,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid body." }, { status: 400 });
   }
 
-  const reporterId = payload.sub;
+  const reporterId = auth.payload.sub;
   const { type } = body as Record<string, string>;
 
   if (type === "comment") {

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthPayload } from "@/lib/auth/require-auth";
+import { requireAuthPayload } from "@/lib/auth/require-auth";
 import { err } from "@/lib/response";
 
 export async function GET(req: NextRequest) {
-  const payload = await getAuthPayload();
-  if (!payload) return err("Not authenticated.", 401);
+  const auth = await requireAuthPayload();
+  if (!auth.ok) return err(auth.error, auth.status);
 
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q")?.trim() ?? "";

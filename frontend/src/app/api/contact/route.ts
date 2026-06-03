@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthPayload } from "@/lib/auth/require-auth";
+import { requireAuthPayload } from "@/lib/auth/require-auth";
+import { checkRateLimit } from "@/lib/auth/rate-limit";
 import { err } from "@/lib/response";
 
 export async function POST(req: NextRequest) {
-  const payload = await getAuthPayload();
-  if (!payload) return err("Must be logged in to send a message.", 401);
+  const auth = await requireAuthPayload();
+  if (!auth.ok) return err(auth.error, auth.status);
 
-  const sender = await prisma.user.findUnique({
-    where: { id: payload.sub },
-    select: { isBanned: true },
-  });
-  if (sender?.isBanned) return err("Account suspended.", 403);
+  if (!checkRateLimit(`contact:${auth.payload.sub}`, 10, 60_000)) {
+    return err("Too many messages. Please slow down.", 429);
+  }
 
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") {
@@ -33,7 +32,7 @@ export async function POST(req: NextRequest) {
 
   const message = await prisma.message.create({
     data: {
-      senderId:    payload.sub,
+      senderId:    auth.payload.sub,
       recipientId,
       subject:     subject.trim(),
       body:        msgBody.trim(),

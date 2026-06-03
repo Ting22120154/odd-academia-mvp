@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthPayload } from "@/lib/auth/require-auth";
+import { requireAuthPayload } from "@/lib/auth/require-auth";
 import { err } from "@/lib/response";
 
 /** GET /api/messages/inbox
  *  Returns one entry per conversation partner for the session user, most recent first.
  */
 export async function GET() {
-  const payload = await getAuthPayload();
-  if (!payload) return err("Not authenticated.", 401);
+  const auth = await requireAuthPayload();
+  if (!auth.ok) return err(auth.error, auth.status);
 
-  const userId = payload.sub;
+  const userId = auth.payload.sub;
 
   const messages = await prisma.message.findMany({
     where: {

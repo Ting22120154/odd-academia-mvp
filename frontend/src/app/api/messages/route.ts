@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthPayload } from "@/lib/auth/require-auth";
+import { requireAuthPayload } from "@/lib/auth/require-auth";
 import { err } from "@/lib/response";
 import { checkRateLimit, getClientIp } from "@/lib/auth/rate-limit";
 
@@ -9,8 +9,8 @@ import { checkRateLimit, getClientIp } from "@/lib/auth/rate-limit";
  *  Also marks any unread messages sent to the session user as read.
  */
 export async function GET(req: NextRequest) {
-  const payload = await getAuthPayload();
-  if (!payload) return err("Not authenticated.", 401);
+  const auth = await requireAuthPayload();
+  if (!auth.ok) return err(auth.error, auth.status);
 
   const { searchParams } = new URL(req.url);
   const with_ = searchParams.get("with");
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "with query param is required." }, { status: 400 });
   }
 
-  const me = payload.sub;
+  const me = auth.payload.sub;
 
   await prisma.message.updateMany({
     where: { senderId: with_, recipientId: me, isRead: false },
@@ -52,16 +52,10 @@ export async function GET(req: NextRequest) {
  *  Sender is always the session user.
  */
 export async function POST(req: NextRequest) {
-  const payload = await getAuthPayload();
-  if (!payload) return err("Not authenticated.", 401);
+  const auth = await requireAuthPayload();
+  if (!auth.ok) return err(auth.error, auth.status);
 
-  const sender = await prisma.user.findUnique({
-    where:  { id: payload.sub },
-    select: { isBanned: true },
-  });
-  if (sender?.isBanned) return err("Account suspended.", 403);
-
-  if (!checkRateLimit(`messages:${payload.sub}`, 20, 60_000)) {
+  if (!checkRateLimit(`messages:${auth.payload.sub}`, 20, 60_000)) {
     return err("Too many messages. Please slow down.", 429);
   }
 
@@ -83,7 +77,7 @@ export async function POST(req: NextRequest) {
 
   const message = await prisma.message.create({
     data: {
-      senderId:    payload.sub,
+      senderId:    auth.payload.sub,
       recipientId,
       subject:     "",
       body:        msgBody.trim(),
