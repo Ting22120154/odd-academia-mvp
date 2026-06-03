@@ -56,10 +56,8 @@ function Icon({ name }: { name: "home" | "upload" | "bell" | "user" }) {
 
 export function Navbar() {
   const pathname = usePathname();
-  const { user }  = useAuth();
+  const { user } = useAuth();
 
-  // REALTIME: Notifications must update via WebSocket/SSE, not on page load only
-  // TODO: If using polling, replace with WebSocket before production
   const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchUnread = useCallback(async () => {
@@ -72,18 +70,14 @@ export function Navbar() {
     } catch { /* keep stale count on network error */ }
   }, [user?.id]);
 
-  // Fetch on mount and whenever userId changes
   useEffect(() => { void fetchUnread(); }, [fetchUnread]);
 
-  // Poll every 15 s while user is logged in
   useEffect(() => {
     if (!user?.id) return;
     const id = setInterval(() => { void fetchUnread(); }, POLL_MS);
     return () => clearInterval(id);
   }, [user?.id, fetchUnread]);
 
-  // BADGE: Unread count must decrement as notifications are marked read
-  // Mark all as read and reset badge when user visits /notifications
   useEffect(() => {
     if (pathname !== "/notifications" || !user?.id || unreadCount === 0) return;
     setUnreadCount(0); // optimistic reset
@@ -115,7 +109,6 @@ export function Navbar() {
               >
                 <span className="relative text-zinc-500">
                   <Icon name={item.icon} />
-                  {/* BADGE: badge only shown to logged-in users with unread notifications */}
                   {isBell && user && unreadCount > 0 && (
                     <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
                       {unreadCount > 99 ? "99+" : unreadCount}
