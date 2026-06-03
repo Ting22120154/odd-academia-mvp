@@ -8,6 +8,7 @@ import { hashPassword } from "@/lib/auth/password";
 import { toPublicUser } from "@/lib/auth/user";
 import { attachSessionCookies } from "@/lib/auth/session";
 import { checkRateLimit, getClientIp } from "@/lib/auth/rate-limit";
+import { DEFAULT_NOTIFICATION_SETTINGS } from "@/modules/notifications/notification-settings.types";
 import { ok, err } from "@/lib/response";
 
 const REGISTER_LIMIT = 5;
@@ -47,6 +48,9 @@ export async function POST(req: NextRequest) {
         fullName,
         passwordHash,
         role: "user", // Never allow self-registration as admin
+        notificationSettings: {
+          create: DEFAULT_NOTIFICATION_SETTINGS,
+        },
       },
     });
 

@@ -6,6 +6,7 @@
  */
 import type { Paper, User, WorkStatus } from "@prisma/client";
 import { toApiRole } from "@/lib/auth/user";
+import { getPaperBrowseCategories } from "@/lib/papers/categories";
 
 export type ProfileVisibility = "PUBLIC" | "PRIVATE";
 
@@ -13,6 +14,9 @@ export type ProfilePaper = {
   id: string;
   title: string;
   description: string;
+  /** Canonical categories from DB (for cover image). */
+  categories: string[];
+  /** Display tags on cards (categories + keywords, deduped). */
   tags: string[];
 };
 
@@ -89,12 +93,55 @@ export function formatCount(n: number): string {
   return String(n);
 }
 
-export function toProfilePaper(paper: Paper & { keywords: { keyword: string }[] }): ProfilePaper {
+export function toProfilePaper(
+  paper: Paper & {
+    keywords: { keyword: string }[];
+    categories: { category: string }[];
+  },
+): ProfilePaper {
+  const categoryNames = paper.categories.map((c) => c.category);
+  const keywordNames = paper.keywords.map((k) => k.keyword);
+  const browseCategories = getPaperBrowseCategories(categoryNames, keywordNames);
+  const tags =
+    browseCategories.length > 0
+      ? [...browseCategories]
+      : keywordNames.length > 0
+        ? keywordNames.slice(0, 4)
+        : categoryNames.slice(0, 4);
+
   return {
     id: paper.id,
     title: paper.title,
     description: paper.abstract ?? "",
-    tags: paper.keywords.map((k) => k.keyword),
+    categories: categoryNames,
+    tags: tags.slice(0, 4),
+  };
+}
+
+/** Map profile paper row to home-page card shape (links to /paper/[id]). */
+export function profilePaperToViewerPost(
+  paper: ProfilePaper,
+  author: { fullName: string; avatarUrl?: string },
+): {
+  id: string;
+  title: string;
+  summary: string;
+  authorName: string;
+  authorAvatarUrl?: string;
+  subject: string;
+  categories?: string[];
+  tags?: string[];
+} {
+  const subject = paper.categories[0] ?? paper.tags[0] ?? "";
+  return {
+    id: paper.id,
+    title: paper.title,
+    summary: paper.description,
+    authorName: author.fullName,
+    authorAvatarUrl: author.avatarUrl,
+    subject,
+    categories: paper.categories,
+    tags: paper.tags,
   };
 }
 

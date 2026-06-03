@@ -1,13 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import {
   fetchNotificationSettings,
   updateNotificationSettings,
 } from "@/lib/notifications-client";
-import type { NotificationSettingsResponse } from "@/modules/notifications/notification-settings.types";
+import {
+  DEFAULT_NOTIFICATION_SETTINGS,
+  type NotificationSettingsResponse,
+} from "@/modules/notifications/notification-settings.types";
 
 type SettingKey = keyof NotificationSettingsResponse;
 
@@ -35,28 +38,33 @@ const SETTING_META: NotifSetting[] = [
   },
 ];
 
-const DEFAULT_SETTINGS: NotificationSettingsResponse = {
-  followedAuthors: true,
-  followedPapers: false,
-  repliedTo: true,
-};
-
 export default function NotificationSettingsPage() {
   const { isLoggedIn } = useAuth();
   const router = useRouter();
-  const [settings, setSettings] = useState<NotificationSettingsResponse>(DEFAULT_SETTINGS);
+  const [saved, setSaved] = useState<NotificationSettingsResponse>(DEFAULT_NOTIFICATION_SETTINGS);
+  const [draft, setDraft] = useState<NotificationSettingsResponse>(DEFAULT_NOTIFICATION_SETTINGS);
   const [loading, setLoading] = useState(true);
-  const [savingKey, setSavingKey] = useState<SettingKey | null>(null);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const dirty = useMemo(
+    () => JSON.stringify(draft) !== JSON.stringify(saved),
+    [draft, saved],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setSuccess(null);
     const result = await fetchNotificationSettings();
     if (result.settings) {
-      setSettings(result.settings);
+      setSaved(result.settings);
+      setDraft(result.settings);
     } else {
-      setError(result.error);
+      setSaved(DEFAULT_NOTIFICATION_SETTINGS);
+      setDraft(DEFAULT_NOTIFICATION_SETTINGS);
+      setError(result.error ?? "Failed to load notification settings");
     }
     setLoading(false);
   }, []);
@@ -72,21 +80,27 @@ export default function NotificationSettingsPage() {
 
   if (!isLoggedIn) return null;
 
-  async function toggle(key: SettingKey) {
-    const next = !settings[key];
-    setSavingKey(key);
-    setError(null);
-    setSettings((prev) => ({ ...prev, [key]: next }));
+  function toggle(key: SettingKey) {
+    setSuccess(null);
+    setDraft((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
 
-    const result = await updateNotificationSettings({ [key]: next });
-    setSavingKey(null);
+  async function saveSettings() {
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+
+    const result = await updateNotificationSettings(draft);
+    setSaving(false);
 
     if (!result.ok) {
       setError(result.error);
-      setSettings((prev) => ({ ...prev, [key]: !next }));
       return;
     }
-    setSettings(result.settings);
+
+    setSaved(result.settings);
+    setDraft(result.settings);
+    setSuccess("Settings saved.");
   }
 
   return (
@@ -102,14 +116,14 @@ export default function NotificationSettingsPage() {
       <h1 className="text-base font-semibold text-zinc-900">Notification Settings</h1>
 
       {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+      {success ? <p className="mt-2 text-sm text-emerald-600">{success}</p> : null}
 
       <div className="mt-4 rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-sm)]">
         {loading ? (
           <p className="px-6 py-8 text-center text-sm text-zinc-400">Loading settings…</p>
         ) : (
           SETTING_META.map((s, i) => {
-            const enabled = settings[s.key];
-            const busy = savingKey === s.key;
+            const enabled = draft[s.key];
             return (
               <div
                 key={s.key}
@@ -124,8 +138,8 @@ export default function NotificationSettingsPage() {
                 </div>
                 <button
                   type="button"
-                  disabled={busy}
-                  onClick={() => void toggle(s.key)}
+                  disabled={saving}
+                  onClick={() => toggle(s.key)}
                   className={[
                     "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-black/[0.08] p-0.5 transition disabled:opacity-50",
                     enabled ? "bg-[var(--brand)]" : "bg-zinc-200",
@@ -144,6 +158,17 @@ export default function NotificationSettingsPage() {
             );
           })
         )}
+      </div>
+
+      <div className="mt-6 flex justify-end">
+        <button
+          type="button"
+          disabled={loading || saving || !dirty}
+          onClick={() => void saveSettings()}
+          className="inline-flex h-10 items-center rounded-xl bg-[var(--brand)] px-6 text-sm font-semibold text-white hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save Settings"}
+        </button>
       </div>
     </section>
   );

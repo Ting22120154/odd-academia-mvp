@@ -9,6 +9,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { SuggestedPaperCard } from "@/components/SuggestedPaperCard";
+import { profilePaperToViewerPost } from "@/lib/auth/profile";
 import {
   fetchMyProfile,
   formatCount,
@@ -144,15 +146,22 @@ export default function ProfilePage() {
         <div className="border-b border-black/[0.06] pb-3 text-sm font-semibold text-zinc-900">
           Papers
         </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {profile.papers.length === 0 ? (
-            <p className="col-span-full text-sm text-zinc-500">No published papers yet.</p>
-          ) : (
-            profile.papers.map((p) => (
-              <PaperCard key={p.id} title={p.title} desc={p.description} tags={p.tags} />
-            ))
-          )}
-        </div>
+        {profile.papers.length === 0 ? (
+          <p className="mt-4 text-sm text-zinc-500">No published papers yet.</p>
+        ) : (
+          <ul className="mt-4 grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-4">
+            {profile.papers.map((p, i) => (
+              <SuggestedPaperCard
+                key={p.id}
+                post={profilePaperToViewerPost(p, {
+                  fullName: profile.fullName,
+                  avatarUrl: profile.avatarUrl,
+                })}
+                eager={i < 4}
+              />
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   );
@@ -201,26 +210,3 @@ function MetricCard({
   );
 }
 
-function PaperCard({ title, desc, tags }: { title: string; desc: string; tags: string[] }) {
-  return (
-    <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
-      <div className="h-32 bg-gradient-to-br from-indigo-400 via-blue-500 to-purple-600" />
-      <div className="p-3">
-        <div className="text-sm font-semibold text-zinc-900 line-clamp-2">{title}</div>
-        <div className="mt-1 text-xs text-zinc-500 line-clamp-2">{desc}</div>
-        {tags.length > 0 ? (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {tags.slice(0, 2).map((t) => (
-              <span
-                key={t}
-                className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600"
-              >
-                {t}
-              </span>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}

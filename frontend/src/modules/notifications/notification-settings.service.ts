@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import type {
-  NotificationSettingsResponse,
-  UpdateNotificationSettingsBody,
+import {
+  DEFAULT_NOTIFICATION_SETTINGS,
+  type NotificationSettingsResponse,
+  type UpdateNotificationSettingsBody,
 } from "./notification-settings.types";
 
 function toResponse(row: {
@@ -10,18 +11,20 @@ function toResponse(row: {
   repliedTo: boolean;
 }): NotificationSettingsResponse {
   return {
-    followedAuthors: row.followedAuthors,
-    followedPapers: row.followedPapers,
-    repliedTo: row.repliedTo,
+    followedAuthors: row.followedAuthors ?? DEFAULT_NOTIFICATION_SETTINGS.followedAuthors,
+    followedPapers: row.followedPapers ?? DEFAULT_NOTIFICATION_SETTINGS.followedPapers,
+    repliedTo: row.repliedTo ?? DEFAULT_NOTIFICATION_SETTINGS.repliedTo,
   };
 }
+
+const CREATE_DEFAULTS = DEFAULT_NOTIFICATION_SETTINGS;
 
 export async function getNotificationSettings(
   userId: string,
 ): Promise<NotificationSettingsResponse> {
   const row = await prisma.notificationSettings.upsert({
     where: { userId },
-    create: { userId },
+    create: { userId, ...CREATE_DEFAULTS },
     update: {},
     select: {
       followedAuthors: true,
@@ -40,6 +43,7 @@ export async function updateNotificationSettings(
     where: { userId },
     create: {
       userId,
+      ...CREATE_DEFAULTS,
       ...patch,
     },
     update: patch,

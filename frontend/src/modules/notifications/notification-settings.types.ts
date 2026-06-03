@@ -7,3 +7,10 @@ export type NotificationSettingsResponse = {
 };
 
 export type UpdateNotificationSettingsBody = Partial<NotificationSettingsResponse>;
+
+/** DB defaults when a user has no row yet (schema + Figma). */
+export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettingsResponse = {
+  followedAuthors: true,
+  followedPapers: false,
+  repliedTo: true,
+};

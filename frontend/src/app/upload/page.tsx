@@ -70,6 +70,8 @@ function CalendarIcon() {
   );
 }
 
+const MAX_PDF_BYTES = 10 * 1024 * 1024;
+
 const MOCK_REFERENCES = [
   {
     id: "ref-1",
@@ -167,6 +169,11 @@ export default function UploadPage() {
     setError(null);
     if (!isPdfFile(f)) {
       setError("Only PDF files are allowed");
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+    if (f.size > MAX_PDF_BYTES) {
+      setError("PDF must be 10MB or smaller");
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
@@ -292,7 +299,10 @@ export default function UploadPage() {
 
       if (!uploadRes.ok) {
         const body = (await uploadRes.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? "Paper saved but file upload failed");
+        const detail = body?.error ?? "PDF upload failed";
+        throw new Error(
+          `${detail} Your paper was saved — open /paper/${created.id} to attach the PDF.`,
+        );
       }
 
       const url = `${window.location.origin}/paper/${created.id}`;

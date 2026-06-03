@@ -1,4 +1,26 @@
-import type { NotificationSettingsResponse } from "@/modules/notifications/notification-settings.types";
+import {
+  DEFAULT_NOTIFICATION_SETTINGS,
+  type NotificationSettingsResponse,
+} from "@/modules/notifications/notification-settings.types";
+
+function normalizeSettings(raw: unknown): NotificationSettingsResponse | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  return {
+    followedAuthors:
+      typeof o.followedAuthors === "boolean"
+        ? o.followedAuthors
+        : DEFAULT_NOTIFICATION_SETTINGS.followedAuthors,
+    followedPapers:
+      typeof o.followedPapers === "boolean"
+        ? o.followedPapers
+        : DEFAULT_NOTIFICATION_SETTINGS.followedPapers,
+    repliedTo:
+      typeof o.repliedTo === "boolean"
+        ? o.repliedTo
+        : DEFAULT_NOTIFICATION_SETTINGS.repliedTo,
+  };
+}
 import type {
   ListNotificationsResult,
   NotificationSortDir,
@@ -69,10 +91,17 @@ export async function fetchNotificationSettings(): Promise<
   const data = await parseJson<
     ApiSuccess<{ settings: NotificationSettingsResponse }>
   >(res);
-  if (!data.success) {
-    return { settings: null, error: data.error };
+  if (!res.ok || !data.success) {
+    return {
+      settings: null,
+      error: !data.success ? data.error : "Failed to load notification settings",
+    };
   }
-  return { settings: data.settings };
+  const settings = normalizeSettings(data.settings);
+  if (!settings) {
+    return { settings: null, error: "Invalid notification settings response" };
+  }
+  return { settings };
 }
 
 /** PATCH /api/notifications/settings */
@@ -91,10 +120,17 @@ export async function updateNotificationSettings(
   const data = await parseJson<
     ApiSuccess<{ settings: NotificationSettingsResponse }> | ApiError
   >(res);
-  if (!data.success) {
-    return { ok: false, error: data.error };
+  if (!res.ok || !data.success) {
+    return {
+      ok: false,
+      error: !data.success ? data.error : "Failed to update notification settings",
+    };
   }
-  return { ok: true, settings: data.settings };
+  const settings = normalizeSettings(data.settings);
+  if (!settings) {
+    return { ok: false, error: "Invalid notification settings response" };
+  }
+  return { ok: true, settings };
 }
 
 /** PATCH /api/notifications/read-all */

@@ -99,6 +99,16 @@ async function main() {
   )
   console.log(`  ✓ ${createdUsers.length} public users`)
 
+  await prisma.notificationSettings.createMany({
+    data: [adminUser, ...createdUsers].map((u) => ({
+      userId: u.id,
+      followedAuthors: true,
+      followedPapers: false,
+      repliedTo: true,
+    })),
+  })
+  console.log(`  ✓ ${createdUsers.length + 1} notification settings`)
+
   // ── 5. Papers ───────────────────────────────────────────────────────────────
   const createdPapers: { id: string }[] = []
   for (const p of papers) {

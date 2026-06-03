@@ -9,7 +9,8 @@ import {
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+// Worker must match react-pdf's pdfjs API version (see pdfjs.version).
+pdfjs.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs?v=${pdfjs.version}`;
 
 /** Zoom levels for the PDF only (100% = fit width, higher = zoom in). */
 const ZOOM_STEPS = [1, 1.25, 1.5, 1.75, 2] as const;
@@ -163,9 +164,57 @@ export default function PdfViewerCore({
   const [pageWidth, setPageWidth] = useState(640);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
 
   const scale = ZOOM_STEPS[zoomIndex] ?? 1;
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    setLoading(true);
+    setError(null);
+    setPdfBlobUrl(null);
+    setNumPages(null);
+
+    void (async () => {
+      try {
+        const res = await fetch(fileSrc, { credentials: "include" });
+        if (!res.ok) {
+          setError(
+            res.status === 404
+              ? "PDF file not found on the server."
+              : "Could not load this PDF.",
+          );
+          setLoading(false);
+          return;
+        }
+        const contentType = res.headers.get("content-type") ?? "";
+        if (
+          !contentType.includes("pdf") &&
+          !contentType.includes("octet-stream")
+        ) {
+          setError("Could not load this PDF.");
+          setLoading(false);
+          return;
+        }
+        const blob = await res.blob();
+        if (blob.size < 64) {
+          setError("PDF file is empty or missing.");
+          setLoading(false);
+          return;
+        }
+        objectUrl = URL.createObjectURL(blob);
+        setPdfBlobUrl(objectUrl);
+      } catch {
+        setError("Could not load this PDF.");
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [fileSrc]);
 
   useEffect(() => {
     const el = pageWrapRef.current;
@@ -341,9 +390,9 @@ export default function PdfViewerCore({
         >
           {error ? (
             <p className="text-sm text-red-600">{error}</p>
-          ) : (
+          ) : pdfBlobUrl ? (
             <Document
-              file={fileSrc}
+              file={pdfBlobUrl}
               onLoadSuccess={onDocumentLoadSuccess}
               onLoadError={onDocumentLoadError}
               loading={
@@ -381,7 +430,9 @@ export default function PdfViewerCore({
                   })
                 : null}
             </Document>
-          )}
+          ) : loading ? (
+            <p className="text-sm text-zinc-500">Loading document…</p>
+          ) : null}
         </div>
       </div>
 
