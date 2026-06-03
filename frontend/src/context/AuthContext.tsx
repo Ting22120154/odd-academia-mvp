@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     document.cookie = "auth-session=guest; path=/; max-age=86400";
     setIsGuest(true);
     setUser(null);
-    router.push("/");
+    router.push("/home");
   }, [router]);
 
   if (!hydrated) return null;
