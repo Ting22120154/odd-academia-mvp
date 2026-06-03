@@ -654,11 +654,12 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   }
 
   async function submitReport(commentId: string, draft: ReportDraft) {
-    await fetch(`/api/comments/${commentId}/report`, {
+    const reason = [draft.subject, draft.description].filter(Boolean).join(": ");
+    await fetch("/api/reports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ reason: `${draft.subject}: ${draft.description}` }),
+      body: JSON.stringify({ type: "comment", commentId, reason }),
     }).catch(() => null);
     setReportingCommentId(null);
   }
