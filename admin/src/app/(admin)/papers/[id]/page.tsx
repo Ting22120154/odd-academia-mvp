@@ -4,48 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { mockAdminPapers, mockAdminComments, mockAdminUsers, mockAdminCitations } from "@odd-academia/db";
-
-// ---------------------------------------------------------------------------
-// Inline Calendar
-// ---------------------------------------------------------------------------
-const DAYS   = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
-const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-
-function Calendar() {
-  const [year,  setYear]  = useState(2025);
-  const [month, setMonth] = useState(0);
-
-  const firstDay    = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  function prev() { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); }
-  function next() { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); }
-
-  const cells: (number | null)[] = [
-    ...Array(firstDay).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-md p-4 w-64">
-      <div className="flex items-center justify-between mb-3">
-        <button onClick={prev} className="p-1 hover:bg-gray-100 rounded text-gray-500 text-sm">‹</button>
-        <span className="text-sm font-semibold text-gray-800">{MONTHS[month]} {year}</span>
-        <button onClick={next} className="p-1 hover:bg-gray-100 rounded text-gray-500 text-sm">›</button>
-      </div>
-      <div className="grid grid-cols-7 mb-1">
-        {DAYS.map(d => <div key={d} className="text-[10px] text-center text-gray-400 font-medium py-1">{d}</div>)}
-      </div>
-      <div className="grid grid-cols-7">
-        {cells.map((day, i) => (
-          <div key={i} className={`text-xs text-center py-1 rounded ${day ? "text-gray-700 hover:bg-blue-50 cursor-pointer" : ""}`}>
-            {day ?? ""}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+import {
+  DateRangePicker,
+  lastNDaysRange,
+  type DateRange,
+} from "@/components/DateRangePicker";
+import { isPublishedInRange } from "@/lib/dateRange";
 
 // ---------------------------------------------------------------------------
 // Report Comment modal — shown when admin clicks a "Pending Review" badge.
@@ -53,14 +17,17 @@ function Calendar() {
 // TODO: wire "Remove Comment" to DELETE /api/comments/:id
 // ---------------------------------------------------------------------------
 function ReportCommentModal({
+  commentId,
   onKeep,
   onRemove,
 }: {
-  onKeep:   () => void;
-  onRemove: () => void;
+  commentId: string;
+  onKeep:    () => void;
+  onRemove:  () => void;
 }) {
   const [subject,     setSubject]     = useState("");
   const [description, setDescription] = useState("");
+  const [busy,        setBusy]        = useState(false);
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -105,12 +72,17 @@ function ReportCommentModal({
           >
             Keep Comment
           </button>
-          {/* Remove Comment — TODO: call DELETE /api/comments/:id */}
           <button
-            onClick={onRemove}
-            className="flex-1 py-2 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              await fetch(`/api/admin/comments/${commentId}`, { method: "DELETE" });
+              setBusy(false);
+              onRemove();
+            }}
+            className="flex-1 py-2 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600 disabled:opacity-60"
           >
-            Remove Comment
+            {busy ? "Removing…" : "Remove Comment"}
           </button>
         </div>
       </div>
@@ -143,7 +115,7 @@ export default function PaperDetailPage() {
   // paperIndex is 0-based; mockAdminComments.paperId is also 0-based
   const paperIndex = Number(id) - 1;
 
-  const [calendarOpen,  setCalendarOpen]  = useState(false);
+  const [range, setRange] = useState<DateRange>(() => lastNDaysRange(31));
   const [activeTab,     setActiveTab]     = useState<typeof USER_TABS[number]>("Views");
   const [userPage,      setUserPage]      = useState(1);
 
@@ -153,6 +125,8 @@ export default function PaperDetailPage() {
   const [comments,      setComments]      = useState(
     mockAdminComments.filter(c => c.paperId === paperIndex)
   );
+
+  const inRange = isPublishedInRange(paper.published, range);
 
   return (
     <div className="space-y-8">
@@ -197,38 +171,25 @@ export default function PaperDetailPage() {
       <div className="border border-gray-200 rounded-lg p-5">
         <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
           <h2 className="text-base font-semibold text-gray-800">Paper Analytics</h2>
-          <div className="relative">
-            <button
-              onClick={() => setCalendarOpen(o => !o)}
-              className="flex items-center gap-2 border border-gray-300 rounded-md px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
-                <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-              15.01.2025–14.02.2025
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </button>
-            {calendarOpen && (
-              <div className="absolute right-0 mt-2 z-50">
-                <Calendar />
-              </div>
-            )}
-          </div>
+          <DateRangePicker value={range} onChange={setRange} />
         </div>
 
         {/* Stat cards — 1 col mobile, 2 col sm, 3 col lg */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[
-            { icon: "👁",  label: "Views",                     value: paper.views,      pct: "+10%" },
-            { icon: "👤",  label: "People Following this Paper", value: 100,              pct: "+8%"  },
-            { icon: "💬",  label: "Comments",                   value: paper.comments,   pct: "+8%"  },
-            { icon: "⬇",  label: "Downloads",                  value: paper.downloaded, pct: "+18%" },
-            { icon: "↗",  label: "Shares",                     value: 35,               pct: "+2%"  },
-            { icon: "📎",  label: "Citations",                  value: paper.cited,      pct: "+3%"  },
-          ].map(stat => (
+          {(inRange
+            ? [
+                { icon: "👁",  label: "Views",                     value: paper.views,      pct: "+10%" },
+                { icon: "👤",  label: "People Following this Paper", value: 100,              pct: "+8%"  },
+                { icon: "💬",  label: "Comments",                   value: paper.comments,   pct: "+8%"  },
+                { icon: "⬇",  label: "Downloads",                  value: paper.downloaded, pct: "+18%" },
+                { icon: "↗",  label: "Shares",                     value: 35,               pct: "+2%"  },
+                { icon: "📎",  label: "Citations",                  value: paper.cited,      pct: "+3%"  },
+              ]
+            : [
+                { icon: "👁",  label: "Views",                     value: 0, pct: "—" },
+                { icon: "💬",  label: "Comments",                   value: 0, pct: "—" },
+              ]
+          ).map(stat => (
             <div key={stat.label} className="border border-gray-100 rounded-lg p-4">
               <div className="text-xl mb-1">{stat.icon}</div>
               <p className="text-xs text-gray-500 mb-1">{stat.label}</p>
@@ -438,9 +399,9 @@ export default function PaperDetailPage() {
       {/* Report Comment modal — opens when admin clicks a Pending Review badge */}
       {reportTarget !== null && (
         <ReportCommentModal
+          commentId={reportTarget}
           onKeep={() => setReportTarget(null)}
           onRemove={() => {
-            // TODO: call DELETE /api/comments/:id (reportTarget) once backend is ready
             setComments(prev => prev.map(c => ({
               ...c,
               replies: c.replies.filter(r => r.id !== reportTarget),

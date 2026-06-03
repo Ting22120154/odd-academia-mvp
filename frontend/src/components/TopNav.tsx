@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { OddAcademiaLogo } from "@/components/OddAcademiaLogo";
 import { useAuth } from "@/context/AuthContext";
 import { useNotificationCount } from "@/context/NotificationContext";
 
@@ -133,21 +134,16 @@ export function TopNav() {
   const { unreadCount } = useNotificationCount();
 
   if (pathname === "/login") return null;
-  if (pathname?.startsWith("/paper")) return null;
 
   const isHome = pathname === "/" || pathname === "/home";
   const isFollowing = pathname?.startsWith("/following");
   const isNotifications = pathname?.startsWith("/notifications");
   const isProfile = pathname === "/profile" || pathname?.startsWith("/profile/") || pathname?.startsWith("/user/");
-  const isSavedPapers = pathname === "/saved-papers";
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-black/[0.06] bg-white/80 backdrop-blur">
       <div className="mx-auto flex w-full max-w-[var(--page-max)] items-center justify-between px-6 py-4">
-        <Link href="/home" className="flex items-center gap-2 font-semibold tracking-tight">
-          <span className="text-[var(--brand)]">odd</span>
-          <span className="text-zinc-900">Academia</span>
-        </Link>
+        <OddAcademiaLogo href="/home" variant="color" heightClass="h-7" />
 
         <div className="flex items-center gap-3">
           {isLoggedIn ? (
@@ -198,19 +194,7 @@ export function TopNav() {
             ) : null}
           </div>
           {isLoggedIn ? (
-            <>
-              <IconButton href="/saved-papers" label="Saved papers" active={isSavedPapers}>
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path
-                    d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </IconButton>
-              <UserMenu isProfile={isProfile} />
-            </>
+            <UserMenu isProfile={isProfile} />
           ) : (
             <Link
               href="/login"

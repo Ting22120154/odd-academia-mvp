@@ -26,8 +26,6 @@ type AuthState = {
   user: AuthUser | null;
   isGuest: boolean;
   isLoggedIn: boolean;
-  /** True while reading localStorage / validating the session cookie */
-  isHydrating: boolean;
   applySession: (user: AuthUser) => void;
   /** @deprecated Use applySession — kept so older callers using login() still work */
   login: (user: AuthUser) => void;
@@ -64,8 +62,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem("isGuest");
         return;
       }
+      // 401 = token invalid/expired, 404 = user deleted — clear the stale httpOnly cookie
+      // so the middleware stops redirecting /login back to home.
+      if (res.status === 401 || res.status === 404) {
+        await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => null);
+      }
     } catch {
-      // not logged in
+      // network error — keep existing cookie state, retry on next load
     }
     setUser(null);
   }, []);
@@ -113,8 +116,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     document.cookie = "auth-session=guest; path=/; max-age=86400";
     setIsGuest(true);
     setUser(null);
-    router.push("/");
+    router.push("/home");
   }, [router]);
+
+  if (!hydrated) return null;
 
   return (
     <AuthContext.Provider
@@ -122,7 +127,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isGuest,
         isLoggedIn: user !== null,
-        isHydrating: !hydrated,
         applySession,
         login: applySession,
         logout,

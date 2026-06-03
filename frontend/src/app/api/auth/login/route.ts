@@ -9,6 +9,7 @@ import { toPublicUser } from "@/lib/auth/user";
 import { attachSessionCookies } from "@/lib/auth/session";
 import { checkRateLimit, getClientIp } from "@/lib/auth/rate-limit";
 import { ok, err } from "@/lib/response";
+import { APPEAL_EMAIL } from "@/app/api/email/suspension/route";
 
 const LOGIN_LIMIT = 10;
 const WINDOW_MS = 60_000;
@@ -35,6 +36,13 @@ export async function POST(req: NextRequest) {
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) {
     return err("Invalid email or password.", 401);
+  }
+
+  if (user.isBanned) {
+    return err(
+      `Your account has been suspended. To appeal, contact: ${APPEAL_EMAIL}`,
+      403,
+    );
   }
 
   const res = ok({ user: toPublicUser(user) });

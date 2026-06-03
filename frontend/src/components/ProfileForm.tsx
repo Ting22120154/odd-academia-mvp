@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { MockUser } from "@/data/mockUser";
+import type { FrontendUser as MockUser } from "@odd-academia/db";
 
 type Props = {
   user: MockUser;

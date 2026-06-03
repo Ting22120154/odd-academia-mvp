@@ -6,6 +6,7 @@ export const paperInclude = {
       fullName: true,
       avatarUrl: true,
       bio: true,
+      jobTitle: true,
     },
   },
   keywords: true,

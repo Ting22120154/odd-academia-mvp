@@ -7,6 +7,7 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { OddAcademiaLogo } from "@/components/OddAcademiaLogo";
 import { useAuth, type AuthUser } from "@/context/AuthContext";
 
 type Mode = "login" | "signup";
@@ -24,12 +25,7 @@ function LeftPanel() {
     <div className="relative hidden w-[30%] min-w-[280px] overflow-hidden bg-[#2563EB] lg:flex lg:flex-col">
       {/* Logo */}
       <div className="relative z-10 p-8">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/odd-academia_logo.svg"
-          alt="odd Academia"
-          className="h-7 w-auto"
-        />
+        <OddAcademiaLogo variant="white" heightClass="h-7" />
       </div>
 
       {/* Decorative circles */}
@@ -55,6 +51,7 @@ function LoginPageInner() {
   const [linkedinNotice, setLinkedinNotice] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState("");
+  const [suspensionInfo, setSuspensionInfo] = useState<{ message: string; appealEmail: string } | null>(null);
 
   // Login fields + errors
   const [email, setEmail] = useState("");
@@ -108,6 +105,7 @@ function LoginPageInner() {
     }
     setLoginErrors({});
     setFormError("");
+    setSuspensionInfo(null);
     setLoading(true);
     try {
       const res = await fetch("/api/auth/login", {
@@ -117,6 +115,13 @@ function LoginPageInner() {
         body: JSON.stringify({ email: email.trim(), password }),
       });
       const json = await res.json();
+      if (res.status === 403) {
+        setSuspensionInfo({
+          message: json.error ?? "Your account has been suspended.",
+          appealEmail: "support@oddacademia.com",
+        });
+        return;
+      }
       if (!json.success) {
         setFormError(json.error ?? "Login failed.");
         return;
@@ -220,6 +225,22 @@ function LoginPageInner() {
           {isGuestLimit && (
             <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               You&apos;ve reached your 5 free article limit. Sign up or log in to keep reading.
+            </div>
+          )}
+
+          {suspensionInfo && (
+            <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800">
+              <p className="font-semibold mb-1">Account Suspended</p>
+              <p>{suspensionInfo.message}</p>
+              <p className="mt-2 text-xs text-red-600">
+                To appeal, contact:{" "}
+                <a
+                  href={`mailto:${suspensionInfo.appealEmail}`}
+                  className="font-medium underline hover:text-red-800"
+                >
+                  {suspensionInfo.appealEmail}
+                </a>
+              </p>
             </div>
           )}
 

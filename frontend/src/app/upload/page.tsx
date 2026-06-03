@@ -167,9 +167,7 @@ export default function UploadPage() {
     setError(null);
     if (!isPdfFile(f)) {
       setError("Only PDF files are allowed");
-      if (inputRef.current) {
-        inputRef.current.value = "";
-      }
+      if (inputRef.current) inputRef.current.value = "";
       return;
     }
     simulateUpload(f);
@@ -237,9 +235,7 @@ export default function UploadPage() {
 
     setSubmitting(true);
     try {
-      // Paper metadata (title, abstract, categories, etc.) → POST /api/posts.
-      // Binary file upload (after we have created.id) → POST /api/papers/upload.
-      const res = await fetch("/api/posts", {
+      const res = await fetch("/api/papers", {
         method: "POST",
         credentials: "include",
         headers: {
@@ -247,23 +243,13 @@ export default function UploadPage() {
         },
         body: JSON.stringify({
           title: title.trim(),
-          content: abstract.trim(),
+          abstract: abstract.trim(),
           categories: selectedCategories,
           keywords: [],
-          publishedDate,
+          publishedAt: publishedDate,
           doi: doi.trim() || undefined,
-          references: citations.map((c) => c.label),
+          references: citations.map((c) => ({ citationText: c.label })),
           contributors: contributorList,
-          author: {
-            name: anonymous ? "Anonymous" : user?.fullName || "User",
-            bio: "",
-            avatar: "/avatars/profile.svg",
-          },
-          attachment: {
-            fileName: file.name,
-            mimeType: file.type || "application/pdf",
-            sizeBytes: file.size,
-          },
         }),
       });
 
@@ -273,6 +259,10 @@ export default function UploadPage() {
       }
 
       const created = (await res.json()) as { id: string };
+
+      if (!isPdfFile(file)) {
+        throw new Error("Only PDF files are allowed");
+      }
 
       const uploadMime =
         file.type === "application/pdf"
@@ -286,7 +276,7 @@ export default function UploadPage() {
       }
 
       const uploadFile =
-        uploadMime && uploadMime !== file.type
+        uploadMime !== file.type
           ? new File([file], file.name, { type: uploadMime })
           : file;
 
@@ -377,9 +367,7 @@ export default function UploadPage() {
                 choose file
               </button>
             </div>
-            <div className="mt-1 text-xs text-zinc-400">
-              PDF files only (max 10MB).
-            </div>
+            <div className="mt-1 text-xs text-zinc-400">PDF files only (max 10MB).</div>
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
@@ -392,7 +380,7 @@ export default function UploadPage() {
               type="file"
               className="hidden"
               onChange={(e) => onChooseFile(e.target.files?.[0] ?? null)}
-              accept=".pdf"
+              accept=".pdf,application/pdf"
             />
           </div>
         ) : (

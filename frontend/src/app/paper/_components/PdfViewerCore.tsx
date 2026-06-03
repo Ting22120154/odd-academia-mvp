@@ -9,9 +9,7 @@ import {
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-// Ensure worker matches the pdfjs version bundled by react-pdf to avoid:
-// "API version X does not match the Worker version Y"
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 /** Zoom levels for the PDF only (100% = fit width, higher = zoom in). */
 const ZOOM_STEPS = [1, 1.25, 1.5, 1.75, 2] as const;

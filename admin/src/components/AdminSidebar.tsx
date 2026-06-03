@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 const NAV = [
@@ -45,11 +46,39 @@ const NAV = [
       </svg>
     ),
   },
+  {
+    label: "Moderation Log",
+    href: "/moderation-log",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+    ),
+  },
 ];
 
 export default function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [pendingReports, setPendingReports] = useState(0);
+
+  useEffect(() => {
+    async function fetchCount() {
+      try {
+        const res = await fetch("/api/reports/count");
+        if (!res.ok) return;
+        const json = await res.json() as { data?: { pending?: number } };
+        setPendingReports(json.data?.pending ?? 0);
+      } catch { /* ignore */ }
+    }
+    void fetchCount();
+    const id = setInterval(() => { void fetchCount(); }, 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -74,6 +103,7 @@ export default function AdminSidebar() {
         {NAV.map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(item.href + "/");
+          const badge = item.label === "Reports" && pendingReports > 0 ? pendingReports : 0;
           return (
             <Link
               key={item.href}
@@ -85,7 +115,12 @@ export default function AdminSidebar() {
               }`}
             >
               {item.icon}
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {badge > 0 ? (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
+                  {badge > 99 ? "99+" : badge}
+                </span>
+              ) : null}
             </Link>
           );
         })}

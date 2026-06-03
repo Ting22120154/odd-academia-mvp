@@ -10,11 +10,7 @@ import { paperInclude } from "@/lib/papers/constants";
 const UPLOAD_LIMIT = 10;
 const WINDOW_MS = 60_000;
 
-const ALLOWED_TYPES = new Set([
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-]);
+const ALLOWED_TYPES = new Set(["application/pdf"]);
 
 const MAX_BYTES = 10 * 1024 * 1024;
 

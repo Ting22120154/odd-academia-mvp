@@ -32,6 +32,9 @@ async function main() {
   console.log("🌱  Seeding database…\n")
 
   // ── 1. Clear existing data ──────────────────────────────────────────────────
+  await prisma.moderationLog.deleteMany()
+  await prisma.userReport.deleteMany()
+  await prisma.paperReport.deleteMany()
   await prisma.commentReport.deleteMany()
   await prisma.comment.deleteMany()
   await prisma.paperReference.deleteMany()
@@ -123,8 +126,9 @@ async function main() {
   console.log(`  ✓ ${createdPapers.length} papers`)
 
   // ── 6. Comments + replies ───────────────────────────────────────────────────
-  let commentCount  = 0
-  let reportCount   = 0
+  let commentCount         = 0
+  let reportCount          = 0
+  let firstTopLevelComment: { id: string } | null = null
 
   for (const c of comments) {
     const author = byUsername[c.authorUsername]
@@ -135,6 +139,7 @@ async function main() {
     const topLevel = await prisma.comment.create({
       data: { content: c.content, authorId: author.id, paperId: paper.id },
     })
+    if (!firstTopLevelComment) firstTopLevelComment = topLevel
     commentCount++
 
     for (const r of c.replies) {
@@ -187,6 +192,38 @@ async function main() {
     }
   }
   console.log("  ✓ Sample follows")
+
+  // ── 8. Demo report + moderation rows ───────────────────────────────────────
+  if (firstTopLevelComment) {
+    await prisma.paperReport.createMany({
+      data: [
+        { paperId: createdPapers[0].id, reporterId: createdUsers[0].id, subject: "Plagiarism",      reason: "Content appears copied from another published work."         },
+        { paperId: createdPapers[0].id, reporterId: createdUsers[2].id, subject: "Misleading data", reason: "The charts in figure 3 are misrepresenting the dataset."       },
+      ],
+    })
+    await prisma.commentReport.createMany({
+      data: [
+        { commentId: firstTopLevelComment.id, reporterId: createdUsers[1].id, reason: "Spam content."                        },
+        { commentId: firstTopLevelComment.id, reporterId: createdUsers[2].id, reason: "Abusive language toward the author."  },
+      ],
+    })
+    await prisma.userReport.createMany({
+      data: [
+        { reportedId: createdUsers[3].id, reporterId: createdUsers[0].id, subject: "Harassment", reason: "Repeatedly posting hostile comments on my papers."          },
+        { reportedId: createdUsers[3].id, reporterId: createdUsers[1].id, subject: "Spam",       reason: "Flooding comment sections with promotional content."        },
+      ],
+    })
+    await prisma.moderationLog.create({
+      data: {
+        adminId:    adminUser.id,
+        action:     "ban_user",
+        targetId:   createdUsers[3].id,
+        targetType: "user",
+        note:       "Banned for repeated harassment after two warnings.",
+      },
+    })
+    console.log("  ✓ Demo report + moderation rows")
+  }
 
   console.log("\n✅  Seed complete.")
 }

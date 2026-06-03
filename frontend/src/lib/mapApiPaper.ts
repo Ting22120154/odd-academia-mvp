@@ -6,6 +6,7 @@ export type ApiPaperAuthor = {
   fullName: string;
   avatarUrl?: string | null;
   bio?: string | null;
+  jobTitle?: string | null;
 };
 
 export type ApiPaper = {
@@ -52,6 +53,8 @@ export function mapApiPaperToViewerPost(paper: ApiPaper): MockPost {
     authorName: paper.author?.fullName ?? "Unknown",
     authorAvatarUrl: paper.author?.avatarUrl ?? "/avatars/profile.svg",
     authorBio: paper.author?.bio ?? undefined,
+    authorJobTitle: paper.author?.jobTitle ?? undefined,
+    contributors: paper.contributors?.map((c) => c.contributorName).filter(Boolean) ?? [],
     subject,
     categories: browseCategories,
     tags,
