@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { OddAcademiaLogo } from "@/components/OddAcademiaLogo";
 
 const POLL_MS = 15_000;
 
@@ -95,11 +96,7 @@ export function Navbar() {
   return (
     <header className="border-b border-black/10 bg-white px-4 py-3">
       <nav className="mx-auto flex w-full max-w-6xl items-center gap-4">
-        <div className="font-semibold tracking-tight">
-          <span className="text-[#0066FF]">odd</span>
-          <span className="text-zinc-900">Academia</span>
-        </div>
-
+        <OddAcademiaLogo href="/home" variant="color" heightClass="h-7" />
         <div className="ml-auto flex items-center gap-2">
           {navItems.map((item) => {
             const active = item.href === "/"
