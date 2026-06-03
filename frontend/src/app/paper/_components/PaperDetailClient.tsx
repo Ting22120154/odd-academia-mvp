@@ -147,7 +147,7 @@ function initials(name: string) {
   return (a + b).toUpperCase();
 }
 
-function NonPdfDownloadButton({
+function NonPdfSaveButton({
   fileSrc,
   downloadFilename,
 }: {
@@ -172,7 +172,7 @@ function NonPdfDownloadButton({
       onClick={() => void handleDownload()}
       className={`mt-2 text-sm font-semibold text-[var(--brand)] ${linkHover}`}
     >
-      Download {downloadFilename}
+      Save {downloadFilename}
     </button>
   );
 }
@@ -876,7 +876,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
           ) : post.fileUrl ? (
             <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white p-6 text-center shadow-[var(--shadow-sm)]">
               <p className="text-sm text-zinc-600">This paper is not a PDF preview.</p>
-              <NonPdfDownloadButton
+              <NonPdfSaveButton
                 fileSrc={fileApiSrc}
                 downloadFilename={downloadFilename}
               />

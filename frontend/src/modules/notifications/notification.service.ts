@@ -1,7 +1,9 @@
 import type { NotificationType, ReferenceType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { groupNotifications, READ_PAGE_SIZE } from "./notification-grouping";
 import type {
   ListNotificationsQuery,
+  ListNotificationsResult,
   NotificationDisplayType,
   NotificationResponse,
 } from "./types";
@@ -109,7 +111,7 @@ function toNotificationResponse(
 }
 
 function tabWhere(tab: ListNotificationsQuery["tab"]) {
-  if (tab === "new") return { isRead: false };
+  if (tab === "new") return {};
   if (tab === "papers") return { type: "paper" as const };
   if (tab === "comments") return { type: { in: ["comment", "reply"] as NotificationType[] } };
   if (tab === "contact") return { type: "contact" as const };
@@ -117,25 +119,81 @@ function tabWhere(tab: ListNotificationsQuery["tab"]) {
   return {};
 }
 
-export async function listNotifications(userId: string, query: ListNotificationsQuery) {
-  const rows = await prisma.notification.findMany({
+const rowSelect = {
+  id: true,
+  type: true,
+  referenceId: true,
+  referenceType: true,
+  actorId: true,
+  isRead: true,
+  createdAt: true,
+} as const;
+
+export async function listNotifications(
+  userId: string,
+  query: ListNotificationsQuery,
+): Promise<ListNotificationsResult> {
+  let rows: NotificationRow[];
+  let readHasMore: boolean | undefined;
+  let readTotal: number | undefined;
+
+  if (query.tab === "new") {
+    const readOffset = query.readOffset ?? 0;
+    const orderBy =
+      query.sort === "type" ? { type: query.dir } : { createdAt: query.dir };
+
+    const [unreadRows, readRows, readCount, unreadCountEarly] = await Promise.all([
+      prisma.notification.findMany({
+        where: { userId, isRead: false },
+        orderBy,
+        select: rowSelect,
+      }),
+      prisma.notification.findMany({
+        where: { userId, isRead: true },
+        orderBy,
+        skip: readOffset,
+        take: READ_PAGE_SIZE,
+        select: rowSelect,
+      }),
+      prisma.notification.count({ where: { userId, isRead: true } }),
+      prisma.notification.count({ where: { userId, isRead: false } }),
+    ]);
+
+    rows = [...unreadRows, ...readRows];
+    readTotal = readCount;
+    readHasMore = readOffset + readRows.length < readCount;
+
+    const unreadCount = unreadCountEarly;
+    const built = await buildNotificationList(rows, true);
+    return {
+      notifications: built,
+      unreadCount,
+      readHasMore,
+      readTotal,
+    };
+  }
+
+  rows = await prisma.notification.findMany({
     where: { userId, ...tabWhere(query.tab) },
     orderBy:
       query.sort === "type"
         ? { type: query.dir }
         : { createdAt: query.dir },
-    select: {
-      id: true,
-      type: true,
-      referenceId: true,
-      referenceType: true,
-      actorId: true,
-      isRead: true,
-      createdAt: true,
-    },
+    select: rowSelect,
   });
 
-  // Collect unique IDs for batch lookups
+  const notifications = await buildNotificationList(rows, false);
+  const unreadCount = await prisma.notification.count({
+    where: { userId, isRead: false },
+  });
+
+  return { notifications, unreadCount };
+}
+
+async function buildNotificationList(
+  rows: NotificationRow[],
+  splitUnreadRead: boolean,
+): Promise<NotificationResponse[]> {
   const paperRefIds = new Set<string>();
   const commentRefIds = new Set<string>();
   const userRefIds = new Set<string>();
@@ -148,8 +206,7 @@ export async function listNotifications(userId: string, query: ListNotifications
     if (row.referenceType === "user") userRefIds.add(row.referenceId);
   }
 
-  // Batch: three bulk DB calls + unread count, all in parallel
-  const [papers, comments, actors, unreadCount] = await Promise.all([
+  const [papers, comments, actors] = await Promise.all([
     paperRefIds.size > 0
       ? prisma.paper.findMany({
           where: { id: { in: [...paperRefIds] } },
@@ -168,19 +225,14 @@ export async function listNotifications(userId: string, query: ListNotifications
           select: { id: true, fullName: true },
         })
       : Promise.resolve([]),
-    prisma.notification.count({ where: { userId, isRead: false } }),
   ]);
 
   const paperMap = new Map(papers.map((p) => [p.id, p.title]));
   const userMap = new Map(actors.map((u) => [u.id, u.fullName]));
-
-  // Comment map: commentId → paperId (hidden comments are excluded)
   const commentMap = new Map(
     comments.filter((c) => !c.isHidden).map((c) => [c.id, c.paperId]),
   );
 
-  // For comment-referenced notifications that link to a paper via the comment,
-  // also need those paper titles — collect and batch-fetch any missing ones
   const extraPaperIds = new Set<string>();
   for (const c of comments) {
     if (!c.isHidden && !paperMap.has(c.paperId)) extraPaperIds.add(c.paperId);
@@ -194,11 +246,29 @@ export async function listNotifications(userId: string, query: ListNotifications
     for (const p of extraPapers) paperMap.set(p.id, p.title);
   }
 
-  const notifications = rows.map((row) =>
-    toNotificationResponse(row, paperMap, commentMap, userMap),
+  const paired = rows.map((row) => ({
+    row,
+    response: toNotificationResponse(row, paperMap, commentMap, userMap),
+  }));
+
+  if (!splitUnreadRead) {
+    return groupNotifications(paired, paperMap, commentMap);
+  }
+
+  const unreadEnd = rows.findIndex((r) => r.isRead);
+  const splitAt = unreadEnd === -1 ? rows.length : unreadEnd;
+  const groupedUnread = groupNotifications(
+    paired.slice(0, splitAt),
+    paperMap,
+    commentMap,
+  );
+  const groupedRead = groupNotifications(
+    paired.slice(splitAt),
+    paperMap,
+    commentMap,
   );
 
-  return { notifications, unreadCount };
+  return [...groupedUnread, ...groupedRead];
 }
 
 export async function markNotificationRead(notificationId: string, userId: string) {

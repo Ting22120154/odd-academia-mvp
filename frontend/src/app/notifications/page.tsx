@@ -42,16 +42,20 @@ type SortDir = NotificationSortDir;
 
 export default function NotificationsPage() {
   const { isLoggedIn } = useAuth();
-  const { decrementUnread } = useNotificationCount();
+  const { refreshUnreadCount } = useNotificationCount();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<NotifTabLabel>("New");
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [items, setItems] = useState<NotificationResponse[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [readOffset, setReadOffset] = useState(0);
+  const [readHasMore, setReadHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const activeTabRef = useRef(activeTab);
+  const readOffsetRef = useRef(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -85,20 +89,52 @@ export default function NotificationsPage() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [isLoggedIn]);
 
-  const load = useCallback(async () => {
-    if (activeTab === "Messages") return;
-    const apiTab = TAB_TO_API[activeTab];
-    if (!apiTab) return;
-    setLoading(true);
-    setError(null);
-    const { notifications, unreadCount: count } = await fetchNotifications({
-      tab: apiTab,
-      sort: sortKey,
-      dir: sortDir,
-    });
-    setItems(notifications);
-    setUnreadCount(count);
-    setLoading(false);
+  const load = useCallback(
+    async (opts?: { appendRead?: boolean }) => {
+      if (activeTab === "Messages") return;
+      const apiTab = TAB_TO_API[activeTab];
+      if (!apiTab) return;
+
+      const appendRead = opts?.appendRead === true && apiTab === "new";
+      if (appendRead) setLoadingMore(true);
+      else setLoading(true);
+      setError(null);
+
+      const offset = appendRead ? readOffsetRef.current : 0;
+      const result = await fetchNotifications({
+        tab: apiTab,
+        sort: sortKey,
+        dir: sortDir,
+        readOffset: apiTab === "new" ? offset : undefined,
+      });
+
+      const newRead = result.notifications.filter((n) => n.isRead);
+
+      if (appendRead) {
+        setItems((prev) => {
+          const unreadFromApi = result.notifications.filter((n) => !n.isRead);
+          const prevRead = prev.filter((n) => n.isRead);
+          return [...unreadFromApi, ...prevRead, ...newRead];
+        });
+        readOffsetRef.current = offset + newRead.length;
+        setReadOffset(readOffsetRef.current);
+      } else {
+        setItems(result.notifications);
+        readOffsetRef.current = newRead.length;
+        setReadOffset(readOffsetRef.current);
+      }
+
+      setUnreadCount(result.unreadCount);
+      setReadHasMore(result.readHasMore ?? false);
+      if (appendRead) setLoadingMore(false);
+      else setLoading(false);
+    },
+    [activeTab, sortKey, sortDir],
+  );
+
+  useEffect(() => {
+    readOffsetRef.current = 0;
+    setReadOffset(0);
   }, [activeTab, sortKey, sortDir]);
 
   useEffect(() => {
@@ -127,25 +163,34 @@ export default function NotificationsPage() {
 
   async function handleNotificationClick(n: NotificationResponse) {
     const tabAtClick = activeTab;
+    const idsToMark = n.groupedIds?.length ? n.groupedIds : [n.id];
 
     if (!n.isRead) {
-      const result = await markNotificationRead(n.id);
-      if (!result.ok) {
-        setError(result.error);
-        return;
+      for (const id of idsToMark) {
+        const result = await markNotificationRead(id);
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
       }
-      setUnreadCount((c) => Math.max(0, c - 1));
-      decrementUnread();
+      setUnreadCount((c) => Math.max(0, c - idsToMark.length));
+      void refreshUnreadCount();
 
+      const idSet = new Set(idsToMark);
       setItems((prev) => {
         if (activeTabRef.current !== tabAtClick) return prev;
         return prev.map((item) =>
-          item.id === n.id ? { ...item, isRead: true } : item,
+          idSet.has(item.id) ? { ...item, isRead: true } : item,
         );
       });
     }
     router.push(n.href);
   }
+
+  const firstReadIdx = items.findIndex((n) => n.isRead);
+  const unreadItems = firstReadIdx === -1 ? items : items.slice(0, firstReadIdx);
+  const readItems = firstReadIdx === -1 ? [] : items.slice(firstReadIdx);
+  const showNewSections = activeTab === "New" && !loading;
 
   const visibleConvos = conversations
     .filter(c => !removedConvos.has(c.partnerId))
@@ -300,32 +345,68 @@ export default function NotificationsPage() {
                     Loading notifications…
                   </td>
                 </tr>
+              ) : showNewSections ? (
+                <>
+                  {unreadItems.length > 0 ? (
+                    <>
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className="bg-zinc-50/80 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-500"
+                        >
+                          Unread
+                        </td>
+                      </tr>
+                      {unreadItems.map((n) => (
+                        <NotificationRow
+                          key={n.id}
+                          n={n}
+                          onClick={() => void handleNotificationClick(n)}
+                        />
+                      ))}
+                    </>
+                  ) : null}
+                  {readItems.length > 0 ? (
+                    <>
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className="bg-zinc-50/80 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-500"
+                        >
+                          Earlier
+                        </td>
+                      </tr>
+                      {readItems.map((n) => (
+                        <NotificationRow
+                          key={n.id}
+                          n={n}
+                          onClick={() => void handleNotificationClick(n)}
+                        />
+                      ))}
+                    </>
+                  ) : null}
+                  {readHasMore ? (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-4 text-center">
+                        <button
+                          type="button"
+                          disabled={loadingMore}
+                          onClick={() => void load({ appendRead: true })}
+                          className="text-sm font-medium text-[var(--brand)] hover:underline disabled:opacity-50"
+                        >
+                          {loadingMore ? "Loading…" : "Load more"}
+                        </button>
+                      </td>
+                    </tr>
+                  ) : null}
+                </>
               ) : (
                 items.map((n) => (
-                  <tr
+                  <NotificationRow
                     key={n.id}
-                    className={[
-                      "border-b border-black/[0.04] last:border-0",
-                      !n.isRead ? "bg-blue-50/40" : "",
-                    ].join(" ")}
-                  >
-                    <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => void handleNotificationClick(n)}
-                        className={[
-                          "text-left hover:text-[var(--brand)] hover:underline",
-                          n.isRead
-                            ? "font-normal text-zinc-500"
-                            : "font-semibold text-zinc-900",
-                        ].join(" ")}
-                      >
-                        {n.text}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 text-zinc-500">{n.type}</td>
-                    <td className="px-4 py-3 text-zinc-500">{n.date}</td>
-                  </tr>
+                    n={n}
+                    onClick={() => void handleNotificationClick(n)}
+                  />
                 ))
               )}
               {!loading && items.length === 0 ? (
@@ -354,6 +435,49 @@ export default function NotificationsPage() {
         />
       ) : null}
     </section>
+  );
+}
+
+function NotificationRow({
+  n,
+  onClick,
+}: {
+  n: NotificationResponse;
+  onClick: () => void;
+}) {
+  return (
+    <tr
+      className={[
+        "border-b border-black/[0.04] last:border-0",
+        !n.isRead ? "bg-blue-50/40" : "",
+      ].join(" ")}
+    >
+      <td className="px-4 py-3">
+        <div className="flex items-start gap-2.5">
+          {!n.isRead ? (
+            <span
+              className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[var(--brand)]"
+              title="Unread"
+              aria-label="Unread"
+            />
+          ) : (
+            <span className="mt-1.5 h-2 w-2 shrink-0" aria-hidden />
+          )}
+          <button
+            type="button"
+            onClick={onClick}
+            className={[
+              "text-left hover:text-[var(--brand)] hover:underline",
+              n.isRead ? "font-normal text-zinc-500" : "font-semibold text-zinc-900",
+            ].join(" ")}
+          >
+            {n.text}
+          </button>
+        </div>
+      </td>
+      <td className="px-4 py-3 text-zinc-500">{n.type}</td>
+      <td className="px-4 py-3 text-zinc-500">{n.date}</td>
+    </tr>
   );
 }
 

@@ -277,7 +277,7 @@ export default function PdfViewerCore({
     if (!downloadFilename) return;
     try {
       const res = await fetch(`${fileSrc}?download=1`);
-      if (!res.ok) throw new Error("Download failed");
+      if (!res.ok) throw new Error("Save failed");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
@@ -286,7 +286,7 @@ export default function PdfViewerCore({
       anchor.click();
       URL.revokeObjectURL(url);
     } catch {
-      setError("Download failed. Please try again.");
+      setError("Could not save this file. Please try again.");
     }
   };
 
@@ -385,7 +385,7 @@ export default function PdfViewerCore({
         </div>
       </div>
 
-      {/* Bottom actions — Figma: Download | Share | Cite */}
+      {/* Bottom actions — Figma: Save | Share | Cite */}
       {shareCopied ? (
         <p className="border-t border-zinc-200 bg-emerald-50/80 px-6 py-2 text-center text-sm font-medium text-emerald-700">
           Link copied to clipboard
@@ -398,7 +398,7 @@ export default function PdfViewerCore({
               <DownloadCircleIcon />
             </span>
           }
-          label="Download"
+          label="Save"
           count={downloadCount}
           onClick={() => void handleDownload()}
         />
