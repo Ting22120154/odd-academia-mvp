@@ -1,4 +1,4 @@
-import type { PaperCategory } from "@/lib/papers/categories";
+import { PAPER_CATEGORIES, type PaperCategory } from "@/lib/papers/categories";
 
 /** Bundled covers — no external CDN (reliable offline + presentation).
  *  JPEGs live in public/paper-covers/; see download-covers.ps1 to refresh. */
@@ -140,40 +140,12 @@ export const CATEGORY_COVER_CATALOG: Record<
   },
 };
 
-const CATEGORY_COVER_FILES: Record<PaperCategory, string[]> = {
-  AI: CATEGORY_COVER_CATALOG.AI.files,
-  Architecture: CATEGORY_COVER_CATALOG.Architecture.files,
-  Arts: CATEGORY_COVER_CATALOG.Arts.files,
-  Biohacking: CATEGORY_COVER_CATALOG.Biohacking.files,
-  Biology: CATEGORY_COVER_CATALOG.Biology.files,
-  Business: CATEGORY_COVER_CATALOG.Business.files,
-  Chemistry: CATEGORY_COVER_CATALOG.Chemistry.files,
-  "Data Science": CATEGORY_COVER_CATALOG["Data Science"].files,
-  Design: CATEGORY_COVER_CATALOG.Design.files,
-  Economics: CATEGORY_COVER_CATALOG.Economics.files,
-  Education: CATEGORY_COVER_CATALOG.Education.files,
-  "Engineering/Robotics": CATEGORY_COVER_CATALOG["Engineering/Robotics"].files,
-  Fashion: CATEGORY_COVER_CATALOG.Fashion.files,
-  Gastronomy: CATEGORY_COVER_CATALOG.Gastronomy.files,
-  Health: CATEGORY_COVER_CATALOG.Health.files,
-  History: CATEGORY_COVER_CATALOG.History.files,
-  Law: CATEGORY_COVER_CATALOG.Law.files,
-  "Lifestyle/Culture": CATEGORY_COVER_CATALOG["Lifestyle/Culture"].files,
-  Maths: CATEGORY_COVER_CATALOG.Maths.files,
-  Music: CATEGORY_COVER_CATALOG.Music.files,
-  Nature: CATEGORY_COVER_CATALOG.Nature.files,
-  Philosophy: CATEGORY_COVER_CATALOG.Philosophy.files,
-  Physics: CATEGORY_COVER_CATALOG.Physics.files,
-  Politics: CATEGORY_COVER_CATALOG.Politics.files,
-  "Pop Culture": CATEGORY_COVER_CATALOG["Pop Culture"].files,
-  Psychology: CATEGORY_COVER_CATALOG.Psychology.files,
-  Science: CATEGORY_COVER_CATALOG.Science.files,
-  Sociology: CATEGORY_COVER_CATALOG.Sociology.files,
-  Sports: CATEGORY_COVER_CATALOG.Sports.files,
-  Technology: CATEGORY_COVER_CATALOG.Technology.files,
-};
-
 const DEFAULT_FILES = CATEGORY_COVER_CATALOG.default.files;
+
+// Derived from the catalog — always in sync with PAPER_CATEGORIES without manual duplication.
+const CATEGORY_COVER_FILES = Object.fromEntries(
+  PAPER_CATEGORIES.map((c) => [c, CATEGORY_COVER_CATALOG[c]?.files ?? DEFAULT_FILES]),
+) as Record<PaperCategory, string[]>;
 
 function hashId(id: string): number {
   let h = 0;

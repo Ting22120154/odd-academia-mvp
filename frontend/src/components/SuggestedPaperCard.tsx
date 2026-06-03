@@ -4,44 +4,74 @@ import { useState } from "react";
 import Link from "next/link";
 import type { MockPost } from "@/lib/mockPosts";
 import { CategoryIcon } from "@/lib/papers/categoryIcons";
-import {
-  getPaperCoverFallbacks,
-} from "@/lib/papers/categoryCovers";
+import { getPaperCoverFallbacks } from "@/lib/papers/categoryCovers";
 import {
   getPaperBrowseCategories,
-  getPrimaryPaperCategory,
+  normalizeCategory,
   type PaperCategory,
 } from "@/lib/papers/categories";
 
 type Props = {
   post: MockPost;
+  /** Pass true for the first ~4 cards (above the fold) so the browser fetches them immediately. */
+  eager?: boolean;
 };
 
 function CoverImage({
   category,
   paperId,
+  eager,
 }: {
   category: PaperCategory | null;
   paperId: string;
+  eager?: boolean;
 }) {
   const candidates = getPaperCoverFallbacks(category, paperId);
   const [index, setIndex] = useState(0);
+  const [allFailed, setAllFailed] = useState(false);
   const src = candidates[Math.min(index, candidates.length - 1)]!;
+
+  const handleError = () => {
+    if (index >= candidates.length - 1) {
+      setAllFailed(true);
+    } else {
+      setIndex((i) => i + 1);
+    }
+  };
 
   return (
     <div className="relative h-32 w-full shrink-0 overflow-hidden bg-[#eef4ff]">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        key={src}
-        src={src}
-        alt=""
-        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-        loading="lazy"
-        decoding="async"
-        onError={() => {
-          setIndex((i) => (i + 1 < candidates.length ? i + 1 : i));
-        }}
-      />
+      {allFailed ? (
+        // Inline fallback — no network request, always renders
+        <div className="flex h-full w-full items-center justify-center">
+          <svg
+            className="h-10 w-10 text-[#b8cff7]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+        </div>
+      ) : (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          key={src}
+          src={src}
+          alt=""
+          className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+          loading={eager ? "eager" : "lazy"}
+          decoding="async"
+          onError={handleError}
+        />
+      )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" aria-hidden />
       {category ? (
         <span className="absolute bottom-2 left-2 inline-flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-zinc-800 shadow-sm backdrop-blur-sm">
@@ -56,16 +86,15 @@ function CoverImage({
 /**
  * Figma-style paper card: topical cover photo + title, summary, tags, author.
  */
-export function SuggestedPaperCard({ post }: Props) {
+export function SuggestedPaperCard({ post, eager }: Props) {
+  // Single call — primaryCategory is just browseCategories[0] with a subject fallback.
   const browseCategories = getPaperBrowseCategories(
     post.categories ?? [],
     post.tags ?? [],
   );
-  const primaryCategory = getPrimaryPaperCategory(
-    post.categories,
-    post.tags,
-    post.subject,
-  );
+  const primaryCategory: PaperCategory | null =
+    browseCategories[0] ?? normalizeCategory(post.subject ?? "") ?? null;
+
   const tags = (
     browseCategories.length > 0
       ? browseCategories
@@ -87,6 +116,7 @@ export function SuggestedPaperCard({ post }: Props) {
         <CoverImage
           category={primaryCategory}
           paperId={post.id}
+          eager={eager}
         />
 
         <div className="flex flex-1 flex-col gap-3 p-4">

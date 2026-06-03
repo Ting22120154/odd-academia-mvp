@@ -328,8 +328,8 @@ export default function HomePage() {
           </p>
         ) : (
           <ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {filtered.map((p) => (
-              <SuggestedPaperCard key={p.id} post={p} />
+            {filtered.map((p, i) => (
+              <SuggestedPaperCard key={p.id} post={p} eager={i < 4} />
             ))}
           </ul>
         )}

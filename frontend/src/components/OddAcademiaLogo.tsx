@@ -27,6 +27,7 @@ export function OddAcademiaLogo({
       src={SRC[variant]}
       alt="odd Academia"
       className={`${heightClass} w-auto ${className}`.trim()}
+      fetchPriority="high"
     />
   );
 

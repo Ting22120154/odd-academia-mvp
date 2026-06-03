@@ -9,6 +9,8 @@ import { GuestTracker } from "@/app/paper/_components/GuestTracker";
 import { useAuth } from "@/context/AuthContext";
 import { mockUser } from "@/data/mockUser";
 import { isValidUserId } from "@/lib/auth/user-id";
+import { getPaperCoverFallbacks } from "@/lib/papers/categoryCovers";
+import { getPrimaryPaperCategory } from "@/lib/papers/categories";
 import { fetchFollowStatus, toggleFollow } from "@/lib/follow-client";
 import {
   fetchPaperFollowStatus,
@@ -255,6 +257,27 @@ function ReportModal({
   );
 }
 
+function RelatedCover({ post }: { post: MockPost }) {
+  const category = getPrimaryPaperCategory(post.categories, post.tags, post.subject);
+  const candidates = getPaperCoverFallbacks(category, post.id);
+  const [index, setIndex] = useState(0);
+  const src = candidates[Math.min(index, candidates.length - 1)]!;
+  return (
+    <div className="h-24 w-full overflow-hidden bg-zinc-100">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        key={src}
+        src={src}
+        alt=""
+        className="h-full w-full object-cover"
+        loading="lazy"
+        decoding="async"
+        onError={() => setIndex((i) => (i + 1 < candidates.length ? i + 1 : i))}
+      />
+    </div>
+  );
+}
+
 export function PaperDetailClient({ post, relatedPosts = [] }: Props) {
   const router = useRouter();
   const { isLoggedIn, user: sessionUser } = useAuth();
@@ -492,7 +515,7 @@ export function PaperDetailClient({ post, relatedPosts = [] }: Props) {
               {related.map((p) => (
                 <li key={p.id} className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-sm)]">
                   <Link href={`/paper/${p.id}`} className={`block ${cardLinkHover}`}>
-                    <div className="h-24 bg-zinc-200" />
+                    <RelatedCover post={p} />
                     <div className="p-4">
                       <div className="text-sm font-semibold text-zinc-900">{p.title}</div>
                     </div>
