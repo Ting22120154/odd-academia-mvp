@@ -14,16 +14,18 @@ import type {
   NotificationTab,
 } from "@/modules/notifications/types";
 
-type NotifTabLabel = "New" | "All" | "Papers" | "Comments" | "Contact" | "Citations" | "Messages";
+// Contact feature removed — direct messaging (Messages tab) is the single path
+// for user-to-user communication. Any legacy contact-type notifications still
+// stored in the DB will surface under "All".
+type NotifTabLabel = "New" | "All" | "Papers" | "Comments" | "Citations" | "Messages";
 
-const TABS: NotifTabLabel[] = ["New", "All", "Papers", "Comments", "Contact", "Citations", "Messages"];
+const TABS: NotifTabLabel[] = ["New", "All", "Papers", "Comments", "Citations", "Messages"];
 
 const TAB_TO_API: Partial<Record<NotifTabLabel, NotificationTab>> = {
   New: "new",
   All: "all",
   Papers: "papers",
   Comments: "comments",
-  Contact: "contact",
   Citations: "citations",
 };
 

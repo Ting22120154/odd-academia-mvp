@@ -102,9 +102,10 @@ export async function POST(
   if (action === "warn") {
     const warnId   = crypto.randomUUID();
     const warnBody =
-      `You have received a formal warning from a moderator.` +
+      `You have received a warning from a moderator.` +
       (reason ? ` Reason: ${reason}.` : "") +
-      ` Warning ${newWarnCount} of 4. Further violations may result in suspension.`;
+      ` This is warning ${newWarnCount} of 4.` +
+      (newWarnCount < 4 ? " Please review our community guidelines." : "");
     // NOTIFICATION: User must be informed of every warning with running count shown
     // $executeRaw bypasses Prisma client enum validation — 'moderation' exists in the DB enum
     // but the local generated client is stale. Remove this workaround after prisma generate runs.
@@ -119,8 +120,8 @@ export async function POST(
       // ESCALATION: Auto-suspend triggers at warningCount >= 4 — fire suspension notification too
       const suspId   = crypto.randomUUID();
       const suspBody =
-        `Your account has been automatically suspended after reaching 4 warnings.` +
-        ` To appeal, contact: ${APPEAL_EMAIL}`;
+        `Your account has been suspended after reaching 4 warnings.` +
+        ` To appeal, please contact: ${APPEAL_EMAIL}`;
       ops.push(
         prisma.$executeRaw`
           INSERT INTO "notifications" (id, user_id, type, body, reference_id, reference_type, is_read, created_at)
@@ -133,9 +134,9 @@ export async function POST(
   if (action === "ban") {
     const notifId   = crypto.randomUUID();
     const notifBody =
-      `Your account has been banned by an administrator.` +
+      `Your account has been suspended.` +
       (reason ? ` Reason: ${reason}.` : "") +
-      ` To appeal, contact: ${APPEAL_EMAIL}`;
+      ` To appeal, please contact: ${APPEAL_EMAIL}`;
     // $executeRaw bypasses Prisma client enum validation — 'moderation' exists in the DB enum
     // but the local generated client is stale. Remove this workaround after prisma generate runs.
     ops.push(

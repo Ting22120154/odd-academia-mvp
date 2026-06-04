@@ -1,3 +1,8 @@
+// Security posture: messages are transmitted over HTTPS (TLS in transit) and
+// stored in Neon PostgreSQL which encrypts data at rest. Message bodies are
+// stored as plaintext in the DB — no application-level encryption is applied.
+// For true end-to-end encryption, a per-user keypair and client-side crypto
+// library would be required (significant scope — not in current release).
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuthPayload } from "@/lib/auth/require-auth";

@@ -28,7 +28,19 @@ export async function PATCH(
     });
     if (!report) return err("Report not found.", 404);
 
+    const adminUser = await prisma.adminUser.findUnique({ where: { adminEmail: auth.payload.email } });
     await prisma.paperReport.update({ where: { id }, data: { status: newStatus } });
+    if (adminUser && report.paperId) {
+      await prisma.moderationLog.create({
+        data: {
+          adminId:    adminUser.userId,
+          action:     "remove_paper",
+          targetId:   report.paperId,
+          targetType: "paper",
+          note:       `Report ${action}: ${action === "dismiss" ? "dismissed — no violation" : "reviewed"}`,
+        },
+      }).catch(() => null);
+    }
 
     // NOTIFICATION: Paper author must be notified on report resolution
     const authorId = report.paper?.authorId;
@@ -55,7 +67,19 @@ export async function PATCH(
     const report = await prisma.userReport.findUnique({ where: { id } });
     if (!report) return err("Report not found.", 404);
 
+    const adminUser = await prisma.adminUser.findUnique({ where: { adminEmail: auth.payload.email } });
     await prisma.userReport.update({ where: { id }, data: { status: newStatus } });
+    if (adminUser) {
+      await prisma.moderationLog.create({
+        data: {
+          adminId:    adminUser.userId,
+          action:     "warn_user",
+          targetId:   report.reportedId,
+          targetType: "user",
+          note:       `User report ${action}: ${action === "dismiss" ? "dismissed — no violation" : "reviewed"}`,
+        },
+      }).catch(() => null);
+    }
 
     // NOTIFICATION: Reported user must be notified on report resolution
     const notifId   = crypto.randomUUID();
