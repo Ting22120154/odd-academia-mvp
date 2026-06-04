@@ -39,10 +39,13 @@ export async function GET(req: NextRequest) {
       }
     : {};
 
+  // When a search term is active, skip the date-range filter so that older
+  // papers are still discoverable. The date range only applies when browsing
+  // without a search query.
   const where = {
     status: { not: "removed" as const },
     ...searchWhere,
-    ...publishedWhere,
+    ...(search.trim() ? {} : publishedWhere),
   };
 
   const [rows, total] = await prisma.$transaction([

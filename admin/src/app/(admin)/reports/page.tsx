@@ -449,6 +449,10 @@ export default function ReportsPage() {
     setReports(prev => prev.map(r =>
       r.id === id ? { ...r, status, adminNote: note || null, outcome } : r
     ));
+    // Switch to "all" so the updated row stays visible even when the
+    // previous filter was "pending" (the row would otherwise disappear).
+    setStatusFilter("all");
+    setPage(0);
   }, []);
 
   // Client-side filtering

@@ -118,6 +118,12 @@ export function ChatModal({ recipientId, recipientName, onClose }: Props) {
           </button>
         </div>
 
+        {/* Security notice — messages are protected by HTTPS in transit and
+            encrypted at rest by Neon PostgreSQL. */}
+        <p className="border-b border-black/[0.04] bg-zinc-50 px-4 py-1.5 text-center text-[11px] text-zinc-400 flex-shrink-0">
+          Messages are private and secured by HTTPS.
+        </p>
+
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-zinc-50">
           {messages.length === 0 && (

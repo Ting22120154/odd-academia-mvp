@@ -227,7 +227,9 @@ function OutlineButton({
   );
 }
 
-type ReportDraft = { subject: string; description: string };
+// Consolidated to a single reason field — subject + description were redundant
+// for users; they added friction without capturing distinct information.
+type ReportDraft = { reason: string };
 
 function ReportModal({
   open,
@@ -242,7 +244,7 @@ function ReportModal({
   title: string;
   description: string;
 }) {
-  const [draft, setDraft] = useState<ReportDraft>({ subject: "", description: "" });
+  const [draft, setDraft] = useState<ReportDraft>({ reason: "" });
 
   if (!open) return null;
 
@@ -273,29 +275,16 @@ function ReportModal({
           </button>
         </div>
 
-        <div className="mt-5 space-y-4">
+        <div className="mt-5">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-zinc-700" htmlFor="report-subject">
-              Subject
-            </label>
-            <input
-              id="report-subject"
-              value={draft.subject}
-              onChange={(e) => setDraft((p) => ({ ...p, subject: e.target.value }))}
-              placeholder="Short summary"
-              className="h-11 w-full rounded-xl border border-black/[0.08] px-4 text-sm outline-none focus:border-black/20"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-zinc-700" htmlFor="report-description">
-              Description
+            <label className="text-sm font-medium text-zinc-700" htmlFor="report-reason">
+              Reason
             </label>
             <textarea
-              id="report-description"
-              value={draft.description}
-              onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
-              placeholder="Describe the issue"
+              id="report-reason"
+              value={draft.reason}
+              onChange={(e) => setDraft({ reason: e.target.value })}
+              placeholder="Describe the issue clearly"
               className="min-h-[110px] w-full resize-none rounded-xl border border-black/[0.08] px-4 py-3 text-sm outline-none focus:border-black/20"
             />
           </div>
@@ -308,7 +297,7 @@ function ReportModal({
           <PrimaryButton
             onClick={() => onSubmit(draft)}
             className="flex-1"
-            disabled={!draft.subject.trim() || !draft.description.trim()}
+            disabled={!draft.reason.trim()}
           >
             Submit
           </PrimaryButton>
@@ -386,6 +375,9 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   const isPaperOwner = Boolean(
     sessionUser?.id && authorId && sessionUser.id === authorId,
   );
+  // Admins moderate content; they should not participate as regular users.
+  // ApiRole uses uppercase ("ADMIN") per frontend/src/lib/auth/types.ts.
+  const isAdmin = sessionUser?.role === "ADMIN";
 
   async function copyToClipboard(value: string) {
     await navigator.clipboard.writeText(value);
@@ -668,20 +660,17 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   }
 
   async function submitReport(commentId: string, draft: ReportDraft) {
-    const reason = [draft.subject, draft.description].filter(Boolean).join(": ");
     await fetch("/api/reports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ type: "comment", commentId, reason }),
+      body: JSON.stringify({ type: "comment", commentId, reason: draft.reason.trim() }),
     }).catch(() => null);
     setReportingCommentId(null);
     showToast("Report submitted. Our team will review it.", "success");
   }
 
   async function submitPaperReport(draft: ReportDraft) {
-    const reason = draft.description.trim();
-    const subject = draft.subject.trim();
     if (!commentsPaperId) return;
     const res = await fetch("/api/reports", {
       method: "POST",
@@ -690,8 +679,8 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
       body: JSON.stringify({
         type: "paper",
         paperId: commentsPaperId,
-        subject,
-        reason,
+        subject: "Paper report",
+        reason: draft.reason.trim(),
       }),
     });
     setReportingPaper(false);
@@ -1084,12 +1073,15 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                         )}
 
                         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-zinc-400">
-                          <CommentLikeButton
-                            count={c.likes}
-                            liked={c.likedByMe}
-                            disabled={!isLoggedIn}
-                            onClick={() => void toggleCommentLike(c.id)}
-                          />
+                          {/* Admins moderate content and cannot like comments */}
+                          {!isAdmin ? (
+                            <CommentLikeButton
+                              count={c.likes}
+                              liked={c.likedByMe}
+                              disabled={!isLoggedIn}
+                              onClick={() => void toggleCommentLike(c.id)}
+                            />
+                          ) : null}
 
                           <button
                             type="button"
@@ -1139,15 +1131,17 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                             Share
                           </button>
 
-                          <button
-                            type="button"
-                            className={`rounded-md px-1.5 py-0.5 ${clickableHoverInset}`}
-                            onClick={() => setReportingCommentId(c.id)}
-                            disabled={!isLoggedIn}
-                            title={!isLoggedIn ? "Login required" : "Report comment"}
-                          >
-                            Report
-                          </button>
+                          {/* Users cannot report their own comments */}
+                          {isLoggedIn && !isOwnComment(c.authorId) ? (
+                            <button
+                              type="button"
+                              className={`rounded-md px-1.5 py-0.5 ${clickableHoverInset}`}
+                              onClick={() => setReportingCommentId(c.id)}
+                              title="Report comment"
+                            >
+                              Report
+                            </button>
+                          ) : null}
                         </div>
 
                         {activeReplyFor === c.id && isLoggedIn ? (
@@ -1205,12 +1199,14 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                               )}
 
                               <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-zinc-400">
-                                <CommentLikeButton
-                                  count={r.likes}
-                                  liked={r.likedByMe}
-                                  disabled={!isLoggedIn}
-                                  onClick={() => void toggleCommentLike(r.id)}
-                                />
+                                {!isAdmin ? (
+                                  <CommentLikeButton
+                                    count={r.likes}
+                                    liked={r.likedByMe}
+                                    disabled={!isLoggedIn}
+                                    onClick={() => void toggleCommentLike(r.id)}
+                                  />
+                                ) : null}
 
                                 {isOwnComment(r.authorId) && editingCommentId !== r.id ? (
                                   <>

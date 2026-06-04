@@ -274,7 +274,6 @@ export default function UserDetailPage() {
   const [range, setRange] = useState<DateRange>(() => lastNDaysRange(31));
   const [paperSearch,    setPaperSearch]    = useState("");
   const [showAllPapers,  setShowAllPapers]  = useState(false);
-  const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [showWarnModal,   setShowWarnModal]   = useState(false);
   const [openMenu,       setOpenMenu]       = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -427,12 +426,6 @@ export default function UserDetailPage() {
                   className="w-full text-left px-4 py-2 text-xs text-yellow-600 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
                 >
                   Warn <span className="w-2 h-2 rounded-full bg-yellow-400 ml-auto" />
-                </button>
-                <button
-                  onClick={() => { setOpenMenu(null); setShowRemoveModal(true); }}
-                  className="w-full text-left px-4 py-2 text-xs text-red-500 hover:bg-gray-50 flex items-center gap-2 border-t border-gray-100"
-                >
-                  Remove <span className="w-2 h-2 rounded-full bg-red-500 ml-auto" />
                 </button>
               </div>
             )}
@@ -679,15 +672,6 @@ export default function UserDetailPage() {
         />
       )}
 
-      {/* ── Remove User modal ── */}
-      {showRemoveModal && (
-        <RemoveUserModal
-          userName={user.fullName}
-          userId={id}
-          onCancel={() => setShowRemoveModal(false)}
-          onConfirm={() => setUser(u => u ? { ...u, isBanned: true } : u)}
-        />
-      )}
 
     </div>
   );
