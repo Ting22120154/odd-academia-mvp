@@ -6,10 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { mockUser } from "@/data/mockUser";
 import { mockPosts } from "@/data/mockPosts";
-import { SavedPapersList } from "@/components/SavedPapersList";
-import { fetchSavedPapers } from "@/lib/saved-papers-client";
-
-type Tab = "papers" | "saved-papers" | "cited-comments";
+type Tab = "papers" | "cited-comments";
 
 const MOCK_STATS = {
   papers: 120,
@@ -38,35 +35,10 @@ export default function ProfilePage() {
   const { isLoggedIn, logout } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("papers");
-  const [savedCount, setSavedCount] = useState(0);
-  const [savedLoading, setSavedLoading] = useState(false);
 
   useEffect(() => {
     if (!isLoggedIn) router.replace("/login");
   }, [isLoggedIn, router]);
-
-  useEffect(() => {
-    if (!isLoggedIn) return;
-    let cancelled = false;
-    setSavedLoading(true);
-    void fetchSavedPapers().then(({ count }) => {
-      if (cancelled) return;
-      setSavedCount(count);
-      setSavedLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [isLoggedIn]);
-
-  useEffect(() => {
-    const onChanged = () => {
-      if (!isLoggedIn) return;
-      void fetchSavedPapers().then(({ count }) => setSavedCount(count));
-    };
-    window.addEventListener("odd:saved-papers-changed", onChanged);
-    return () => window.removeEventListener("odd:saved-papers-changed", onChanged);
-  }, [isLoggedIn]);
 
   if (!isLoggedIn) return null;
 
@@ -144,13 +116,6 @@ export default function ProfilePage() {
         <div className="mt-4 grid grid-cols-2 gap-4">
           <MetricCard icon="papers" label="Papers" value={String(MOCK_STATS.papers)} />
           <MetricCard icon="followers" label="Followers" value={MOCK_STATS.followers} />
-          <Link href="/saved-papers" className="block">
-            <MetricCard
-              icon="saved"
-              label="Saved Papers"
-              value={savedLoading ? "…" : String(savedCount)}
-            />
-          </Link>
           <MetricCard icon="comments" label="Cited Comments" value={String(MOCK_STATS.citedComments)} />
         </div>
       </div>
@@ -161,20 +126,9 @@ export default function ProfilePage() {
           <TabButton active={tab === "papers"} onClick={() => setTab("papers")}>
             Papers
           </TabButton>
-          <TabButton active={tab === "saved-papers"} onClick={() => setTab("saved-papers")}>
-            Saved Papers
-          </TabButton>
           <TabButton active={tab === "cited-comments"} onClick={() => setTab("cited-comments")}>
             Your Cited Comments
           </TabButton>
-          {tab === "saved-papers" ? (
-            <Link
-              href="/saved-papers"
-              className="ml-auto text-xs font-medium text-[var(--brand)] hover:underline"
-            >
-              View all →
-            </Link>
-          ) : null}
         </div>
 
         {tab === "papers" && (
@@ -188,15 +142,6 @@ export default function ProfilePage() {
                 image={p.image.src}
               />
             ))}
-          </div>
-        )}
-
-        {tab === "saved-papers" && (
-          <div className="mt-4">
-            <SavedPapersList
-              active={tab === "saved-papers"}
-              onCountChange={setSavedCount}
-            />
           </div>
         )}
 

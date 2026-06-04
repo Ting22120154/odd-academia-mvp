@@ -12,7 +12,7 @@ const MOCK_OTHER_USER = {
   followers: "1.2k",
   following: 300,
   avatarUrl: "/avatars/avatar-2.svg",
-  stats: { papers: 120, followers: "1.2K", savedPapers: 14, citedComments: 50 },
+  stats: { papers: 120, followers: "1.2K", citedComments: 50 },
 };
 
 export default function UserProfilePage() {
@@ -88,7 +88,6 @@ export default function UserProfilePage() {
             [
               ["Papers", MOCK_OTHER_USER.stats.papers],
               ["Followers", MOCK_OTHER_USER.stats.followers],
-              ["Saved Papers", MOCK_OTHER_USER.stats.savedPapers],
               ["Cited Comments", MOCK_OTHER_USER.stats.citedComments],
             ] as const
           ).map(([label, value]) => (

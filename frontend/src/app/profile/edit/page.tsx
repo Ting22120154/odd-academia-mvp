@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { InterestCategoryPicker } from "@/components/InterestCategoryPicker";
 import { mockUser, type MockUser } from "@/data/mockUser";
 
 type FormState = Omit<MockUser, "id">;
@@ -22,15 +23,6 @@ export default function ProfileEditPage() {
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  function removeInterest(interest: string) {
-    set("interests", form.interests.filter((i) => i !== interest));
-  }
-
-  function addInterest() {
-    const val = window.prompt("Add interest");
-    if (val?.trim()) set("interests", [...form.interests, val.trim()]);
   }
 
   if (!isLoggedIn) return null;
@@ -89,21 +81,11 @@ export default function ProfileEditPage() {
               <option>Student</option>
             </select>
           </Field>
-          <Field label="Interests">
-            <div className="flex h-11 items-center gap-2 rounded-xl border border-black/[0.08] bg-white px-4">
-              {form.interests.map((i) => (
-                <span
-                  key={i}
-                  className="inline-flex items-center gap-1 rounded-full bg-[var(--brand)]/10 px-2.5 py-0.5 text-xs font-medium text-[var(--brand)]"
-                >
-                  {i}
-                  <button type="button" onClick={() => removeInterest(i)} className="ml-0.5 hover:opacity-70">×</button>
-                </span>
-              ))}
-              <button type="button" onClick={addInterest} className="text-zinc-400 hover:text-zinc-600">
-                +
-              </button>
-            </div>
+          <Field label="Categories of interest">
+            <InterestCategoryPicker
+              selected={form.interests}
+              onChange={(interests) => set("interests", interests)}
+            />
           </Field>
 
           <Field label="Profile Visibility">

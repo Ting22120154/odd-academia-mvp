@@ -7,8 +7,6 @@ import { GuestTracker } from "@/app/paper/_components/GuestTracker";
 import { mockPosts } from "@/lib/mockPosts";
 import { mockUser } from "@/data/mockUser";
 import { useAuth } from "@/context/AuthContext";
-import { useToast } from "@/context/ToastContext";
-import { notifySavedPapersChanged } from "@/lib/saved-papers-events";
 import {
   createComment as createCommentApi,
   deleteComment as deleteCommentApi,
@@ -17,11 +15,6 @@ import {
   unlikeComment as unlikeCommentApi,
   updateComment as updateCommentApi,
 } from "@/lib/comments-client";
-import {
-  fetchPaperSaveStatus,
-  savePaper as savePaperApi,
-  unsavePaper as unsavePaperApi,
-} from "@/lib/saved-papers-client";
 import type { CommentResponse } from "@/modules/comments/types";
 
 type Props = {
@@ -192,15 +185,10 @@ function OutlineButton({
 }
 
 export function PaperDetailClient({ post, commentsPaperId }: Props) {
-  const { showToast } = useToast();
   const { isLoggedIn } = useAuth();
 
   const [followPaper, setFollowPaper] = useState(false);
   const [followAuthor, setFollowAuthor] = useState(false);
-  const [paperSaved, setPaperSaved] = useState(false);
-  const [saveStatusLoading, setSaveStatusLoading] = useState(false);
-  const [saveActionLoading, setSaveActionLoading] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [comments, setComments] = useState<UiComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
@@ -261,60 +249,6 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
     const retry = window.setTimeout(scrollToComment, 400);
     return () => window.clearTimeout(retry);
   }, [commentsLoading, comments]);
-
-  const loadSaveStatus = useCallback(async () => {
-    if (!commentsPaperId || !isLoggedIn) {
-      setPaperSaved(false);
-      return;
-    }
-    setSaveStatusLoading(true);
-    setSaveError(null);
-    const status = await fetchPaperSaveStatus(commentsPaperId);
-    setSaveStatusLoading(false);
-    if (status) {
-      setPaperSaved(status.saved);
-      return;
-    }
-    setPaperSaved(false);
-    setSaveError("Could not load save status.");
-  }, [commentsPaperId, isLoggedIn]);
-
-  useEffect(() => {
-    void loadSaveStatus();
-  }, [loadSaveStatus]);
-
-  async function toggleSavePaper() {
-    if (!commentsPaperId) {
-      const msg = "Save is not available for this paper yet.";
-      setSaveError(msg);
-      showToast(msg, "error");
-      return;
-    }
-    if (!isLoggedIn) {
-      const msg = "Login to save papers.";
-      setSaveError(msg);
-      showToast(msg, "error");
-      return;
-    }
-    setSaveActionLoading(true);
-    setSaveError(null);
-    const result = paperSaved
-      ? await unsavePaperApi(commentsPaperId)
-      : await savePaperApi(commentsPaperId);
-    setSaveActionLoading(false);
-    if (!result.ok) {
-      setSaveError(result.error);
-      showToast(result.error, "error");
-      return;
-    }
-    setPaperSaved(result.saved);
-    setSaveError(null);
-    notifySavedPapersChanged();
-    showToast(
-      result.saved ? "Paper saved to your library" : "Removed from saved papers",
-      "success",
-    );
-  }
 
   const related = useMemo(() => {
     // Related papers are mocked by "same subject OR shared tag", excluding current post.
@@ -541,56 +475,36 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
               <Chip icon="＋">{(post.tags ?? [])[0] ?? "AI infrastructure"}</Chip>
             </div>
 
-            {/* Follow + save row (login-gated). */}
+            {/* Follow row (login-gated). Use Follow Paper instead of save/bookmark. */}
             {isLoggedIn ? (
-              <div className="space-y-2">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <PrimaryButton
-                    onClick={() => setFollowPaper((v) => !v)}
-                    aria-pressed={followPaper}
-                    className="justify-between"
-                  >
-                    <span className="flex items-center gap-2">
-                      ⤴ {followPaper ? "Following Paper" : "Follow Paper"}
-                    </span>
-                    <span className="text-white/90">35</span>
-                  </PrimaryButton>
-                  <PrimaryButton
-                    onClick={() => setFollowAuthor((v) => !v)}
-                    aria-pressed={followAuthor}
-                    className="justify-between"
-                  >
-                    <span className="flex items-center gap-2">
-                      👤 {followAuthor ? "Following Author" : "Follow Author"}
-                    </span>
-                    <span className="text-white/90">35</span>
-                  </PrimaryButton>
-                </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <PrimaryButton
-                  type="button"
-                  onClick={() => void toggleSavePaper()}
-                  disabled={!commentsPaperId || saveStatusLoading || saveActionLoading}
-                  aria-pressed={paperSaved}
-                  className="w-full justify-center"
+                  onClick={() => setFollowPaper((v) => !v)}
+                  aria-pressed={followPaper}
+                  className="justify-between"
                 >
-                  {saveActionLoading
-                    ? "Saving…"
-                    : saveStatusLoading
-                      ? "Loading…"
-                      : paperSaved
-                        ? "★ Saved"
-                        : "☆ Save Paper"}
+                  <span className="flex items-center gap-2">
+                    ⤴ {followPaper ? "Following Paper" : "Follow Paper"}
+                  </span>
+                  <span className="text-white/90">35</span>
                 </PrimaryButton>
-                {saveError ? (
-                  <p className="text-xs text-red-600">{saveError}</p>
-                ) : null}
+                <PrimaryButton
+                  onClick={() => setFollowAuthor((v) => !v)}
+                  aria-pressed={followAuthor}
+                  className="justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    👤 {followAuthor ? "Following Author" : "Follow Author"}
+                  </span>
+                  <span className="text-white/90">35</span>
+                </PrimaryButton>
               </div>
             ) : (
               <Link
                 href="/login"
                 className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-[var(--brand)] text-sm font-medium text-[var(--brand)] hover:bg-[rgba(0,102,255,0.04)]"
               >
-                Login to save this paper
+                Login to follow and comment
               </Link>
             )}
           </section>
