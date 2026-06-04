@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { OddAcademiaLogo } from "@/components/OddAcademiaLogo";
 import { useAuth } from "@/context/AuthContext";
 
 const nav = [
@@ -15,7 +16,9 @@ const nav = [
 // Nav items guests cannot access
 const AUTH_ONLY_HREFS = new Set(["/upload", "/notifications", "/profile"]);
 
-function Icon({ name }: { name: (typeof nav)[number]["icon"] }) {
+type NavIcon = (typeof nav)[number]["icon"] | "chart" | "book";
+
+function Icon({ name }: { name: NavIcon }) {
   const cls = "h-4 w-4";
   switch (name) {
     case "grid":
@@ -129,10 +132,7 @@ export function Sidebar() {
   return (
     <aside className="sticky top-0 flex h-screen w-[260px] flex-col border-r border-black/[0.06] bg-white">
       <div className="px-6 py-5">
-        <div className="flex items-center gap-2 font-semibold tracking-tight">
-          <span className="text-[var(--brand)]">odd</span>
-          <span className="text-zinc-900">Academia</span>
-        </div>
+        <OddAcademiaLogo href="/home" variant="color" heightClass="h-7" />
       </div>
 
       <nav className="px-3">

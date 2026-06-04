@@ -4,7 +4,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useState,
   type ReactNode,
 } from "react";
@@ -22,20 +21,12 @@ type ToastContextValue = {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
-const AUTO_DISMISS_MS = 4000;
-
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<ToastState>(null);
 
   const showToast = useCallback((message: string, variant: ToastVariant = "info") => {
     setToast({ message, variant });
   }, []);
-
-  useEffect(() => {
-    if (!toast) return;
-    const id = window.setTimeout(() => setToast(null), AUTO_DISMISS_MS);
-    return () => window.clearTimeout(id);
-  }, [toast]);
 
   const variantStyles: Record<ToastVariant, string> = {
     success: "border-emerald-200 bg-emerald-50 text-emerald-900",

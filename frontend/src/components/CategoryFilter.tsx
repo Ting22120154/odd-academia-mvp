@@ -1,6 +1,6 @@
 "use client";
 
-import type { PostCategory } from "@/data/mockPosts";
+import type { PaperCategory as PostCategory } from "@/lib/papers/categories";
 
 type Props = {
   categories: PostCategory[];

@@ -9,6 +9,10 @@ out/
 
 # pnpm
 .pnpm-debug.log*
+.pnpm-store/
+
+# local uploads (paper files)
+frontend/public/uploads/
 
 # build outputs
 dist/

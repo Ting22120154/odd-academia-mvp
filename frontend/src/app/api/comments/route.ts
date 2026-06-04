@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
     if (msg === "PAPER_NOT_FOUND") return jsonError("Paper not found", 404);
     if (msg === "PARENT_NOT_FOUND") return jsonError("Parent comment not found", 404);
     if (msg === "CONTENT_REQUIRED") return jsonError("Content is required", 400);
+    console.error("[POST /api/comments] Unhandled error:", e);
     return jsonError("Failed to create comment", 500);
   }
 }

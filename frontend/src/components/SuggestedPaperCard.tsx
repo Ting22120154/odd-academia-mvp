@@ -1,19 +1,109 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import type { MockPost } from "@/lib/mockPosts";
+import { CategoryIcon } from "@/lib/papers/categoryIcons";
+import { getPaperCoverFallbacks } from "@/lib/papers/categoryCovers";
+import {
+  getPaperBrowseCategories,
+  normalizeCategory,
+  type PaperCategory,
+} from "@/lib/papers/categories";
 
 type Props = {
   post: MockPost;
+  /** Pass true for the first ~4 cards (above the fold) so the browser fetches them immediately. */
+  eager?: boolean;
 };
 
+function CoverImage({
+  category,
+  paperId,
+  eager,
+}: {
+  category: PaperCategory | null;
+  paperId: string;
+  eager?: boolean;
+}) {
+  const candidates = getPaperCoverFallbacks(category, paperId);
+  const [index, setIndex] = useState(0);
+  const [allFailed, setAllFailed] = useState(false);
+  const src = candidates[Math.min(index, candidates.length - 1)]!;
+
+  const handleError = () => {
+    if (index >= candidates.length - 1) {
+      setAllFailed(true);
+    } else {
+      setIndex((i) => i + 1);
+    }
+  };
+
+  return (
+    <div className="relative h-32 w-full shrink-0 overflow-hidden bg-[#eef4ff]">
+      {allFailed ? (
+        // Inline fallback — no network request, always renders
+        <div className="flex h-full w-full items-center justify-center">
+          <svg
+            className="h-10 w-10 text-[#b8cff7]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+        </div>
+      ) : (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          key={src}
+          src={src}
+          alt=""
+          className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+          loading={eager ? "eager" : "lazy"}
+          decoding="async"
+          onError={handleError}
+        />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" aria-hidden />
+      {category ? (
+        <span className="absolute bottom-2 left-2 inline-flex max-w-[calc(100%-1rem)] items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-zinc-800 shadow-sm backdrop-blur-sm">
+          <CategoryIcon category={category} className="h-3 w-3 shrink-0 text-[var(--brand)]" aria-hidden />
+          <span className="truncate">{category}</span>
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 /**
- * Card UI aligned with Figma "Suggested Paper For You".
- * The whole card links to `/paper/[id]` to meet the shareable URL requirement.
+ * Figma-style paper card: topical cover photo + title, summary, tags, author.
  */
-export function SuggestedPaperCard({ post }: Props) {
-  const tags = post.tags?.length ? post.tags : [post.subject];
-  const headerClass =
-    post.headerGradientClass ??
-    "bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300";
+export function SuggestedPaperCard({ post, eager }: Props) {
+  // Single call — primaryCategory is just browseCategories[0] with a subject fallback.
+  const browseCategories = getPaperBrowseCategories(
+    post.categories ?? [],
+    post.tags ?? [],
+  );
+  const primaryCategory: PaperCategory | null =
+    browseCategories[0] ?? normalizeCategory(post.subject ?? "") ?? null;
+
+  const tags = (
+    browseCategories.length > 0
+      ? browseCategories
+      : primaryCategory
+        ? [primaryCategory]
+        : post.subject
+          ? [post.subject]
+          : []
+  ).slice(0, 2);
 
   const initial = post.authorName.trim().charAt(0).toUpperCase() || "?";
 
@@ -21,9 +111,13 @@ export function SuggestedPaperCard({ post }: Props) {
     <li className="group relative list-none">
       <Link
         href={`/paper/${post.id}`}
-        className="flex h-full flex-col overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
+        className="flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-[transform,box-shadow,opacity] hover:-translate-y-0.5 hover:opacity-[0.98] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] hover:ring-2 hover:ring-zinc-200/60 active:translate-y-0 active:opacity-95"
       >
-        <div className={`relative h-28 w-full shrink-0 ${headerClass}`} aria-hidden />
+        <CoverImage
+          category={primaryCategory}
+          paperId={post.id}
+          eager={eager}
+        />
 
         <div className="flex flex-1 flex-col gap-3 p-4">
           <h2 className="line-clamp-2 text-[15px] font-semibold leading-snug text-zinc-900">
@@ -34,7 +128,7 @@ export function SuggestedPaperCard({ post }: Props) {
           </p>
 
           <div className="flex flex-wrap gap-2">
-            {tags.slice(0, 2).map((t) => (
+            {tags.map((t) => (
               <span
                 key={t}
                 className="inline-flex items-center rounded-full border border-black/[0.06] bg-zinc-50 px-2.5 py-0.5 text-xs font-medium text-zinc-700"
@@ -49,7 +143,9 @@ export function SuggestedPaperCard({ post }: Props) {
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-200 text-xs font-semibold text-zinc-700">
                 {initial}
               </span>
-              <span className="text-sm font-medium text-zinc-800">{post.authorName}</span>
+              <span className="text-sm font-medium text-zinc-800">
+                {post.authorName}
+              </span>
             </div>
           </div>
         </div>

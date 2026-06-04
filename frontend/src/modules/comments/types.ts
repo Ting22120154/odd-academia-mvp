@@ -11,7 +11,6 @@ export type CommentResponse = {
     avatarUrl?: string;
   };
   content: string;
-  citation?: string;
   likesCount: number;
   /** Set when the request includes an authenticated viewer. */
   likedByMe?: boolean;
@@ -24,11 +23,9 @@ export type CommentResponse = {
 export type CreateCommentRequest = {
   paperId: string;
   content: string;
-  citation?: string;
   parentCommentId?: string;
 };
 
 export type UpdateCommentRequest = {
   content: string;
-  citation?: string;
 };

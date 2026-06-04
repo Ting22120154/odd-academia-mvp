@@ -19,17 +19,6 @@ frontend/package.json (+ @prisma/client)
 packages/db/package.json (+ ./server export)
 ```
 
-## Saved papers API (same branch / follow-up commit)
-
-```
-app/api/papers/[id]/save/route.ts   — GET status, POST save, DELETE unsave
-app/api/saved-papers/route.ts       — GET list + count
-
-modules/saved-papers/
-packages/db/prisma/schema.prisma    — PaperSave model (coordinate with DB lead)
-docs/api-saved-papers.md
-```
-
 ## Notifications API
 
 ```

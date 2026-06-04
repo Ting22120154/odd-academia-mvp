@@ -1,7 +1,9 @@
+/** Root layout: AuthProvider + AppShell wrap all pages (feat/auth-user-follow-api). */
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/context/AuthContext";
 import { ToastProvider } from "@/context/ToastContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 import { TopNav } from "@/components/TopNav";
 import "./globals.css";
 
@@ -33,10 +35,12 @@ export default function RootLayout({
       <body className="min-h-full font-sans text-[var(--foreground)]">
         <AuthProvider>
           <ToastProvider>
-            <div className="min-h-screen bg-[var(--background)]">
-              <TopNav />
-              <main className="mx-auto w-full max-w-[var(--page-max)] px-6 py-6">{children}</main>
-            </div>
+            <NotificationProvider>
+              <div className="min-h-screen bg-[var(--background)]">
+                <TopNav />
+                <main className="mx-auto w-full max-w-[var(--page-max)] px-6 py-6">{children}</main>
+              </div>
+            </NotificationProvider>
           </ToastProvider>
         </AuthProvider>
       </body>

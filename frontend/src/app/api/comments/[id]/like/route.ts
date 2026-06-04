@@ -11,6 +11,8 @@ export async function POST(
 ) {
   const auth = await requireAuthUser(req);
   if (!auth.ok) return jsonError(auth.error, auth.status);
+  // Admins moderate content and must not participate as regular users.
+  if (auth.user.role === "admin") return jsonError("Admins cannot like comments", 403);
 
   const { id } = await params;
   const parsed = parseCommentIdParam(id);

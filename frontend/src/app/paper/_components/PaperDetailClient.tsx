@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MockPost } from "@/lib/mockPosts";
+import { EmbeddedPdfViewer } from "@/app/paper/_components/EmbeddedPdfViewer";
+import { PaperPdfAttach } from "@/app/paper/_components/PaperPdfAttach";
 import { GuestTracker } from "@/app/paper/_components/GuestTracker";
-import { mockPosts } from "@/lib/mockPosts";
-import { mockUser } from "@/data/mockUser";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
 import {
   createComment as createCommentApi,
   deleteComment as deleteCommentApi,
@@ -16,12 +18,39 @@ import {
   updateComment as updateCommentApi,
 } from "@/lib/comments-client";
 import type { CommentResponse } from "@/modules/comments/types";
+import { isValidUserId } from "@/lib/auth/user-id";
+import { fetchFollowStatus, toggleFollow } from "@/lib/follow-client";
+import {
+  fetchPaperFollowStatus,
+  togglePaperFollow,
+} from "@/lib/paper-follow-client";
+import { paperDownloadFilename } from "@/lib/files/paperFilename";
+import {
+  brandButtonHover,
+  cardLinkHover,
+  clickableHoverInset,
+  linkHover,
+  outlineButtonHover,
+} from "@/lib/ui/interactive";
 
 type Props = {
   post: MockPost;
-  /** Neon `papers.id` for comments API (mock route ids like `1` resolved on server). */
+  /** Neon `papers.id` for comments API (resolved on server). */
   commentsPaperId: string | null;
+  relatedPosts?: MockPost[];
 };
+
+function pathExtFromUrl(fileUrl?: string): string {
+  if (!fileUrl) return ".pdf";
+  const match = fileUrl.match(/\.[a-z0-9]+$/i);
+  return match?.[0]?.toLowerCase() ?? ".pdf";
+}
+
+function buildApaLikeCitation(post: MockPost) {
+  // MVP: simple placeholder citation format (not a full APA generator).
+  const year = new Date().getFullYear();
+  return `${post.authorName} (${year}). ${post.title}. Odd Academia.`;
+}
 
 type UiReply = {
   id: string;
@@ -123,14 +152,32 @@ function initials(name: string) {
   return (a + b).toUpperCase();
 }
 
-function ToolPill({ children }: { children: React.ReactNode }) {
+function NonPdfSaveButton({
+  fileSrc,
+  downloadFilename,
+}: {
+  fileSrc: string;
+  downloadFilename: string;
+}) {
+  async function handleDownload() {
+    const res = await fetch(`${fileSrc}?download=1`);
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = downloadFilename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50"
+      onClick={() => void handleDownload()}
+      className={`mt-2 text-sm font-semibold text-[var(--brand)] ${linkHover}`}
     >
-      <span className="text-zinc-400">●</span>
-      <span>{children}</span>
+      Save {downloadFilename}
     </button>
   );
 }
@@ -156,7 +203,7 @@ function PrimaryButton({
       type="button"
       {...props}
       className={[
-        "inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 text-sm font-medium text-white hover:opacity-95",
+        `inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 text-sm font-medium text-white ${brandButtonHover}`,
         className,
       ].join(" ")}
     >
@@ -175,7 +222,7 @@ function OutlineButton({
       type="button"
       {...props}
       className={[
-        "inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-black/[0.08] bg-white px-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50",
+        `inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-black/[0.08] bg-white px-4 text-sm font-medium text-zinc-700 ${outlineButtonHover}`,
         className,
       ].join(" ")}
     >
@@ -184,15 +231,245 @@ function OutlineButton({
   );
 }
 
-export function PaperDetailClient({ post, commentsPaperId }: Props) {
-  const { isLoggedIn } = useAuth();
+// Consolidated to a single reason field — subject + description were redundant
+// for users; they added friction without capturing distinct information.
+type ReportDraft = { reason: string };
+
+function ReportModal({
+  open,
+  onClose,
+  onSubmit,
+  title,
+  description,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (draft: ReportDraft) => void;
+  title: string;
+  description: string;
+}) {
+  const [draft, setDraft] = useState<ReportDraft>({ reason: "" });
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="report-title"
+    >
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-[var(--shadow-md)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div id="report-title" className="text-base font-semibold text-zinc-900">
+              {title}
+            </div>
+            <div className="mt-1 text-sm text-zinc-500">
+              {description}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="mt-5">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-zinc-700" htmlFor="report-reason">
+              Reason
+            </label>
+            <textarea
+              id="report-reason"
+              value={draft.reason}
+              onChange={(e) => setDraft({ reason: e.target.value })}
+              placeholder="Describe the issue clearly"
+              className="min-h-[110px] w-full resize-none rounded-xl border border-black/[0.08] px-4 py-3 text-sm outline-none focus:border-black/20"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 flex gap-3">
+          <OutlineButton onClick={onClose} className="flex-1">
+            Cancel
+          </OutlineButton>
+          <PrimaryButton
+            onClick={() => onSubmit(draft)}
+            className="flex-1"
+            disabled={!draft.reason.trim()}
+          >
+            Submit
+          </PrimaryButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatPaperDate(value?: string) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+  });
+}
+
+function PlusIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+      <path d="M12 8v8M8 12h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PersonIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="2" />
+      <path d="M5 20c0-3.3 3.1-5 7-5s7 1.7 7 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: Props) {
+  const router = useRouter();
+  const { showToast } = useToast();
+  const { isLoggedIn, user: sessionUser } = useAuth();
+  const authorId = post.authorId;
+  const canFollowAuthor = Boolean(
+    authorId && isValidUserId(authorId) && sessionUser?.id !== authorId,
+  );
+  const citation = useMemo(() => buildApaLikeCitation(post), [post]);
+  const sharePath = `/paper/${post.id}`;
+  const fileApiSrc = `/api/papers/${post.id}/file`;
+  const downloadFilename = useMemo(
+    () => paperDownloadFilename(post.title, post.fileType === "pdf" ? ".pdf" : pathExtFromUrl(post.fileUrl)),
+    [post.title, post.fileType, post.fileUrl],
+  );
+  const hasPdf = post.fileType === "pdf" && Boolean(post.fileUrl);
+  const [pdfFileOk, setPdfFileOk] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!hasPdf) {
+      setPdfFileOk(false);
+      return;
+    }
+    let cancelled = false;
+    void fetch(fileApiSrc, { method: "HEAD", credentials: "include" })
+      .then((res) => {
+        if (!cancelled) setPdfFileOk(res.ok);
+      })
+      .catch(() => {
+        if (!cancelled) setPdfFileOk(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasPdf, fileApiSrc]);
+
+  const isPaperOwner = Boolean(
+    sessionUser?.id && authorId && sessionUser.id === authorId,
+  );
+  // Admins moderate content; they should not participate as regular users.
+  // ApiRole uses uppercase ("ADMIN") per frontend/src/lib/auth/types.ts.
+  const isAdmin = sessionUser?.role === "ADMIN";
+
+  async function copyToClipboard(value: string) {
+    await navigator.clipboard.writeText(value);
+  }
+
+  async function copyShareLink() {
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "";
+    await copyToClipboard(origin ? `${origin}${sharePath}` : sharePath);
+  }
 
   const [followPaper, setFollowPaper] = useState(false);
+  const [paperFollowerCount, setPaperFollowerCount] = useState(0);
+  const [followPaperBusy, setFollowPaperBusy] = useState(false);
   const [followAuthor, setFollowAuthor] = useState(false);
+  const [authorFollowerCount, setAuthorFollowerCount] = useState(0);
+  const [followAuthorBusy, setFollowAuthorBusy] = useState(false);
   const [comments, setComments] = useState<UiComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
+  const [reportingPaper, setReportingPaper] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { isFollowing, followerCount } = await fetchPaperFollowStatus(post.id);
+      if (cancelled) return;
+      setFollowPaper(!!isFollowing);
+      setPaperFollowerCount(followerCount);
+    })();
+    return () => { cancelled = true; };
+  }, [post.id]);
+
+  useEffect(() => {
+    if (!authorId || !isValidUserId(authorId)) {
+      setFollowAuthor(false);
+      setAuthorFollowerCount(0);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { isFollowing, followerCount } = await fetchFollowStatus(authorId);
+      if (cancelled) return;
+      setFollowAuthor(isLoggedIn && canFollowAuthor ? !!isFollowing : false);
+      if (typeof followerCount === "number") setAuthorFollowerCount(followerCount);
+    })();
+    return () => { cancelled = true; };
+  }, [isLoggedIn, authorId, canFollowAuthor]);
+
+  const handleFollowAuthor = useCallback(async () => {
+    if (!authorId || !canFollowAuthor || followAuthorBusy) return;
+    if (!isLoggedIn) { router.push("/login"); return; }
+    setFollowAuthorBusy(true);
+    const { isFollowing, error } = await toggleFollow(authorId, followAuthor);
+    setFollowAuthorBusy(false);
+    if (!error && typeof isFollowing === "boolean") {
+      setFollowAuthor(isFollowing);
+      setAuthorFollowerCount((c) => Math.max(0, c + (isFollowing ? 1 : -1)));
+    }
+  }, [authorId, canFollowAuthor, followAuthor, followAuthorBusy, isLoggedIn, router]);
+
+  const followAuthorSidebarLabel = followAuthorBusy ? "…" : followAuthor ? "Following" : "Follow";
+  const followPaperLabel = followPaperBusy ? "…" : followPaper ? "Following Paper" : "Follow Paper";
+  const followAuthorMainLabel = followAuthorBusy ? "…" : followAuthor ? "Following Author" : "Follow Author";
+
+  const contributorLine = (post.contributors ?? []).length
+    ? `Contributions by ${(post.contributors ?? []).join(", ")}`
+    : null;
+  const metaTags = [
+    formatPaperDate(post.publishedAt),
+    ...(post.tags ?? post.categories ?? []).slice(0, 2),
+  ].filter(Boolean);
+  const authorProfileHref = authorId && isValidUserId(authorId) ? `/user/${authorId}` : null;
+
+  const handleFollowPaper = useCallback(async () => {
+    if (followPaperBusy) return;
+    if (!isLoggedIn) { router.push("/login"); return; }
+    setFollowPaperBusy(true);
+    const { isFollowing, followerCount, error } = await togglePaperFollow(post.id, followPaper);
+    setFollowPaperBusy(false);
+    if (!error) {
+      if (typeof isFollowing === "boolean") setFollowPaper(isFollowing);
+      if (typeof followerCount === "number") setPaperFollowerCount(followerCount);
+    }
+  }, [followPaper, followPaperBusy, isLoggedIn, post.id, router]);
+
   const [composer, setComposer] = useState("");
   const [activeReplyFor, setActiveReplyFor] = useState<string | null>(null);
   const [replyDraft, setReplyDraft] = useState("");
@@ -250,13 +527,7 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
     return () => window.clearTimeout(retry);
   }, [commentsLoading, comments]);
 
-  const related = useMemo(() => {
-    // Related papers are mocked by "same subject OR shared tag", excluding current post.
-    return mockPosts
-      .filter((p) => p.id !== post.id)
-      .filter((p) => p.subject === post.subject || (p.tags ?? []).some((t) => (post.tags ?? []).includes(t)))
-      .slice(0, 3);
-  }, [post.id, post.subject, post.tags]);
+  const related = relatedPosts;
 
   async function submitTopLevelComment() {
     const trimmed = composer.trim();
@@ -387,6 +658,35 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
     await loadComments();
   }
 
+  async function submitReport(commentId: string, draft: ReportDraft) {
+    await fetch("/api/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ type: "comment", commentId, reason: draft.reason.trim() }),
+    }).catch(() => null);
+    setReportingCommentId(null);
+    showToast("Report submitted. Our team will review it.", "success");
+  }
+
+  async function submitPaperReport(draft: ReportDraft) {
+    if (!commentsPaperId) return;
+    const res = await fetch("/api/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        type: "paper",
+        paperId: commentsPaperId,
+        subject: "Paper report",
+        reason: draft.reason.trim(),
+      }),
+    });
+    setReportingPaper(false);
+    if (res.ok) showToast("Report submitted. Our team will review it.", "success");
+    else showToast("Could not submit report. Please try again.", "error");
+  }
+
   return (
     <div className="space-y-6">
       {/* Tracks guest article views and enforces the 5-article limit */}
@@ -399,34 +699,46 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
         <aside className="space-y-4">
           <section className="rounded-2xl border border-black/[0.06] bg-white p-5 shadow-[var(--shadow-sm)]">
             <div className="flex items-start gap-3">
-              <div className="h-12 w-12 overflow-hidden rounded-full bg-zinc-200" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={post.authorAvatarUrl ?? "/avatars/profile.svg"}
+                alt=""
+                className="h-14 w-14 shrink-0 rounded-full object-cover bg-zinc-200"
+              />
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-zinc-900">{post.authorName}</div>
-                <div className="text-xs text-zinc-400">PhD</div>
+                {post.authorJobTitle ? (
+                  <div className="text-xs text-zinc-500">{post.authorJobTitle}</div>
+                ) : null}
               </div>
             </div>
-            <p className="mt-3 text-sm leading-6 text-zinc-500">{mockUser.bio}</p>
-            <Link href="#" className="text-sm font-semibold text-[var(--brand)] hover:underline">
-              Read More…
-            </Link>
+            {post.authorBio ? (
+              <p className="mt-3 line-clamp-4 text-sm leading-6 text-zinc-500">{post.authorBio}</p>
+            ) : null}
+            {authorProfileHref ? (
+              <Link href={authorProfileHref} className={`mt-2 inline-block text-sm font-semibold text-[var(--brand)] ${linkHover}`}>
+                Read More…
+              </Link>
+            ) : null}
 
             <div className="mt-4">
-              {isLoggedIn ? (
+              {isLoggedIn && canFollowAuthor ? (
                 <PrimaryButton
                   className="w-full"
-                  onClick={() => setFollowAuthor((v) => !v)}
+                  onClick={() => void handleFollowAuthor()}
+                  disabled={followAuthorBusy}
                   aria-pressed={followAuthor}
                 >
-                  {followAuthor ? "Following" : "Follow"}
+                  {followAuthorSidebarLabel}
                 </PrimaryButton>
-              ) : (
+              ) : !isLoggedIn ? (
                 <Link
                   href="/login"
-                  className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-[var(--brand)] text-sm font-medium text-white hover:opacity-95"
+                  className={`inline-flex h-10 w-full items-center justify-center rounded-xl bg-[var(--brand)] text-sm font-medium text-white ${brandButtonHover}`}
                 >
-                  Login to Follow
+                  Follow
                 </Link>
-              )}
+              ) : null}
             </div>
           </section>
 
@@ -435,7 +747,7 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
             <ul className="space-y-3">
               {related.map((p) => (
                 <li key={p.id} className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-sm)]">
-                  <Link href={`/paper/${p.id}`} className="block">
+                  <Link href={`/paper/${p.id}`} className={`block ${cardLinkHover}`}>
                     <div className="h-24 bg-zinc-200" />
                     <div className="p-4">
                       <div className="text-sm font-semibold text-zinc-900">{p.title}</div>
@@ -449,94 +761,158 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
 
         {/* Right column */}
         <div className="space-y-4">
-          {/* Title + meta */}
-          <section className="space-y-3">
-            <div className="flex items-center gap-3 text-sm text-zinc-500">
-              <Link href="/" className="hover:text-zinc-700">
-                ← Back
+          {/* Title + meta — Figma: arrow + title once, subtitle, author, tags */}
+          <section className="space-y-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <Link
+                href="/home"
+                aria-label="Back to home"
+                className={`mt-1.5 shrink-0 rounded-lg px-1 py-0.5 text-lg leading-none text-zinc-600 ${linkHover}`}
+              >
+                ←
               </Link>
-            </div>
-            <div className="text-2xl font-semibold leading-tight tracking-tight text-zinc-900 lg:text-[28px]">
-              {post.title}
-            </div>
-            <div className="text-sm text-zinc-500">{post.summary}</div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500">
-              <div className="flex flex-wrap items-center gap-3">
-                <span>
-                  Authored by <span className="font-semibold text-zinc-700">{post.authorName}</span>
-                </span>
+              <div className="min-w-0 flex-1 space-y-2">
+                <h1 className="text-2xl font-semibold leading-tight tracking-tight text-zinc-900 lg:text-[32px]">
+                  {post.title}
+                </h1>
+                {post.summary ? (
+                  <p className="text-base leading-relaxed text-zinc-500">{post.summary}</p>
+                ) : null}
               </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={post.authorAvatarUrl ?? "/avatars/profile.svg"}
+                  alt=""
+                  className="h-9 w-9 shrink-0 rounded-full object-cover bg-zinc-200"
+                />
+                <p className="text-sm text-zinc-600">
+                  Authored by{" "}
+                  {authorProfileHref ? (
+                    <Link href={authorProfileHref} className="font-semibold text-zinc-900 hover:underline">
+                      {post.authorName}
+                    </Link>
+                  ) : (
+                    <span className="font-semibold text-zinc-900">{post.authorName}</span>
+                  )}
+                </p>
+              </div>
+              {contributorLine ? (
+                <p className="text-sm text-zinc-500">{contributorLine}</p>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Chip icon="📅">10-11-2024</Chip>
-              <Chip icon="🏷️">{post.subject}</Chip>
-              <Chip icon="＋">{(post.tags ?? [])[0] ?? "AI infrastructure"}</Chip>
+              {metaTags.map((tag, i) => (
+                <Chip key={`${tag}-${i}`} icon={i === 0 ? "📅" : i === 1 ? "🌿" : "✦"}>
+                  {tag}
+                </Chip>
+              ))}
             </div>
 
-            {/* Follow row (login-gated). Use Follow Paper instead of save/bookmark. */}
+            {/* Figma: Follow Paper + Follow Author side by side */}
             {isLoggedIn ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <PrimaryButton
-                  onClick={() => setFollowPaper((v) => !v)}
-                  aria-pressed={followPaper}
-                  className="justify-between"
-                >
-                  <span className="flex items-center gap-2">
-                    ⤴ {followPaper ? "Following Paper" : "Follow Paper"}
-                  </span>
-                  <span className="text-white/90">35</span>
-                </PrimaryButton>
-                <PrimaryButton
-                  onClick={() => setFollowAuthor((v) => !v)}
-                  aria-pressed={followAuthor}
-                  className="justify-between"
-                >
-                  <span className="flex items-center gap-2">
-                    👤 {followAuthor ? "Following Author" : "Follow Author"}
-                  </span>
-                  <span className="text-white/90">35</span>
-                </PrimaryButton>
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <PrimaryButton
+                    onClick={() => void handleFollowPaper()}
+                    disabled={followPaperBusy}
+                    aria-pressed={followPaper}
+                    className="w-full justify-between px-4"
+                  >
+                    <span className="flex items-center gap-2">
+                      <PlusIcon />
+                      {followPaperLabel}
+                    </span>
+                    <span className="text-white/90">{paperFollowerCount}</span>
+                  </PrimaryButton>
+                  {canFollowAuthor ? (
+                    <PrimaryButton
+                      onClick={() => void handleFollowAuthor()}
+                      disabled={followAuthorBusy}
+                      aria-pressed={followAuthor}
+                      className="w-full justify-between px-4"
+                    >
+                      <span className="flex items-center gap-2">
+                        <PersonIcon />
+                        {followAuthorMainLabel}
+                      </span>
+                      <span className="text-white/90">{authorFollowerCount}</span>
+                    </PrimaryButton>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-4 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setReportingPaper(true)}
+                    className="font-medium text-zinc-500 hover:text-zinc-800 hover:underline"
+                  >
+                    Report paper
+                  </button>
+                </div>
               </div>
             ) : (
-              <Link
-                href="/login"
-                className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-[var(--brand)] text-sm font-medium text-[var(--brand)] hover:bg-[rgba(0,102,255,0.04)]"
-              >
-                Login to follow and comment
-              </Link>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Link
+                  href="/login"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 text-sm font-medium text-white hover:opacity-95"
+                >
+                  <PlusIcon />
+                  Follow Paper
+                </Link>
+                <Link
+                  href="/login"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--brand)] px-4 text-sm font-medium text-white hover:opacity-95"
+                >
+                  <PersonIcon />
+                  Follow Author
+                </Link>
+              </div>
             )}
           </section>
 
-          {/* Reader */}
-          <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-sm)]">
-            <div className="flex flex-wrap items-center gap-1 border-b border-black/[0.06] bg-white px-3 py-2">
-              <ToolPill>Page 1 of 235</ToolPill>
-              <ToolPill>Zoom</ToolPill>
-              <ToolPill>Full-screen</ToolPill>
-              {/* Dark mode is intentionally not present here (toggled from Profile Settings only). */}
-            </div>
-
-            <div className="bg-zinc-50 px-8 py-10">
-              <div className="text-4xl font-semibold leading-tight tracking-tight text-zinc-900">
-                {post.title}
-              </div>
-              <p className="mt-5 max-w-3xl text-base leading-7 text-zinc-600">
-                {post.summary}
-              </p>
-
-              {post.fileType === "pdf" && post.fileUrl ? (
-                <div className="mt-8 overflow-hidden rounded-2xl border border-black/[0.08] bg-white">
-                  <iframe
-                    title="PDF reader"
-                    src={post.fileUrl}
-                    className="h-[70vh] w-full bg-white"
-                  />
-                </div>
-              ) : null}
-            </div>
-          </section>
+          {/* Reader — embedded PDF (no browser native viewer) */}
+          {hasPdf && pdfFileOk === null ? (
+            <section className="rounded-2xl border border-black/[0.06] bg-white p-10 text-center text-sm text-zinc-500 shadow-[var(--shadow-sm)]">
+              Loading PDF…
+            </section>
+          ) : hasPdf && pdfFileOk === false ? (
+            isPaperOwner ? (
+              <PaperPdfAttach
+                paperId={post.id}
+                onAttached={() => router.refresh()}
+              />
+            ) : (
+              <section className="rounded-2xl border border-black/[0.06] bg-white p-8 text-center text-sm text-zinc-600 shadow-[var(--shadow-sm)]">
+                The PDF for this paper is not available yet.
+              </section>
+            )
+          ) : hasPdf ? (
+            <EmbeddedPdfViewer
+              fileSrc={fileApiSrc}
+              downloadFilename={downloadFilename}
+              downloadCount={post.viewCount ?? 0}
+              shareCount={0}
+              citationCount={post.citationCount ?? 0}
+              onShare={() => void copyShareLink()}
+              onCite={() => void copyToClipboard(citation)}
+            />
+          ) : post.fileUrl ? (
+            <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white p-6 text-center shadow-[var(--shadow-sm)]">
+              <p className="text-sm text-zinc-600">This paper is not a PDF preview.</p>
+              <NonPdfSaveButton
+                fileSrc={fileApiSrc}
+                downloadFilename={downloadFilename}
+              />
+            </section>
+          ) : (
+            <section className="overflow-hidden rounded-2xl border border-dashed border-black/[0.12] bg-white p-8 text-center text-sm text-zinc-500 shadow-[var(--shadow-sm)]">
+              No document has been uploaded for this paper yet.
+            </section>
+          )}
 
           {/* Abstract + references */}
           <section className="space-y-6 rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
@@ -558,7 +934,7 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
                   "O'Neill, D., et al. (2022). Adaptive reuse of existing buildings in the urban environment. Urban Landscape Transformations.",
                 ].map((r) => (
                   <li key={r} className="rounded-xl bg-zinc-50 px-4 py-3">
-                    <a href="#" className="text-[var(--brand)] underline-offset-2 hover:underline">
+                    <a href="#" className={`text-[var(--brand)] underline-offset-2 ${linkHover}`}>
                       {r}
                     </a>
                   </li>
@@ -570,7 +946,7 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
             {!isLoggedIn ? (
               <Link
                 href="/login"
-                className="inline-flex h-10 w-fit items-center rounded-xl bg-[var(--brand)] px-5 text-sm font-medium text-white hover:opacity-95"
+                className={`inline-flex h-10 w-fit items-center rounded-xl bg-[var(--brand)] px-5 text-sm font-medium text-white ${brandButtonHover}`}
               >
                 Login to Comment
               </Link>
@@ -651,16 +1027,19 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
                         )}
 
                         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-zinc-400">
-                          <CommentLikeButton
-                            count={c.likes}
-                            liked={c.likedByMe}
-                            disabled={!isLoggedIn}
-                            onClick={() => void toggleCommentLike(c.id)}
-                          />
+                          {/* Admins moderate content and cannot like comments */}
+                          {!isAdmin ? (
+                            <CommentLikeButton
+                              count={c.likes}
+                              liked={c.likedByMe}
+                              disabled={!isLoggedIn}
+                              onClick={() => void toggleCommentLike(c.id)}
+                            />
+                          ) : null}
 
                           <button
                             type="button"
-                            className="hover:text-zinc-600"
+                            className={`rounded-md px-1.5 py-0.5 ${clickableHoverInset}`}
                             onClick={() => {
                               if (!isLoggedIn) return;
                               setActiveReplyFor((prev) => (prev === c.id ? null : c.id));
@@ -688,6 +1067,18 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
                                 Delete
                               </button>
                             </>
+                          ) : null}
+
+                          {/* Users cannot report their own comments */}
+                          {isLoggedIn && !isOwnComment(c.authorId) ? (
+                            <button
+                              type="button"
+                              className={`rounded-md px-1.5 py-0.5 ${clickableHoverInset}`}
+                              onClick={() => setReportingCommentId(c.id)}
+                              title="Report comment"
+                            >
+                              Report
+                            </button>
                           ) : null}
                         </div>
 
@@ -746,12 +1137,14 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
                               )}
 
                               <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-zinc-400">
-                                <CommentLikeButton
-                                  count={r.likes}
-                                  liked={r.likedByMe}
-                                  disabled={!isLoggedIn}
-                                  onClick={() => void toggleCommentLike(r.id)}
-                                />
+                                {!isAdmin ? (
+                                  <CommentLikeButton
+                                    count={r.likes}
+                                    liked={r.likedByMe}
+                                    disabled={!isLoggedIn}
+                                    onClick={() => void toggleCommentLike(r.id)}
+                                  />
+                                ) : null}
 
                                 {isOwnComment(r.authorId) && editingCommentId !== r.id ? (
                                   <>
@@ -786,6 +1179,21 @@ export function PaperDetailClient({ post, commentsPaperId }: Props) {
           </section>
         </div>
       </div>
+
+      <ReportModal
+        open={reportingCommentId !== null}
+        onClose={() => setReportingCommentId(null)}
+        title="Report comment"
+        description="Help us understand what went wrong."
+        onSubmit={(draft) => void submitReport(reportingCommentId ?? "", draft)}
+      />
+      <ReportModal
+        open={reportingPaper}
+        onClose={() => setReportingPaper(false)}
+        title="Report paper"
+        description="Tell us why this paper should be reviewed."
+        onSubmit={(draft) => void submitPaperReport(draft)}
+      />
     </div>
   );
 }

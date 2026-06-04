@@ -1,10 +1,3 @@
-// Re-exported from the shared data package — single source of truth.
-// To update post data, edit packages/db/src/data.ts (papers array).
+// Types for paper cards/detail. Live paper lists always come from the database
+// via `usePublishedPapers` (client) or `@/lib/papers/db` (server).
 export type { FrontendViewerPost as MockPost } from "@odd-academia/db";
-export { mockFrontendViewerPosts as mockPosts } from "@odd-academia/db";
-
-import { mockFrontendViewerPosts } from "@odd-academia/db";
-
-export function getMockPostById(id: string) {
-  return mockFrontendViewerPosts.find(p => p.id === id) ?? null;
-}
