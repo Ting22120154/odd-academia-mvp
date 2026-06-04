@@ -11,6 +11,9 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { SuggestedPaperCard } from "@/components/SuggestedPaperCard";
 import { profilePaperToViewerPost } from "@/lib/auth/profile";
+import { ProfileEngagementMetrics } from "@/components/profile/ProfileEngagementMetrics";
+import { ProfileInterests } from "@/components/profile/ProfileInterests";
+import { ProfileRoleEducation } from "@/components/profile/ProfileRoleEducation";
 import {
   fetchMyProfile,
   formatCount,
@@ -102,6 +105,8 @@ export default function ProfilePage() {
           </div>
 
           {profile.bio && <p className="mt-4 text-sm text-zinc-600">{profile.bio}</p>}
+          <ProfileRoleEducation jobTitle={profile.jobTitle} education={profile.education} />
+          <ProfileInterests interests={profile.interests} />
 
           <div className="mt-3 flex items-center gap-4 text-sm">
             <span>
@@ -133,14 +138,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
-        <div className="text-sm font-semibold text-zinc-900">Engagement Metrics</div>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <MetricCard icon="papers" label="Papers" value={String(profile.stats.papers)} />
-          <MetricCard icon="followers" label="Followers" value={formatCount(profile.stats.followers)} />
-          <MetricCard icon="comments" label="Comments" value={String(profile.stats.citedComments)} />
-        </div>
-      </div>
+      <ProfileEngagementMetrics stats={profile.stats} />
 
       <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
         <div className="border-b border-black/[0.06] pb-3 text-sm font-semibold text-zinc-900">
@@ -164,49 +162,6 @@ export default function ProfilePage() {
         )}
       </div>
     </section>
-  );
-}
-
-function MetricCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: "papers" | "followers" | "comments";
-  label: string;
-  value: string;
-}) {
-  const iconMap = {
-    papers: (
-      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" strokeLinejoin="round" />
-        <path d="M14 3v5h5" strokeLinejoin="round" />
-      </svg>
-    ),
-    followers: (
-      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" strokeLinecap="round" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" strokeLinecap="round" />
-      </svg>
-    ),
-    comments: (
-      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinejoin="round" />
-      </svg>
-    ),
-  };
-
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-black/[0.06] bg-white p-4">
-      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-[var(--brand)]">
-        {iconMap[icon]}
-      </div>
-      <div>
-        <div className="text-xs text-zinc-500">{label}</div>
-        <div className="text-xl font-bold text-zinc-900">{value}</div>
-      </div>
-    </div>
   );
 }
 
