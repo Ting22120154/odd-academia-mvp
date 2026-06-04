@@ -12,15 +12,20 @@ import "react-pdf/dist/Page/TextLayer.css";
 // Worker must match react-pdf's pdfjs API version (see pdfjs.version).
 pdfjs.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs?v=${pdfjs.version}`;
 
-/** Zoom levels for the PDF only (100% = fit width, higher = zoom in). */
-const ZOOM_STEPS = [1, 1.25, 1.5, 1.75, 2] as const;
+/** Preset zoom levels; buttons also step by ZOOM_STEP between min and max. */
+const ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 2;
+const ZOOM_STEP = 0.1;
+
+function clampZoom(value: number) {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(value * 10) / 10));
+}
 
 export type PdfViewerCoreProps = {
   fileSrc: string;
   title?: string;
   summary?: string;
-  downloadFilename?: string;
-  downloadCount?: number;
   shareCount?: number;
   citationCount?: number;
   onShare?: () => void | Promise<void>;
@@ -36,7 +41,7 @@ function BookIcon() {
   );
 }
 
-function ZoomIcon() {
+function ZoomInIcon() {
   return (
     <svg className="h-4 w-4 shrink-0 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
       <circle cx="11" cy="11" r="7" />
@@ -46,19 +51,20 @@ function ZoomIcon() {
   );
 }
 
-function FullscreenIcon() {
+function ZoomOutIcon() {
   return (
     <svg className="h-4 w-4 shrink-0 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-      <path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="11" cy="11" r="7" />
+      <path d="M8 11h6" strokeLinecap="round" />
+      <path d="m20 20 3 3" strokeLinecap="round" />
     </svg>
   );
 }
 
-function DownloadCircleIcon() {
+function FullscreenIcon() {
   return (
-    <svg className="h-4 w-4 text-zinc-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-      <path d="M12 3v12M8 11l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M4 20h16" strokeLinecap="round" />
+    <svg className="h-4 w-4 shrink-0 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -147,38 +153,71 @@ export default function PdfViewerCore({
   fileSrc,
   title,
   summary,
-  downloadFilename,
-  downloadCount = 101,
   shareCount = 35,
   citationCount = 35,
   onShare,
   onCite,
 }: PdfViewerCoreProps) {
-  const rootRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const pageWrapRef = useRef<HTMLDivElement>(null);
+  const zoomMenuRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const blobUrlRef = useRef<string | null>(null);
+  const [docEpoch, setDocEpoch] = useState(0);
   const [numPages, setNumPages] = useState<number | null>(null);
+  const [documentReady, setDocumentReady] = useState(false);
   const [pageNumber, setPageNumber] = useState(1);
-  const [zoomIndex, setZoomIndex] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const [zoomMenuOpen, setZoomMenuOpen] = useState(false);
   const [pageWidth, setPageWidth] = useState(640);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const scale = ZOOM_STEPS[zoomIndex] ?? 1;
+  const zoomPercent = Math.round(zoom * 100);
 
   useEffect(() => {
-    let objectUrl: string | null = null;
+    function syncFullscreen() {
+      setIsFullscreen(document.fullscreenElement === containerRef.current);
+    }
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
-    setPdfBlobUrl(null);
+    setDocumentReady(false);
     setNumPages(null);
+    setPageNumber(1);
+    setZoom(1);
+    setZoomMenuOpen(false);
+    pageRefs.current = [];
+    setDocEpoch((e) => e + 1);
+
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+    setPdfBlobUrl(null);
 
     void (async () => {
       try {
         const res = await fetch(fileSrc, { credentials: "include" });
+        if (cancelled) return;
         if (!res.ok) {
           setError(
             res.status === 404
@@ -198,21 +237,29 @@ export default function PdfViewerCore({
           return;
         }
         const blob = await res.blob();
+        if (cancelled) return;
         if (blob.size < 64) {
           setError("PDF file is empty or missing.");
           setLoading(false);
           return;
         }
-        objectUrl = URL.createObjectURL(blob);
+        const objectUrl = URL.createObjectURL(blob);
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+        blobUrlRef.current = objectUrl;
         setPdfBlobUrl(objectUrl);
       } catch {
-        setError("Could not load this PDF.");
-        setLoading(false);
+        if (!cancelled) {
+          setError("Could not load this PDF.");
+          setLoading(false);
+        }
       }
     })();
 
     return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      cancelled = true;
     };
   }, [fileSrc]);
 
@@ -234,11 +281,14 @@ export default function PdfViewerCore({
   const onDocumentLoadSuccess = useCallback(({ numPages: total }: { numPages: number }) => {
     setNumPages(total);
     setPageNumber(1);
+    setDocumentReady(true);
     setLoading(false);
     setError(null);
   }, []);
 
   const onDocumentLoadError = useCallback(() => {
+    setDocumentReady(false);
+    setNumPages(null);
     setLoading(false);
     setError("Could not load this PDF.");
   }, []);
@@ -271,7 +321,18 @@ export default function PdfViewerCore({
     });
 
     return () => observer.disconnect();
-  }, [numPages, pageWidth, zoomIndex]);
+  }, [numPages, pageWidth, zoom, documentReady]);
+
+  useEffect(() => {
+    if (!zoomMenuOpen) return;
+    function handlePointerDown(e: MouseEvent) {
+      if (zoomMenuRef.current && !zoomMenuRef.current.contains(e.target as Node)) {
+        setZoomMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [zoomMenuOpen]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -289,25 +350,25 @@ export default function PdfViewerCore({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [numPages, pageNumber, scrollToPage]);
 
-  const zoomIn = () => {
-    setZoomIndex((i) => {
-      const next = Math.min(ZOOM_STEPS.length - 1, i + 1);
-      if (next !== i) {
-        requestAnimationFrame(() => scrollToPage(pageNumber));
-      }
-      return next;
-    });
-  };
+  const applyZoom = useCallback(
+    (next: number) => {
+      const clamped = clampZoom(next);
+      setZoom(clamped);
+      requestAnimationFrame(() => scrollToPage(pageNumber));
+    },
+    [pageNumber, scrollToPage],
+  );
 
-  const zoomPercent = Math.round(scale * 100);
+  const zoomIn = () => applyZoom(zoom + ZOOM_STEP);
+  const zoomOut = () => applyZoom(zoom - ZOOM_STEP);
 
   const toggleFullscreen = () => {
-    const el = rootRef.current;
+    const el = containerRef.current;
     if (!el) return;
-    if (!document.fullscreenElement) {
-      void el.requestFullscreen();
-    } else {
+    if (document.fullscreenElement === el) {
       void document.exitFullscreen();
+    } else {
+      void el.requestFullscreen();
     }
   };
 
@@ -322,137 +383,160 @@ export default function PdfViewerCore({
     }
   };
 
-  const handleDownload = async () => {
-    if (!downloadFilename) return;
-    try {
-      const res = await fetch(`${fileSrc}?download=1`);
-      if (!res.ok) throw new Error("Save failed");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = downloadFilename;
-      anchor.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      setError("Could not save this file. Please try again.");
-    }
-  };
-
   return (
-    <div
-      ref={rootRef}
-      className="flex flex-col overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-sm)] [&:fullscreen]:min-h-screen [&:fullscreen]:bg-white"
-    >
-      {/* Top toolbar — Figma: Page | Zoom | Full-screen */}
-      <div className="flex flex-wrap items-stretch divide-x divide-zinc-200 border-b border-zinc-200 bg-white">
-        <TopTool>
-          <BookIcon />
-          <span>
-            Page {pageNumber} of {numPages ?? "—"}
-          </span>
-        </TopTool>
-        <TopTool
-          onClick={zoomIn}
-          disabled={zoomIndex >= ZOOM_STEPS.length - 1}
-        >
-          <ZoomIcon />
-          <span>
-            {zoomPercent === 100 ? "Zoom" : `${zoomPercent}%`}
-          </span>
-        </TopTool>
-        <TopTool onClick={toggleFullscreen}>
-          <FullscreenIcon />
-          <span>Full-screen</span>
-        </TopTool>
-      </div>
-
-      {(title || summary) && (
-        <div className="border-b border-zinc-100 bg-white px-8 py-10">
-          {title ? (
-            <h2 className="text-4xl font-semibold leading-tight tracking-tight text-zinc-900">
-              {title}
-            </h2>
-          ) : null}
-          {summary ? (
-            <p className="mt-5 max-w-3xl text-base leading-7 text-zinc-600">{summary}</p>
-          ) : null}
-        </div>
-      )}
-
+    <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-sm)]">
+      {/* Fullscreen only this shell (toolbar + PDF pages), not site nav or bottom actions */}
       <div
-        ref={scrollRef}
-        className="pdf-viewer-scroll max-h-[70vh] min-h-[70vh] overflow-y-scroll overflow-x-hidden bg-zinc-50 [scrollbar-gutter:stable] [&:fullscreen]:max-h-none [&:fullscreen]:min-h-0 [&:fullscreen]:flex-1"
+        ref={containerRef}
+        className="flex h-full min-h-0 flex-col bg-zinc-50 [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:max-h-screen"
       >
+        <div className="flex shrink-0 flex-wrap items-stretch divide-x divide-zinc-200 border-b border-zinc-200 bg-white">
+          <TopTool>
+            <BookIcon />
+            <span>
+              Page {pageNumber} of {numPages ?? "—"}
+            </span>
+          </TopTool>
+
+          <div className="flex items-stretch divide-x divide-zinc-200">
+            <TopTool onClick={zoomOut} disabled={zoom <= MIN_ZOOM} aria-label="Zoom out">
+              <ZoomOutIcon />
+              <span className="sr-only">Zoom out</span>
+            </TopTool>
+
+            <div ref={zoomMenuRef} className="relative">
+              <TopTool onClick={() => setZoomMenuOpen((v) => !v)} aria-expanded={zoomMenuOpen}>
+                <span>{zoomPercent}%</span>
+                <svg
+                  className={`h-3.5 w-3.5 text-zinc-400 transition ${zoomMenuOpen ? "rotate-180" : ""}`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </TopTool>
+              {zoomMenuOpen ? (
+                <div className="absolute left-0 top-full z-30 min-w-[5.5rem] rounded-xl border border-black/[0.08] bg-white py-1 shadow-lg">
+                  {ZOOM_PRESETS.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => {
+                        applyZoom(preset);
+                        setZoomMenuOpen(false);
+                      }}
+                      className={[
+                        "block w-full px-4 py-2 text-left text-sm hover:bg-zinc-50",
+                        Math.abs(zoom - preset) < 0.001
+                          ? "font-semibold text-[var(--brand)]"
+                          : "text-zinc-700",
+                      ].join(" ")}
+                    >
+                      {Math.round(preset * 100)}%
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <TopTool onClick={zoomIn} disabled={zoom >= MAX_ZOOM} aria-label="Zoom in">
+              <ZoomInIcon />
+              <span className="sr-only">Zoom in</span>
+            </TopTool>
+          </div>
+
+          <TopTool onClick={toggleFullscreen}>
+            <FullscreenIcon />
+            <span>Full-screen</span>
+          </TopTool>
+        </div>
+
+        {(title || summary) && (
+          <div className="shrink-0 border-b border-zinc-100 bg-white px-8 py-10">
+            {title ? (
+              <h2 className="text-4xl font-semibold leading-tight tracking-tight text-zinc-900">
+                {title}
+              </h2>
+            ) : null}
+            {summary ? (
+              <p className="mt-5 max-w-3xl text-base leading-7 text-zinc-600">{summary}</p>
+            ) : null}
+          </div>
+        )}
+
         <div
-          ref={pageWrapRef}
-          className="flex flex-col items-center gap-6 px-4 py-10"
+          ref={scrollRef}
+          className={[
+            "pdf-viewer-scroll min-h-0 flex-1 overflow-y-auto overflow-x-auto bg-zinc-50 [scrollbar-gutter:stable]",
+            isFullscreen ? "max-h-none" : "max-h-[70vh] min-h-[70vh]",
+          ].join(" ")}
         >
-          {error ? (
-            <p className="text-sm text-red-600">{error}</p>
-          ) : pdfBlobUrl ? (
-            <Document
-              file={pdfBlobUrl}
-              onLoadSuccess={onDocumentLoadSuccess}
-              onLoadError={onDocumentLoadError}
-              loading={
-                loading ? (
-                  <p className="text-sm text-zinc-500">Loading document…</p>
-                ) : null
-              }
-              className="flex w-full flex-col items-center gap-6 [&_.react-pdf__Page]:shadow-[0_2px_12px_rgba(0,0,0,0.08)]"
-            >
-              {numPages
-                ? Array.from({ length: numPages }, (_, index) => {
-                    const page = index + 1;
-                    return (
-                      <div
-                        key={page}
-                        ref={(el) => {
-                          pageRefs.current[index] = el;
-                        }}
-                        data-page={page}
-                        className="flex w-full justify-center"
-                      >
-                        <Page
-                          pageNumber={page}
-                          width={pageWidth}
-                          scale={scale}
-                          renderTextLayer
-                          renderAnnotationLayer
-                          className="!bg-white"
-                          onRenderSuccess={() => {
-                            if (page === 1) setLoading(false);
-                          }}
-                        />
-                      </div>
-                    );
-                  })
-                : null}
-            </Document>
-          ) : loading ? (
-            <p className="text-sm text-zinc-500">Loading document…</p>
-          ) : null}
+          <div
+            ref={pageWrapRef}
+            className="flex flex-col items-center gap-6 px-4 py-10"
+          >
+            {error ? (
+              <p className="text-sm text-red-600">{error}</p>
+            ) : pdfBlobUrl ? (
+              <div className="w-full [&_.react-pdf__Page]:shadow-[0_2px_12px_rgba(0,0,0,0.08)]">
+                <Document
+                  key={`${fileSrc}-${docEpoch}`}
+                  file={pdfBlobUrl}
+                  onLoadSuccess={onDocumentLoadSuccess}
+                  onLoadError={onDocumentLoadError}
+                  loading={
+                    loading ? (
+                      <p className="text-sm text-zinc-500">Loading document…</p>
+                    ) : null
+                  }
+                  className="flex w-full flex-col items-center gap-6"
+                >
+                  {documentReady && numPages
+                    ? Array.from({ length: numPages }, (_, index) => {
+                        const page = index + 1;
+                        return (
+                          <div
+                            key={`${docEpoch}-${page}`}
+                            ref={(el) => {
+                              pageRefs.current[index] = el;
+                            }}
+                            data-page={page}
+                            className="flex w-full justify-center"
+                          >
+                            <Page
+                              pageNumber={page}
+                              width={pageWidth}
+                              scale={zoom}
+                              renderTextLayer
+                              renderAnnotationLayer
+                              className="!bg-white"
+                              onRenderError={() => {
+                                setDocumentReady(false);
+                                setError("Could not render this PDF.");
+                              }}
+                            />
+                          </div>
+                        );
+                      })
+                    : null}
+                </Document>
+              </div>
+            ) : loading ? (
+              <p className="text-sm text-zinc-500">Loading document…</p>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      {/* Bottom actions — Figma: Save | Share | Cite */}
       {shareCopied ? (
         <p className="border-t border-zinc-200 bg-emerald-50/80 px-6 py-2 text-center text-sm font-medium text-emerald-700">
           Link copied to clipboard
         </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-8 border-t border-zinc-200 bg-white px-6 py-4">
-        <BottomAction
-          icon={
-            <span className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 transition group-hover:border-zinc-300 group-hover:bg-zinc-100 group-hover:ring-1 group-hover:ring-zinc-200/60">
-              <DownloadCircleIcon />
-            </span>
-          }
-          label="Save"
-          count={downloadCount}
-          onClick={() => void handleDownload()}
-        />
         <BottomAction
           icon={<ShareIcon />}
           label="Share"

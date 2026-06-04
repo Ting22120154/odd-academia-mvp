@@ -106,6 +106,37 @@ interface Citation {
   label: string;
 }
 
+type FieldErrors = {
+  title?: string;
+  abstract?: string;
+  categories?: string;
+  file?: string;
+};
+
+const fieldErrorBorder = "border-red-500 focus:border-red-500";
+
+const REQUIRED_FIELD_ORDER: (keyof FieldErrors)[] = [
+  "file",
+  "title",
+  "categories",
+  "abstract",
+];
+
+function scrollToFirstFieldError(
+  errors: FieldErrors,
+  refs: Record<keyof FieldErrors, HTMLElement | null | undefined>,
+) {
+  for (const key of REQUIRED_FIELD_ORDER) {
+    const el = refs[key];
+    if (!errors[key] || !el) continue;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (typeof el.focus === "function") {
+      el.focus({ preventScroll: true });
+    }
+    break;
+  }
+}
+
 export default function UploadPage() {
   const { isLoggedIn, user } = useAuth();
   const router = useRouter();
@@ -116,6 +147,10 @@ export default function UploadPage() {
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
+  const paperSectionRef = useRef<HTMLDivElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const categoryRef = useRef<HTMLDivElement>(null);
+  const abstractSectionRef = useRef<HTMLDivElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>("idle");
@@ -128,7 +163,6 @@ export default function UploadPage() {
   const [selectedCategories, setSelectedCategories] = useState<PaperCategory[]>([]);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [abstract, setAbstract] = useState("");
-  const [anonymous, setAnonymous] = useState(false);
   const [contributors, setContributors] = useState("");
   const [doi, setDoi] = useState("");
 
@@ -139,7 +173,21 @@ export default function UploadPage() {
   const [successOpen, setSuccessOpen] = useState(false);
   const [successUrl, setSuccessUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        categoryRef.current &&
+        !categoryRef.current.contains(e.target as Node)
+      ) {
+        setCategoryOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const abstractCount = useMemo(() => Math.min(abstract.length, 200), [abstract]);
 
@@ -177,6 +225,7 @@ export default function UploadPage() {
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
+    setFieldErrors((prev) => ({ ...prev, file: undefined }));
     simulateUpload(f);
   }
 
@@ -187,13 +236,21 @@ export default function UploadPage() {
   }
 
   function toggleCategory(cat: PaperCategory) {
-    setSelectedCategories((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
-    );
+    const next = selectedCategories.includes(cat)
+      ? selectedCategories.filter((c) => c !== cat)
+      : [...selectedCategories, cat];
+    setSelectedCategories(next);
+    if (next.length > 0) {
+      setFieldErrors((prev) => ({ ...prev, categories: undefined }));
+    }
   }
 
   function removeCategory(cat: PaperCategory) {
-    setSelectedCategories((prev) => prev.filter((c) => c !== cat));
+    const next = selectedCategories.filter((c) => c !== cat);
+    setSelectedCategories(next);
+    if (next.length > 0) {
+      setFieldErrors((prev) => ({ ...prev, categories: undefined }));
+    }
   }
 
   const filteredRefs = MOCK_REFERENCES.filter(
@@ -214,22 +271,44 @@ export default function UploadPage() {
     setCitations((prev) => prev.filter((c) => c.id !== id));
   }
 
+  function validateRequiredFields(): FieldErrors {
+    const errors: FieldErrors = {};
+    if (!file || uploadState !== "completed") {
+      errors.file = "Please upload a PDF file";
+    }
+    if (!title.trim()) errors.title = "Title is required";
+    if (selectedCategories.length === 0) {
+      errors.categories = "Please select at least one category";
+    }
+    if (!abstract.trim()) errors.abstract = "Abstract is required";
+    return errors;
+  }
+
+  function showFieldValidationErrors(errors: FieldErrors) {
+    setFieldErrors(errors);
+    if (Object.keys(errors).length === 0) return;
+
+    requestAnimationFrame(() => {
+      scrollToFirstFieldError(errors, {
+        file: paperSectionRef.current,
+        title: titleInputRef.current,
+        categories: categoryRef.current,
+        abstract: abstractSectionRef.current,
+      });
+    });
+  }
+
   async function onSubmit() {
     setError(null);
     setSuccessUrl(null);
 
-    if (!title.trim()) {
-      setError("Please enter a title.");
+    const errors = validateRequiredFields();
+    if (Object.keys(errors).length > 0) {
+      showFieldValidationErrors(errors);
       return;
     }
-    if (!abstract.trim()) {
-      setError("Please enter an abstract.");
-      return;
-    }
-    if (!file || uploadState !== "completed") {
-      setError("Please finish uploading your paper file.");
-      return;
-    }
+
+    setFieldErrors({});
 
     const contributorList = contributors
       .split(",")
@@ -332,8 +411,6 @@ export default function UploadPage() {
     );
   }
 
-  const canSubmit = Boolean(file) && uploadState === "completed" && title.trim().length > 0;
-
   if (!isLoggedIn) return null;
 
   return (
@@ -350,11 +427,16 @@ export default function UploadPage() {
 
       <div className="mt-5 rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
         {/* ── Paper upload ── */}
+        <div ref={paperSectionRef} className="scroll-mt-6">
         <div className="text-sm font-semibold text-zinc-900">Paper</div>
 
         {uploadState === "idle" ? (
           <div
-            className="mt-3 flex min-h-[148px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-black/[0.12] bg-zinc-50 px-6 py-6 text-center transition hover:border-black/20 hover:bg-zinc-100/90 hover:opacity-95 hover:ring-2 hover:ring-zinc-200/50"
+            className={`mt-3 flex min-h-[148px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed bg-zinc-50 px-6 py-6 text-center transition hover:border-black/20 hover:bg-zinc-100/90 hover:opacity-95 hover:ring-2 hover:ring-zinc-200/50 ${
+              fieldErrors.file
+                ? "border-red-500 hover:border-red-500"
+                : "border-black/[0.12]"
+            }`}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
@@ -394,7 +476,11 @@ export default function UploadPage() {
             />
           </div>
         ) : (
-          <div className="mt-3 rounded-xl border border-black/[0.08] bg-white px-4 py-3">
+          <div
+            className={`mt-3 rounded-xl border bg-white px-4 py-3 ${
+              fieldErrors.file ? "border-red-500" : "border-black/[0.08]"
+            }`}
+          >
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50">
                 <span className="text-xs font-bold text-red-500">PDF</span>
@@ -446,16 +532,38 @@ export default function UploadPage() {
           </div>
         )}
 
+        {fieldErrors.file ? (
+          <p className="mt-2 text-xs text-red-600" role="alert">
+            {fieldErrors.file}
+          </p>
+        ) : null}
+        </div>
+
         {/* ── Title + Published ── */}
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="space-y-2">
             <div className="text-sm font-semibold text-zinc-900">Title</div>
             <input
+              ref={titleInputRef}
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setTitle(next);
+                if (next.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, title: undefined }));
+                }
+              }}
               placeholder="Title"
-              className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-black/20"
+              aria-invalid={Boolean(fieldErrors.title)}
+              className={`h-11 w-full rounded-xl border bg-white px-4 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-black/20 ${
+                fieldErrors.title ? fieldErrorBorder : "border-black/[0.08]"
+              }`}
             />
+            {fieldErrors.title ? (
+              <p className="text-xs text-red-600" role="alert">
+                {fieldErrors.title}
+              </p>
+            ) : null}
           </div>
           <div className="space-y-2">
             <div className="text-sm font-semibold text-zinc-900">Published</div>
@@ -486,13 +594,14 @@ export default function UploadPage() {
         </div>
 
         {/* ── Categories (multi-select) ── */}
-        <div className="relative mt-6 space-y-2">
+        <div ref={categoryRef} className="relative mt-6 scroll-mt-6 space-y-2">
           <div className="text-sm font-semibold text-zinc-900">Categories</div>
           <div
             role="button"
             tabIndex={0}
             aria-expanded={categoryOpen}
             aria-haspopup="listbox"
+            aria-invalid={Boolean(fieldErrors.categories)}
             onClick={() => setCategoryOpen((v) => !v)}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -500,7 +609,9 @@ export default function UploadPage() {
                 setCategoryOpen((v) => !v);
               }
             }}
-            className="flex h-11 w-full cursor-pointer items-center justify-between rounded-xl border border-black/[0.08] bg-white px-4 text-sm outline-none transition hover:bg-zinc-50 hover:opacity-95 hover:ring-1 hover:ring-zinc-200/60 focus:border-black/20 focus-visible:ring-2 focus-visible:ring-[var(--brand)]/25"
+            className={`flex h-11 w-full cursor-pointer items-center justify-between rounded-xl border bg-white px-4 text-sm outline-none transition hover:bg-zinc-50 hover:opacity-95 hover:ring-1 hover:ring-zinc-200/60 focus:border-black/20 focus-visible:ring-2 focus-visible:ring-[var(--brand)]/25 ${
+              fieldErrors.categories ? fieldErrorBorder : "border-black/[0.08]"
+            }`}
           >
             <span className="flex flex-wrap items-center gap-2">
               {selectedCategories.length === 0 ? (
@@ -552,42 +663,47 @@ export default function UploadPage() {
               ))}
             </div>
           )}
+          {fieldErrors.categories ? (
+            <p className="text-xs text-red-600" role="alert">
+              {fieldErrors.categories}
+            </p>
+          ) : null}
         </div>
 
         {/* ── Abstract ── */}
-        <div className="mt-6 space-y-2">
+        <div ref={abstractSectionRef} className="mt-6 scroll-mt-6 space-y-2">
           <div className="text-sm font-semibold text-zinc-900">Abstract</div>
-          <div className="rounded-2xl border border-black/[0.08] bg-white p-3">
+          <div
+            className={`rounded-2xl border bg-white p-3 ${
+              fieldErrors.abstract ? "border-red-500" : "border-black/[0.08]"
+            }`}
+          >
             <textarea
               value={abstract}
-              onChange={(e) => setAbstract(e.target.value.slice(0, 200))}
+              onChange={(e) => {
+                const next = e.target.value.slice(0, 200);
+                setAbstract(next);
+                if (next.trim()) {
+                  setFieldErrors((prev) => ({ ...prev, abstract: undefined }));
+                }
+              }}
               placeholder="Abstract"
+              aria-invalid={Boolean(fieldErrors.abstract)}
               className="min-h-[140px] w-full resize-none bg-transparent px-1 py-1 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none"
             />
             <div className="text-right text-[11px] text-zinc-400">
               {abstractCount}/200
             </div>
           </div>
+          {fieldErrors.abstract ? (
+            <p className="text-xs text-red-600" role="alert">
+              {fieldErrors.abstract}
+            </p>
+          ) : null}
         </div>
 
-        {/* ── Paper Author + Contributors + DOI ── */}
-        <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-3">
-          <div className="space-y-2">
-            <div className="text-sm font-semibold text-zinc-900">Paper Author</div>
-            <label className="flex h-11 cursor-pointer items-center gap-3 rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-700 transition hover:bg-zinc-50 hover:opacity-95 hover:ring-1 hover:ring-zinc-200/60">
-              <span className="flex-1">Submit Anonymously</span>
-              <button
-                type="button"
-                onClick={() => setAnonymous((v) => !v)}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-black/[0.08] p-0.5 transition hover:opacity-90 hover:ring-2 hover:ring-zinc-200/80 ${
-                  anonymous ? "bg-[var(--brand)]" : "bg-zinc-100"
-                }`}
-                aria-pressed={anonymous}
-              >
-                <span className={`h-4 w-4 rounded-full bg-white shadow-sm transition ${anonymous ? "translate-x-4" : "translate-x-0"}`} />
-              </button>
-            </label>
-          </div>
+        {/* ── Contributors + DOI ── */}
+        <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="space-y-2">
             <div className="text-sm font-semibold text-zinc-900">Contributors</div>
             <input
@@ -676,16 +792,32 @@ export default function UploadPage() {
           </p>
         ) : null}
 
+        {Object.keys(fieldErrors).length > 0 ? (
+          <div
+            className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3"
+            role="alert"
+          >
+            <p className="text-sm font-medium text-red-800">
+              Still required before you can submit:
+            </p>
+            <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-red-700">
+              {REQUIRED_FIELD_ORDER.map((key) =>
+                fieldErrors[key] ? <li key={key}>{fieldErrors[key]}</li> : null,
+              )}
+            </ul>
+          </div>
+        ) : null}
+
         {/* ── Submit ── */}
         <div className="mt-6 flex justify-end">
           <button
             type="button"
             onClick={onSubmit}
-            disabled={!canSubmit || submitting}
+            disabled={submitting}
             className={`inline-flex h-10 items-center rounded-xl px-10 text-sm font-medium text-white transition ${
-              canSubmit && !submitting
-                ? "cursor-pointer bg-[var(--brand)] hover:opacity-95 hover:ring-2 hover:ring-[var(--brand)]/30 active:opacity-90"
-                : "cursor-not-allowed bg-zinc-300 text-white/80"
+              submitting
+                ? "cursor-not-allowed bg-zinc-300 text-white/80"
+                : "cursor-pointer bg-[var(--brand)] hover:opacity-95 hover:ring-2 hover:ring-[var(--brand)]/30 active:opacity-90"
             }`}
           >
             {submitting ? "Submitting…" : "Submit"}
