@@ -14,6 +14,7 @@ type NotificationRow = {
   referenceId: string | null;
   referenceType: ReferenceType | null;
   actorId: string | null;
+  body: string | null;
   isRead: boolean;
   createdAt: Date;
 };
@@ -32,6 +33,8 @@ function displayType(type: NotificationType): NotificationDisplayType {
       return "Citation";
     case "follow":
       return "Follow";
+    case "moderation":
+      return "Moderation";
     default:
       return "Comment";
   }
@@ -97,6 +100,9 @@ function toNotificationResponse(
     const actor = row.actorId ? (userMap.get(row.actorId) ?? "Someone") : "Someone";
     text = `${actor} followed your paper: ${title}`;
     href = `/paper/${row.referenceId}`;
+  } else if (row.type === "moderation") {
+    text = row.body ?? "Your account or content was reviewed by a moderator.";
+    href = "/notifications";
   }
 
   return {
@@ -125,6 +131,7 @@ const rowSelect = {
   referenceId: true,
   referenceType: true,
   actorId: true,
+  body: true,
   isRead: true,
   createdAt: true,
 } as const;
