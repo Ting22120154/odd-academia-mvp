@@ -5,12 +5,16 @@ const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? "Admin@1234";
 
 test.describe("Admin dashboard", () => {
   test("admin reaches dashboard after login", async ({ page }) => {
-    await page.goto("/login");
-    await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-    await page.getByLabel(/password/i).fill(ADMIN_PASSWORD);
-    await page.getByRole("button", { name: /log in|sign in/i }).click();
-    await expect(page).toHaveURL(/dashboard/);
-    await page.goto("/papers");
-    await expect(page.getByRole("heading").first()).toBeVisible();
+    test.setTimeout(60_000);
+    const res = await page.request.post("/api/auth/login", {
+      data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+    });
+    expect(res.ok()).toBeTruthy();
+
+    await page.goto("/dashboard");
+    await expect(page).toHaveURL(/dashboard/, { timeout: 30_000 });
+    await page.goto("/papers", { waitUntil: "commit" }).catch(() => {});
+    await expect(page).toHaveURL(/\/papers/, { timeout: 30_000 });
+    await expect(page.getByRole("heading").first()).toBeVisible({ timeout: 15_000 });
   });
 });

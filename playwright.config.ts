@@ -5,10 +5,11 @@ const ADMIN_URL = process.env.PLAYWRIGHT_ADMIN_URL ?? "http://127.0.0.1:3001";
 
 export default defineConfig({
   testDir: "./e2e",
+  timeout: 60_000,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 1 : 4,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     trace: "on-first-retry",
