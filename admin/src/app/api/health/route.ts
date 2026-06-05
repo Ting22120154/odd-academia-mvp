@@ -18,8 +18,12 @@ export async function GET() {
     }
   }
 
+  const databaseHost =
+    process.env.DATABASE_URL?.match(/@([^/?]+)/)?.[1] ?? null;
+
   return ok({
     service: "admin",
+    databaseHost,
     hasDatabaseUrl,
     hasJwtSecret,
     databaseOk,

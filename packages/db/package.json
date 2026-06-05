@@ -13,6 +13,7 @@
     "db:migrate":  "prisma migrate dev",
     "db:seed":     "tsx src/seed.ts",
     "db:reset-admin": "tsx --env-file .env scripts/reset-admin.ts",
+    "db:setup-admin-panel": "tsx --env-file .env scripts/setup-admin-panel.ts",
     "db:studio":   "prisma studio"
   },
   "prisma": {
