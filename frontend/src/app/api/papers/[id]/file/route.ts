@@ -2,6 +2,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 import prisma from "@odd-academia/db/client";
 import { paperDownloadFilename } from "@/lib/files/paperFilename";
+import { isBlobUrl } from "@/lib/storage/blob";
 
 const UPLOADS_PREFIX = "/uploads/";
 
@@ -50,6 +51,10 @@ export async function GET(
 
     if (!paper?.fileUrl || paper.status !== "published") {
       return Response.json({ error: "Not found" }, { status: 404 });
+    }
+
+    if (isBlobUrl(paper.fileUrl)) {
+      return Response.redirect(paper.fileUrl, 302);
     }
 
     const filePath = resolveUploadFilePath(paper.fileUrl);

@@ -67,7 +67,12 @@ describeIfDb("avatar API integration", () => {
     expect(res.status).toBe(200);
     const body = await readApi<{ avatarUrl: string }>(res);
     expect(body.success).toBe(true);
-    if (body.success) expect(body.data.avatarUrl).toContain("/uploads/avatars/");
+    if (body.success) {
+      expect(
+        body.data.avatarUrl.includes("/uploads/avatars/") ||
+          body.data.avatarUrl.includes("blob.vercel-storage.com"),
+      ).toBe(true);
+    }
   });
 
   it("rejects PNG upload", async () => {

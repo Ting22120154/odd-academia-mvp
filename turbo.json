@@ -5,10 +5,19 @@
       "persistent": true,
       "cache": false
     },
+    "@odd-academia/db#build": {
+      "outputs": ["../../node_modules/.prisma/**", "../../node_modules/@prisma/client/**"]
+    },
     "build": {
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**"],
-      "env": ["DATABASE_URL", "JWT_SECRET"]
+      "env": [
+        "DATABASE_URL",
+        "JWT_SECRET",
+        "BLOB_READ_WRITE_TOKEN",
+        "GMAIL_USER",
+        "GMAIL_APP_PASSWORD"
+      ]
     },
     "lint": {
       "dependsOn": ["^lint"]

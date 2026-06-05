@@ -310,6 +310,9 @@ export default function UploadPage() {
 
     setFieldErrors({});
 
+    const uploadPdf = file;
+    if (!uploadPdf) return;
+
     const contributorList = contributors
       .split(",")
       .map((name) => name.trim())
@@ -346,14 +349,14 @@ export default function UploadPage() {
 
       const created = (await res.json()) as { id: string };
 
-      if (!isPdfFile(file)) {
+      if (!isPdfFile(uploadPdf)) {
         throw new Error("Only PDF files are allowed");
       }
 
       const uploadMime =
-        file.type === "application/pdf"
+        uploadPdf.type === "application/pdf"
           ? "application/pdf"
-          : file.name.toLowerCase().endsWith(".pdf")
+          : uploadPdf.name.toLowerCase().endsWith(".pdf")
             ? "application/pdf"
             : "";
 
@@ -362,9 +365,9 @@ export default function UploadPage() {
       }
 
       const uploadFile =
-        uploadMime !== file.type
-          ? new File([file], file.name, { type: uploadMime })
-          : file;
+        uploadMime !== uploadPdf.type
+          ? new File([uploadPdf], uploadPdf.name, { type: uploadMime })
+          : uploadPdf;
 
       const formData = new FormData();
       formData.append("file", uploadFile);

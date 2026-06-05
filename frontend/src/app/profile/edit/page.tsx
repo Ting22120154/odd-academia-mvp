@@ -159,26 +159,26 @@ export default function ProfileEditPage() {
           </Field>
 
           <Field label="Work Status">
-           <select
-  value={form.workStatus}
-  onChange={(e) => set("workStatus", e.target.value)}
->
-  {WORK_STATUS_OPTIONS.map((o) => (
-    <option key={o} value={o}>
-      {o}
-    </option>
-  ))}
-</select>
-
-</Field>
-
-<Field label="Categories of interest">
-  <InterestCategoryPicker
-    selected={form.interests}
-    onChange={(interests) => set("interests", interests)}
-  />
-</Field>
+            <select
+              value={form.workStatus}
+              onChange={(e) => set("workStatus", e.target.value)}
+              className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-900 outline-none focus:border-black/20"
+            >
+              {WORK_STATUS_OPTIONS.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
           </Field>
+
+          <Field label="Categories of interest">
+            <InterestCategoryPicker
+              selected={form.interests}
+              onChange={(interests) => set("interests", interests)}
+            />
+          </Field>
+
           <Field label="Profile Visibility">
             <select
               value={form.profileVisibility}

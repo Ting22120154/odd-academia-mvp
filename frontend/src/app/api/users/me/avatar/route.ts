@@ -4,6 +4,12 @@ import { fileTypeFromBuffer } from "file-type";
 import { prisma } from "@/lib/prisma";
 import { requireAuthPayload } from "@/lib/auth/require-auth";
 import { ok, err } from "@/lib/response";
+import {
+  blobStorageEnabled,
+  deletePublicBlob,
+  storageNotConfiguredResponse,
+  uploadPublicBlob,
+} from "@/lib/storage/blob";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const ALLOWED_MIME = "image/jpeg";
@@ -20,6 +26,12 @@ function avatarPublicUrl(userId: string) {
 export async function POST(req: Request) {
   const auth = await requireAuthPayload();
   if (!auth.ok) return err(auth.error, auth.status);
+
+  const storageError = storageNotConfiguredResponse();
+  if (storageError) {
+    const body = await storageError.json();
+    return err(body.error ?? "File storage is not configured.", storageError.status);
+  }
 
   let formData: FormData;
   try {
@@ -55,11 +67,25 @@ export async function POST(req: Request) {
   }
 
   const userId = auth.payload.sub;
-  const diskPath = avatarDiskPath(userId);
-  await mkdir(path.dirname(diskPath), { recursive: true });
-  await writeFile(diskPath, buffer);
+  const existing = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { avatarUrl: true },
+  });
 
-  const avatarUrl = avatarPublicUrl(userId);
+  let avatarUrl: string;
+  if (blobStorageEnabled()) {
+    await deletePublicBlob(existing?.avatarUrl);
+    avatarUrl = await uploadPublicBlob(
+      `avatars/${userId}.jpg`,
+      buffer,
+      ALLOWED_MIME,
+    );
+  } else {
+    const diskPath = avatarDiskPath(userId);
+    await mkdir(path.dirname(diskPath), { recursive: true });
+    await writeFile(diskPath, buffer);
+    avatarUrl = avatarPublicUrl(userId);
+  }
   await prisma.user.update({
     where: { id: userId },
     data: { avatarUrl },
@@ -73,11 +99,20 @@ export async function DELETE() {
   if (!auth.ok) return err(auth.error, auth.status);
 
   const userId = auth.payload.sub;
-  const diskPath = avatarDiskPath(userId);
-  try {
-    await unlink(diskPath);
-  } catch {
-    // file may not exist
+  const existing = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { avatarUrl: true },
+  });
+
+  if (blobStorageEnabled()) {
+    await deletePublicBlob(existing?.avatarUrl);
+  } else {
+    const diskPath = avatarDiskPath(userId);
+    try {
+      await unlink(diskPath);
+    } catch {
+      // file may not exist
+    }
   }
 
   await prisma.user.update({
