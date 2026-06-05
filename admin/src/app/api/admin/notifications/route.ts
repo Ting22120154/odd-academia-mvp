@@ -1,7 +1,15 @@
 import { NextRequest } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { ok, err } from "@/lib/response";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { prisma } from "@/lib/prisma";
+
+type RecentCommentReport = Prisma.CommentReportGetPayload<{
+  include: {
+    reporter: { select: { fullName: true } };
+    comment:  { select: { content: true; paper: { select: { id: true; title: true } } } };
+  };
+}>;
 
 // REALTIME: Notifications must update via WebSocket/SSE, not on page load only
 // TODO: If using polling, replace with WebSocket before production
@@ -28,7 +36,7 @@ export async function GET(_req: NextRequest) {
 
   const pendingCount = commentCount + paperCount + userCount;
 
-  const reports = recentComments.map(r => ({
+  const reports = recentComments.map((r: RecentCommentReport) => ({
     id:         r.id,
     type:       "comment" as const,
     text:       r.comment?.content ?? r.commentBody ?? "(comment unavailable)",

@@ -4,10 +4,13 @@
  */
 import type { TokenPayload } from "@/lib/auth/jwt";
 
-function b64urlToBytes(b64url: string): Uint8Array {
+function b64urlToBytes(b64url: string): Uint8Array<ArrayBuffer> {
   const base64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
   const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
-  return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
 }
 
 export async function verifyTokenEdge(token: string): Promise<TokenPayload | null> {
