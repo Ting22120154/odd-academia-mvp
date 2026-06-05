@@ -122,6 +122,17 @@ const REQUIRED_FIELD_ORDER: (keyof FieldErrors)[] = [
   "abstract",
 ];
 
+function hasActiveFieldErrors(errors: FieldErrors) {
+  return REQUIRED_FIELD_ORDER.some((key) => Boolean(errors[key]));
+}
+
+function clearFieldError(errors: FieldErrors, key: keyof FieldErrors): FieldErrors {
+  if (!errors[key]) return errors;
+  const next = { ...errors };
+  delete next[key];
+  return next;
+}
+
 function scrollToFirstFieldError(
   errors: FieldErrors,
   refs: Record<keyof FieldErrors, HTMLElement | null | undefined>,
@@ -225,7 +236,7 @@ export default function UploadPage() {
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
-    setFieldErrors((prev) => ({ ...prev, file: undefined }));
+    setFieldErrors((prev) => clearFieldError(prev, "file"));
     simulateUpload(f);
   }
 
@@ -241,7 +252,7 @@ export default function UploadPage() {
       : [...selectedCategories, cat];
     setSelectedCategories(next);
     if (next.length > 0) {
-      setFieldErrors((prev) => ({ ...prev, categories: undefined }));
+      setFieldErrors((prev) => clearFieldError(prev, "categories"));
     }
   }
 
@@ -249,7 +260,7 @@ export default function UploadPage() {
     const next = selectedCategories.filter((c) => c !== cat);
     setSelectedCategories(next);
     if (next.length > 0) {
-      setFieldErrors((prev) => ({ ...prev, categories: undefined }));
+      setFieldErrors((prev) => clearFieldError(prev, "categories"));
     }
   }
 
@@ -553,7 +564,7 @@ export default function UploadPage() {
                 const next = e.target.value;
                 setTitle(next);
                 if (next.trim()) {
-                  setFieldErrors((prev) => ({ ...prev, title: undefined }));
+                  setFieldErrors((prev) => clearFieldError(prev, "title"));
                 }
               }}
               placeholder="Title"
@@ -687,7 +698,7 @@ export default function UploadPage() {
                 const next = e.target.value.slice(0, 200);
                 setAbstract(next);
                 if (next.trim()) {
-                  setFieldErrors((prev) => ({ ...prev, abstract: undefined }));
+                  setFieldErrors((prev) => clearFieldError(prev, "abstract"));
                 }
               }}
               placeholder="Abstract"
@@ -795,7 +806,7 @@ export default function UploadPage() {
           </p>
         ) : null}
 
-        {Object.keys(fieldErrors).length > 0 ? (
+        {hasActiveFieldErrors(fieldErrors) ? (
           <div
             className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3"
             role="alert"
