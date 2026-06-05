@@ -2,10 +2,11 @@
  * Profile DTOs and mappers (server-side).
  * - Maps Prisma workStatus enum ↔ UI labels
  * - Maps profileVisibility boolean ↔ PUBLIC | PRIVATE
- * - Stats use Prisma _count (followers, following, papers, comments)
+ * - Stats: followers/following/comments via _count; papers/likes/engagement via profile-metrics
  */
 import type { Paper, User, WorkStatus } from "@prisma/client";
 import { toApiRole } from "@/lib/auth/user";
+import type { ProfileMetrics } from "@/lib/auth/profile-metrics";
 import { getPaperBrowseCategories } from "@/lib/papers/categories";
 
 export type ProfileVisibility = "PUBLIC" | "PRIVATE";
@@ -21,10 +22,15 @@ export type ProfilePaper = {
 };
 
 export type ProfileStats = {
+  /** Published papers by this author */
   papers: number;
   followers: number;
   following: number;
   citedComments: number;
+  /** Likes received on this user's comments */
+  totalLikes: number;
+  /** Sum of published paper views + paper follows */
+  paperEngagement: number;
 };
 
 export type ProfileUser = {
@@ -66,8 +72,11 @@ const WORK_STATUS_UI: Record<WorkStatus, string> = {
 
 const WORK_STATUS_DB: Record<string, WorkStatus> = {
   "Open for Work": "open",
+  "Open For Work": "open",
   "Not Looking": "not_open",
+  "Not Open For Work": "not_open",
   Freelancing: "freelance",
+  Freelance: "freelance",
   Student: "none",
   None: "none",
 };
@@ -148,7 +157,7 @@ export function profilePaperToViewerPost(
 export function toProfileUser(
   user: UserWithRelations,
   papers: ProfilePaper[],
-  options: { viewerId?: string; includeEmail?: boolean }
+  options: { viewerId?: string; includeEmail?: boolean; metrics: ProfileMetrics }
 ): ProfileUser {
   const isOwnProfile = options.viewerId === user.id;
   return {
@@ -167,10 +176,12 @@ export function toProfileUser(
     role: toApiRole(user.role),
     email: options.includeEmail ? user.email : undefined,
     stats: {
-      papers: user._count.papers,
+      papers: options.metrics.papersPublished,
       followers: user._count.followers,
       following: user._count.following,
       citedComments: user._count.comments,
+      totalLikes: options.metrics.totalLikes,
+      paperEngagement: options.metrics.paperEngagement,
     },
     papers,
     isOwnProfile,

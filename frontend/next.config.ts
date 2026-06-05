@@ -1,12 +1,10 @@
 import type { NextConfig } from "next";
-import path from "path";
 
 const nextConfig: NextConfig = {
-  turbopack: {
-    // Point to the monorepo root so Turbopack can resolve hoisted packages
-    // (e.g. next, react) from the root node_modules.
-    root: path.resolve(__dirname, ".."),
-  },
+  // Workspace packages resolve via pnpm in frontend/node_modules; avoid setting
+  // turbopack.root to the monorepo parent — it widens file watching and breaks
+  // App Router route discovery in dev (EMFILE / 404 on every page).
+  transpilePackages: ["@odd-academia/db"],
   // proxy.ts buffers POST bodies; default 10MB truncates PDF uploads (+ multipart overhead).
   experimental: {
     proxyClientMaxBodySize: "12mb",

@@ -324,6 +324,9 @@ export interface FrontendViewerPost {
   publishedAt?:         string
   citationCount?:       number
   viewCount?:           number
+  /** Full abstract text (summary may be truncated for cards). */
+  abstract?:            string
+  references?:          { id: string; citationText: string }[]
 }
 
 export const mockFrontendViewerPosts: FrontendViewerPost[] = papers.map((p, i) => ({

@@ -24,7 +24,6 @@ import {
   fetchPaperFollowStatus,
   togglePaperFollow,
 } from "@/lib/paper-follow-client";
-import { paperDownloadFilename } from "@/lib/files/paperFilename";
 import {
   brandButtonHover,
   cardLinkHover,
@@ -40,16 +39,155 @@ type Props = {
   relatedPosts?: MockPost[];
 };
 
-function pathExtFromUrl(fileUrl?: string): string {
-  if (!fileUrl) return ".pdf";
-  const match = fileUrl.match(/\.[a-z0-9]+$/i);
-  return match?.[0]?.toLowerCase() ?? ".pdf";
+function formatAuthorApa(fullName: string) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "Unknown";
+  const last = parts[parts.length - 1];
+  const initials = parts
+    .slice(0, -1)
+    .map((p) => `${p[0]?.toUpperCase() ?? ""}.`)
+    .join(" ");
+  return initials ? `${last}, ${initials}` : last;
 }
 
-function buildApaLikeCitation(post: MockPost) {
-  // MVP: simple placeholder citation format (not a full APA generator).
-  const year = new Date().getFullYear();
-  return `${post.authorName} (${year}). ${post.title}. Odd Academia.`;
+function buildApaCitation(post: MockPost, pageUrl: string) {
+  const year = post.publishedAt
+    ? new Date(post.publishedAt).getFullYear()
+    : new Date().getFullYear();
+  const author = formatAuthorApa(post.authorName);
+  return `${author} (${year}). ${post.title}. Odd Academia. ${pageUrl}`;
+}
+
+const URL_IN_TEXT = /(https?:\/\/[^\s]+)/g;
+
+function ReferenceLine({ text }: { text: string }) {
+  const parts = text.split(URL_IN_TEXT);
+  return (
+    <li className="rounded-xl bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+      {parts.map((part, i) =>
+        /^https?:\/\//.test(part) ? (
+          <a
+            key={`${i}-${part}`}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`text-[var(--brand)] underline-offset-2 hover:underline ${linkHover}`}
+          >
+            {part}
+          </a>
+        ) : (
+          <span key={`${i}-t`}>{part}</span>
+        ),
+      )}
+    </li>
+  );
+}
+
+function AbstractBlurb({ text }: { text: string }) {
+  const [showFullAbstract, setShowFullAbstract] = useState(false);
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  return (
+    <div className="space-y-1">
+      <p
+        className={[
+          "text-sm leading-6 text-zinc-500",
+          showFullAbstract ? "" : "line-clamp-3",
+        ].join(" ")}
+      >
+        {trimmed}
+      </p>
+      <button
+        type="button"
+        onClick={() => setShowFullAbstract((v) => !v)}
+        className={`text-xs font-semibold text-[var(--brand)] ${linkHover}`}
+      >
+        {showFullAbstract ? "Read less" : "Read more"}
+      </button>
+    </div>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg className="h-4 w-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+      <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CitationModal({
+  open,
+  onClose,
+  citation,
+}: {
+  open: boolean;
+  onClose: () => void;
+  citation: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!open) setCopied(false);
+  }, [open]);
+
+  useEffect(() => {
+    if (!copied) return;
+    const t = window.setTimeout(() => setCopied(false), 2000);
+    return () => window.clearTimeout(t);
+  }, [copied]);
+
+  if (!open) return null;
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(citation);
+    setCopied(true);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="cite-title"
+    >
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-[var(--shadow-md)]">
+        <div className="flex items-start justify-between gap-4">
+          <div id="cite-title" className="text-base font-semibold text-zinc-900">
+            Cite this paper
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600"
+          >
+            ✕
+          </button>
+        </div>
+        <p className="mt-1 text-xs text-zinc-500">APA format</p>
+        <p className="mt-4 rounded-xl border border-black/[0.06] bg-zinc-50 px-4 py-3 text-sm leading-7 text-zinc-700">
+          {citation}
+        </p>
+        <div className="mt-5 flex justify-end">
+          <PrimaryButton onClick={() => void handleCopy()} className="gap-2">
+            {copied ? <CheckIcon /> : <CopyIcon />}
+            {copied ? "Copied" : "Copy"}
+          </PrimaryButton>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 type UiReply = {
@@ -150,36 +288,6 @@ function initials(name: string) {
   const a = parts[0]?.[0] ?? "?";
   const b = parts.length > 1 ? parts[parts.length - 1][0] : "";
   return (a + b).toUpperCase();
-}
-
-function NonPdfSaveButton({
-  fileSrc,
-  downloadFilename,
-}: {
-  fileSrc: string;
-  downloadFilename: string;
-}) {
-  async function handleDownload() {
-    const res = await fetch(`${fileSrc}?download=1`);
-    if (!res.ok) return;
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = downloadFilename;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => void handleDownload()}
-      className={`mt-2 text-sm font-semibold text-[var(--brand)] ${linkHover}`}
-    >
-      Save {downloadFilename}
-    </button>
-  );
 }
 
 function Chip({ icon, children }: { icon: string; children: React.ReactNode }) {
@@ -315,9 +423,9 @@ function formatPaperDate(value?: string) {
   if (!value) return "—";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
+  return d.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
     year: "numeric",
   });
 }
@@ -348,13 +456,15 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   const canFollowAuthor = Boolean(
     authorId && isValidUserId(authorId) && sessionUser?.id !== authorId,
   );
-  const citation = useMemo(() => buildApaLikeCitation(post), [post]);
   const sharePath = `/paper/${post.id}`;
+  const pageUrl = useMemo(() => {
+    if (typeof window === "undefined") return sharePath;
+    return `${window.location.origin}${sharePath}`;
+  }, [sharePath]);
+  const citation = useMemo(() => buildApaCitation(post, pageUrl), [post, pageUrl]);
+  const abstractText = (post.abstract ?? post.summary ?? "").trim();
+  const paperReferences = post.references ?? [];
   const fileApiSrc = `/api/papers/${post.id}/file`;
-  const downloadFilename = useMemo(
-    () => paperDownloadFilename(post.title, post.fileType === "pdf" ? ".pdf" : pathExtFromUrl(post.fileUrl)),
-    [post.title, post.fileType, post.fileUrl],
-  );
   const hasPdf = post.fileType === "pdf" && Boolean(post.fileUrl);
   const [pdfFileOk, setPdfFileOk] = useState<boolean | null>(null);
 
@@ -405,6 +515,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   const [actionLoading, setActionLoading] = useState(false);
   const [reportingCommentId, setReportingCommentId] = useState<string | null>(null);
   const [reportingPaper, setReportingPaper] = useState(false);
+  const [citeModalOpen, setCiteModalOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -775,9 +886,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                 <h1 className="text-2xl font-semibold leading-tight tracking-tight text-zinc-900 lg:text-[32px]">
                   {post.title}
                 </h1>
-                {post.summary ? (
-                  <p className="text-base leading-relaxed text-zinc-500">{post.summary}</p>
-                ) : null}
+                {abstractText ? <AbstractBlurb text={abstractText} /> : null}
               </div>
             </div>
 
@@ -893,20 +1002,16 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
           ) : hasPdf ? (
             <EmbeddedPdfViewer
               fileSrc={fileApiSrc}
-              downloadFilename={downloadFilename}
-              downloadCount={post.viewCount ?? 0}
               shareCount={0}
               citationCount={post.citationCount ?? 0}
               onShare={() => void copyShareLink()}
-              onCite={() => void copyToClipboard(citation)}
+              onCite={() => setCiteModalOpen(true)}
             />
           ) : post.fileUrl ? (
             <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white p-6 text-center shadow-[var(--shadow-sm)]">
-              <p className="text-sm text-zinc-600">This paper is not a PDF preview.</p>
-              <NonPdfSaveButton
-                fileSrc={fileApiSrc}
-                downloadFilename={downloadFilename}
-              />
+              <p className="text-sm text-zinc-600">
+                This paper is not available as an in-browser PDF preview.
+              </p>
             </section>
           ) : (
             <section className="overflow-hidden rounded-2xl border border-dashed border-black/[0.12] bg-white p-8 text-center text-sm text-zinc-500 shadow-[var(--shadow-sm)]">
@@ -914,34 +1019,18 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
             </section>
           )}
 
-          {/* Abstract + references */}
-          <section className="space-y-6 rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
-            <div className="space-y-2">
-              <div className="text-sm font-semibold text-zinc-900">Abstract</div>
-              <p className="text-sm leading-7 text-zinc-600">
-                This research paper explores {post.title}. For this MVP, the abstract is mocked and can be
-                replaced with backend content later.
-              </p>
-            </div>
-
-            <div className="space-y-3">
+          {paperReferences.length > 0 ? (
+            <section className="space-y-3 rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
               <div className="text-sm font-semibold text-zinc-900">References</div>
-              <ul className="space-y-2 text-sm">
-                {[
-                  "Patel, R., et al. (2022). Energy storage innovations for urban resilience. Urban Landscape Transformations.",
-                  "Lee, A., & Johnson, M. (2022). Sustainable infrastructure in megacities: Challenges and opportunities. Urban Landscape Transformations.",
-                  "Nguyen, T., & Carter, J. (2022). Green spaces and their impact on urban energy efficiency. Urban Landscape Transformations.",
-                  "O'Neill, D., et al. (2022). Adaptive reuse of existing buildings in the urban environment. Urban Landscape Transformations.",
-                ].map((r) => (
-                  <li key={r} className="rounded-xl bg-zinc-50 px-4 py-3">
-                    <a href="#" className={`text-[var(--brand)] underline-offset-2 ${linkHover}`}>
-                      {r}
-                    </a>
-                  </li>
+              <ul className="space-y-2">
+                {paperReferences.map((ref) => (
+                  <ReferenceLine key={ref.id} text={ref.citationText} />
                 ))}
               </ul>
-            </div>
+            </section>
+          ) : null}
 
+          <section className="space-y-6 rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
             {/* Comments composer is login-gated (per Figma). */}
             {!isLoggedIn ? (
               <Link
@@ -1193,6 +1282,11 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
         title="Report paper"
         description="Tell us why this paper should be reviewed."
         onSubmit={(draft) => void submitPaperReport(draft)}
+      />
+      <CitationModal
+        open={citeModalOpen}
+        onClose={() => setCiteModalOpen(false)}
+        citation={citation}
       />
     </div>
   );

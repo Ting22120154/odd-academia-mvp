@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthPayload } from "@/lib/auth/require-auth";
 import { viewerFollowsTarget } from "@/lib/auth/follow";
 import { isValidUserId } from "@/lib/auth/user-id";
-import { profileInclude, toProfilePaper, toProfileUser } from "@/lib/auth/profile";
+import { loadProfile } from "@/lib/auth/load-profile";
 import { ok, err } from "@/lib/response";
 
 export async function GET(
@@ -23,7 +23,7 @@ export async function GET(
 
   const user = await prisma.user.findUnique({
     where: { id },
-    include: profileInclude,
+    select: { id: true, profileVisibility: true },
   });
 
   if (!user) return err("User not found.", 404);
@@ -33,17 +33,11 @@ export async function GET(
     return err("This profile is private.", 403);
   }
 
-  const papers = await prisma.paper.findMany({
-    where: { authorId: id, status: "published" },
-    include: { keywords: true, categories: true },
-    orderBy: { createdAt: "desc" },
-    take: 12,
-  });
-
-  const profile = toProfileUser(user, papers.map(toProfilePaper), {
+  const profile = await loadProfile(id, {
     viewerId: viewer?.sub,
     includeEmail: isOwnProfile,
   });
+  if (!profile) return err("User not found.", 404);
 
   const isFollowing =
     !isOwnProfile && viewer?.sub

@@ -1,7 +1,6 @@
 import {
   getPublishedPaperByIdFromDb,
 } from "@/lib/papers/db";
-import { paperDownloadFilename } from "@/lib/files/paperFilename";
 import { PaperDocumentViewClient } from "./PaperDocumentViewClient";
 
 export default async function PaperDocumentViewPage({
@@ -21,7 +20,6 @@ export default async function PaperDocumentViewPage({
   }
 
   const fileSrc = `/api/papers/${id}/file`;
-  const downloadFilename = paperDownloadFilename(post.title, ".pdf");
 
   return (
     <PaperDocumentViewClient
@@ -29,7 +27,6 @@ export default async function PaperDocumentViewPage({
       title={post.title}
       summary={post.summary}
       fileSrc={fileSrc}
-      downloadFilename={downloadFilename}
     />
   );
 }

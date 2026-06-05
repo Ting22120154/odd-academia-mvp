@@ -22,6 +22,8 @@ export type ProfileUser = {
     followers: number;
     following: number;
     citedComments: number;
+    totalLikes: number;
+    paperEngagement: number;
   };
   papers: {
     id: string;
@@ -61,6 +63,31 @@ export async function fetchUserProfile(
   const json = (await res.json()) as ApiRes<{ user: ProfileUser; isFollowing: boolean }>;
   if (!json.success) return { error: json.error };
   return { user: json.data.user, isFollowing: json.data.isFollowing };
+}
+
+export async function uploadProfileAvatar(
+  file: File
+): Promise<{ avatarUrl?: string; error?: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch("/api/users/me/avatar", {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  const json = (await res.json()) as ApiRes<{ avatarUrl: string }>;
+  if (!json.success) return { error: json.error };
+  return { avatarUrl: json.data.avatarUrl };
+}
+
+export async function removeProfileAvatar(): Promise<{ error?: string }> {
+  const res = await fetch("/api/users/me/avatar", {
+    method: "DELETE",
+    credentials: "include",
+  });
+  const json = (await res.json()) as ApiRes<{ avatarUrl: null }>;
+  if (!json.success) return { error: json.error };
+  return {};
 }
 
 export async function updateMyProfile(

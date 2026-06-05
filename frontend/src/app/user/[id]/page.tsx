@@ -11,6 +11,9 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { isValidUserId } from "@/lib/auth/user-id";
 import { toggleFollow } from "@/lib/follow-client";
+import { ProfileEngagementMetrics } from "@/components/profile/ProfileEngagementMetrics";
+import { ProfileInterests } from "@/components/profile/ProfileInterests";
+import { ProfileRoleEducation } from "@/components/profile/ProfileRoleEducation";
 import {
   fetchUserProfile,
   formatCount,
@@ -167,6 +170,8 @@ export default function UserProfilePage() {
           </div>
 
           {profile.bio && <p className="mt-4 text-sm text-zinc-600">{profile.bio}</p>}
+          <ProfileRoleEducation jobTitle={profile.jobTitle} education={profile.education} />
+          <ProfileInterests interests={profile.interests} />
 
           <div className="mt-3 flex items-center gap-4 text-sm">
             <span>
@@ -198,28 +203,7 @@ export default function UserProfilePage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
-        <div className="text-sm font-semibold text-zinc-900">Engagement Metrics</div>
-        <div className="mt-4 grid grid-cols-2 gap-4">
-          {(
-            [
-              ["Papers", profile.stats.papers],
-              ["Followers", formatCount(profile.stats.followers)],
-              ["Comments", profile.stats.citedComments],
-            ] as const
-          ).map(([label, value]) => (
-            <div key={label} className="flex items-center gap-3 rounded-2xl border border-black/[0.06] bg-white p-4">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-[var(--brand)]">
-                <span className="text-sm font-bold">•</span>
-              </div>
-              <div>
-                <div className="text-xs text-zinc-500">{label}</div>
-                <div className="text-xl font-bold text-zinc-900">{value}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <ProfileEngagementMetrics stats={profile.stats} />
 
       <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
         <div className="mb-4 text-sm font-semibold text-zinc-900">Papers</div>
