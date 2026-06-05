@@ -6,11 +6,7 @@ import { getRouteUserId } from "@/lib/auth/require-auth";
 import { checkRateLimit, getClientIp } from "@/lib/auth/rate-limit";
 import { paperUploadPaths } from "@/lib/files/paperFilename";
 import { paperInclude } from "@/lib/papers/constants";
-import {
-  blobStorageEnabled,
-  storageNotConfiguredResponse,
-  uploadPublicBlob,
-} from "@/lib/storage/blob";
+import { uploadPublicBlob, useBlobStorage } from "@/lib/storage/blob";
 
 const UPLOAD_LIMIT = 10;
 const WINDOW_MS = 60_000;
@@ -54,9 +50,6 @@ export async function POST(req: Request) {
   if (!userId) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const storageError = storageNotConfiguredResponse();
-  if (storageError) return storageError;
 
   const fileField = formData.get("file");
   if (!fileField || typeof fileField === "string") {
@@ -106,7 +99,7 @@ export async function POST(req: Request) {
     const paths = paperUploadPaths(paper.title, paper.id, ext);
     let fileUrl = paths.fileUrl;
 
-    if (blobStorageEnabled()) {
+    if (useBlobStorage()) {
       fileUrl = await uploadPublicBlob(
         `papers/${paper.id}/${paths.diskName}`,
         buffer,

@@ -1,18 +1,21 @@
-import { del, put } from "@vercel/blob";
+import { del, put, type PutCommandOptions } from "@vercel/blob";
 
-/** True when Blob is available — read-write token OR Vercel OIDC store connection. */
-export function blobStorageEnabled() {
-  if (process.env.BLOB_READ_WRITE_TOKEN?.trim()) return true;
-  // Connected via Storage → Connect to Project (OIDC; no read-write token required)
-  if (process.env.VERCEL && process.env.BLOB_STORE_ID?.trim()) return true;
-  return false;
+function blobCredentials(): Pick<PutCommandOptions, "token" | "storeId" | "oidcToken"> {
+  const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
+  const storeId = process.env.BLOB_STORE_ID?.trim();
+  const oidcToken = process.env.VERCEL_OIDC_TOKEN?.trim();
+  return {
+    ...(token ? { token } : {}),
+    ...(storeId ? { storeId } : {}),
+    ...(oidcToken ? { oidcToken } : {}),
+  };
 }
 
-export function storageNotConfiguredResponse() {
-  if (!process.env.VERCEL || blobStorageEnabled()) return null;
-  return Response.json(
-    { error: "File storage is not configured. Add Vercel Blob to this project." },
-    { status: 503 },
+/** Use Blob on Vercel (always) or locally when credentials exist. */
+export function useBlobStorage() {
+  if (process.env.VERCEL) return true;
+  return Boolean(
+    process.env.BLOB_READ_WRITE_TOKEN?.trim() || process.env.BLOB_STORE_ID?.trim(),
   );
 }
 
@@ -29,11 +32,12 @@ export async function uploadPublicBlob(
     access: "public",
     contentType,
     addRandomSuffix: false,
+    ...blobCredentials(),
   });
   return url;
 }
 
 export async function deletePublicBlob(url: string | null | undefined) {
   if (!url || !isBlobUrl(url)) return;
-  await del(url);
+  await del(url, blobCredentials());
 }

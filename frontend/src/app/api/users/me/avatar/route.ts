@@ -5,10 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { requireAuthPayload } from "@/lib/auth/require-auth";
 import { ok, err } from "@/lib/response";
 import {
-  blobStorageEnabled,
   deletePublicBlob,
-  storageNotConfiguredResponse,
   uploadPublicBlob,
+  useBlobStorage,
 } from "@/lib/storage/blob";
 
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -26,12 +25,6 @@ function avatarPublicUrl(userId: string) {
 export async function POST(req: Request) {
   const auth = await requireAuthPayload();
   if (!auth.ok) return err(auth.error, auth.status);
-
-  const storageError = storageNotConfiguredResponse();
-  if (storageError) {
-    const body = await storageError.json();
-    return err(body.error ?? "File storage is not configured.", storageError.status);
-  }
 
   let formData: FormData;
   try {
@@ -73,7 +66,7 @@ export async function POST(req: Request) {
   });
 
   let avatarUrl: string;
-  if (blobStorageEnabled()) {
+  if (useBlobStorage()) {
     await deletePublicBlob(existing?.avatarUrl);
     avatarUrl = await uploadPublicBlob(
       `avatars/${userId}.jpg`,
@@ -104,7 +97,7 @@ export async function DELETE() {
     select: { avatarUrl: true },
   });
 
-  if (blobStorageEnabled()) {
+  if (useBlobStorage()) {
     await deletePublicBlob(existing?.avatarUrl);
   } else {
     const diskPath = avatarDiskPath(userId);
