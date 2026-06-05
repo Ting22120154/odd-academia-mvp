@@ -126,6 +126,7 @@ export async function POST(req: Request) {
     return Response.json(updated);
   } catch (error) {
     console.error("POST /api/papers/upload failed:", error);
-    return Response.json({ error: "Failed to upload file" }, { status: 500 });
+    const detail = error instanceof Error ? error.message : "Failed to upload file";
+    return Response.json({ error: detail }, { status: 500 });
   }
 }
