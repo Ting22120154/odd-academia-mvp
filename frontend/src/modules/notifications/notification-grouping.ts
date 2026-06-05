@@ -1,86 +1,108 @@
 import type { NotificationType } from "@prisma/client";
-import type { NotificationResponse } from "./types";
+import type { NotificationDisplayType, NotificationResponse } from "./types";
 
-type RowForGroup = {
-  id: string;
-  type: NotificationType;
-  referenceId: string | null;
-  referenceType: string | null;
+export type ResolvedNotification = NotificationResponse & {
+  groupKey: string;
+  rawType: NotificationType;
+  paperTitle: string | null;
 };
 
-const READ_PAGE_SIZE = 5;
-
-export { READ_PAGE_SIZE };
-
-function resolvePaperId(
-  row: RowForGroup,
-  commentMap: Map<string, string>,
-): string | null {
-  if (!row.referenceId) return null;
-  if (row.referenceType === "paper") return row.referenceId;
-  if (row.referenceType === "comment") return commentMap.get(row.referenceId) ?? null;
-  return null;
-}
-
-function buildGroupKey(row: RowForGroup, commentMap: Map<string, string>): string | null {
-  if (row.type !== "comment" && row.type !== "reply") return null;
-  const paperId = resolvePaperId(row, commentMap);
-  if (!paperId) return null;
-  return `${row.type}|${paperId}`;
-}
-
-/** Collapse same-type comment/reply on one paper into one row (newest first). */
-export function groupNotifications(
-  items: Array<{ response: NotificationResponse; row: RowForGroup }>,
-  paperMap: Map<string, string>,
-  commentMap: Map<string, string>,
-): NotificationResponse[] {
-  const result: NotificationResponse[] = [];
-  const used = new Set<string>();
-
-  for (let i = 0; i < items.length; i++) {
-    const { response, row } = items[i];
-    if (used.has(response.id)) continue;
-
-    const key = buildGroupKey(row, commentMap);
-    if (!key) {
-      result.push(response);
-      continue;
+export function groupKeyForRow(
+  row: {
+    id: string;
+    type: NotificationType;
+    referenceId: string | null;
+    referenceType: string | null;
+  },
+  commentById: Map<string, { paperId: string; parentId: string | null; isHidden: boolean }>,
+): string {
+  if (row.type === "reply" && row.referenceType === "comment" && row.referenceId) {
+    const comment = commentById.get(row.referenceId);
+    if (comment && !comment.isHidden) {
+      const anchorId = comment.parentId ?? row.referenceId;
+      return `reply:${anchorId}`;
     }
-
-    const members = items.filter(
-      ({ row: r }) => buildGroupKey(r, commentMap) === key,
-    );
-    for (const m of members) used.add(m.response.id);
-
-    if (members.length === 1) {
-      result.push(response);
-      continue;
-    }
-
-    const primary = members[0].response;
-    const paperId = resolvePaperId(members[0].row, commentMap)!;
-    const title = paperMap.get(paperId) ?? "your paper";
-    const count = members.length;
-    const others = count - 1;
-
-    let text = primary.text;
-    if (members[0].row.type === "reply") {
-      text =
-        others === 1
-          ? `1 other person replied to your comment on ${title}`
-          : `${others} others replied to your comment on ${title}`;
-    } else if (members[0].row.type === "comment") {
-      text = `${count} new comments on your paper: ${title}`;
-    }
-
-    result.push({
-      ...primary,
-      text,
-      groupCount: count,
-      groupedIds: members.map((m) => m.response.id),
-    });
   }
 
-  return result;
+  if (row.type === "comment") {
+    if (row.referenceType === "comment" && row.referenceId) {
+      const comment = commentById.get(row.referenceId);
+      if (comment && !comment.isHidden) return `comment:${comment.paperId}`;
+    }
+    if (row.referenceType === "paper" && row.referenceId) {
+      return `comment:${row.referenceId}`;
+    }
+  }
+
+  if (row.type === "paper" && row.referenceType === "paper" && row.referenceId) {
+    return `paper:${row.referenceId}`;
+  }
+
+  if (row.type === "citation" && row.referenceType === "paper" && row.referenceId) {
+    return `citation:${row.referenceId}`;
+  }
+
+  return `single:${row.id}`;
+}
+
+export function groupedText(
+  rawType: NotificationType,
+  groupCount: number,
+  paperTitle: string | null,
+  fallbackSingleText: string,
+): string {
+  if (groupCount <= 1) return fallbackSingleText;
+
+  const title = paperTitle ?? "your paper";
+
+  if (rawType === "reply") {
+    const others = groupCount - 1;
+    const people = others === 1 ? "person" : "people";
+    return `${others} other ${people} replied to your comment on ${title}`;
+  }
+
+  if (rawType === "comment") {
+    const others = groupCount - 1;
+    const people = others === 1 ? "person" : "people";
+    return `${others} other ${people} commented on your paper: ${title}`;
+  }
+
+  if (rawType === "paper") {
+    return `${groupCount} new papers were published`;
+  }
+
+  return fallbackSingleText;
+}
+
+export function mergeNotificationGroups(items: ResolvedNotification[]): NotificationResponse[] {
+  const order: string[] = [];
+  const map = new Map<string, ResolvedNotification[]>();
+
+  for (const item of items) {
+    if (!map.has(item.groupKey)) order.push(item.groupKey);
+    const list = map.get(item.groupKey) ?? [];
+    list.push(item);
+    map.set(item.groupKey, list);
+  }
+
+  return order.map((key) => {
+    const members = map.get(key)!;
+    const sorted = [...members].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const primary = sorted[0];
+    const groupCount = sorted.length;
+    const ids = sorted.map((m) => m.id);
+    const isRead = sorted.every((m) => m.isRead);
+
+    return {
+      id: primary.id,
+      ids,
+      text: groupedText(primary.rawType, groupCount, primary.paperTitle, primary.text),
+      type: primary.type,
+      date: primary.date,
+      isRead,
+      href: primary.href,
+      createdAt: primary.createdAt,
+      groupCount,
+    };
+  });
 }

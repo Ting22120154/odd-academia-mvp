@@ -265,16 +265,20 @@ function CommentLikeButton({
   disabled?: boolean;
   onClick: () => void;
 }) {
-  const label = count > 0 ? `${count} Like${count === 1 ? "" : "s"}` : "Like";
   return (
     <button
       type="button"
-      className={liked ? "font-medium text-[var(--brand)] hover:opacity-80" : "hover:text-zinc-600"}
+      className={[
+        "inline-flex items-center gap-1.5",
+        liked ? "font-medium text-[var(--brand)] hover:opacity-80" : "hover:text-zinc-600",
+      ].join(" ")}
       onClick={onClick}
       disabled={disabled}
       title={disabled ? "Login to like comments" : liked ? "Unlike" : "Like"}
     >
-      {label}
+      <span>{liked ? "♥" : "♡"}</span>
+      <span>Like</span>
+      <span className="tabular-nums text-zinc-500">{count}</span>
     </button>
   );
 }
@@ -578,10 +582,8 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   }, [followPaper, followPaperBusy, isLoggedIn, post.id, router]);
 
   const [composer, setComposer] = useState("");
-  const [composerCitation, setComposerCitation] = useState("");
   const [activeReplyFor, setActiveReplyFor] = useState<string | null>(null);
   const [replyDraft, setReplyDraft] = useState("");
-  const [contribTab, setContribTab] = useState<"all" | "cited">("all");
   const [dbUserId, setDbUserId] = useState<string | null>(null);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
@@ -652,9 +654,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
 
     setActionLoading(true);
     setCommentsError(null);
-    const result = await createCommentApi(commentsPaperId, trimmed, {
-      citation: composerCitation.trim() || undefined,
-    });
+    const result = await createCommentApi(commentsPaperId, trimmed);
     setActionLoading(false);
 
     if (!result.ok) {
@@ -663,7 +663,6 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
     }
 
     setComposer("");
-    setComposerCitation("");
     await loadComments();
   }
 
@@ -1041,67 +1040,22 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                 Login to Comment
               </Link>
             ) : (
-              <div className="space-y-3">
-                <div className="rounded-2xl border border-black/[0.06] p-4">
-                  <div className="text-xs text-zinc-500">Comment</div>
-                  <textarea
-                    value={composer}
-                    onChange={(e) => setComposer(e.target.value.slice(0, 200))}
-                    placeholder="Comment"
-                    className="mt-2 min-h-[120px] w-full resize-none rounded-xl border border-black/[0.08] px-4 py-3 text-sm outline-none focus:border-black/20"
-                  />
-                  <div className="text-right text-[11px] text-zinc-400">{composer.length}/200</div>
-                </div>
-
-                <input
-                  value={composerCitation}
-                  onChange={(e) => setComposerCitation(e.target.value)}
-                  placeholder="Add citation"
-                  className="h-11 w-full rounded-xl border border-black/[0.08] px-4 text-sm outline-none focus:border-black/20"
+              <div className="space-y-3 rounded-2xl border border-black/[0.06] p-4">
+                <div className="text-xs font-medium text-zinc-500">Comment</div>
+                <textarea
+                  value={composer}
+                  onChange={(e) => setComposer(e.target.value.slice(0, 200))}
+                  placeholder="Write a comment…"
+                  className="mt-2 min-h-[120px] w-full resize-none rounded-xl border border-black/[0.08] px-4 py-3 text-sm outline-none focus:border-black/20"
                 />
-
-                <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-3">
                   <PrimaryButton onClick={() => void submitTopLevelComment()} disabled={actionLoading}>
                     {actionLoading ? "Posting…" : "Post Comment"}
                   </PrimaryButton>
-                  <OutlineButton onClick={() => copyToClipboard(citation)} title="Copy citation">
-                    Copy citation
-                  </OutlineButton>
-                  <OutlineButton onClick={() => copyShareLink()}>Copy link</OutlineButton>
+                  <span className="text-[11px] text-zinc-400">{composer.length}/200</span>
                 </div>
               </div>
             )}
-
-            <div className="space-y-3">
-              <div className="text-lg font-semibold text-zinc-900">Contributions</div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setContribTab("all")}
-                  className={[
-                    "rounded-lg px-3 py-1.5 text-xs font-medium",
-                    contribTab === "all"
-                      ? "bg-[rgba(0,102,255,0.1)] text-[var(--brand)]"
-                      : `bg-zinc-100 text-zinc-600 ${clickableHoverInset}`,
-                  ].join(" ")}
-                >
-                  All
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setContribTab("cited")}
-                  className={[
-                    "rounded-lg px-3 py-1.5 text-xs font-medium",
-                    contribTab === "cited"
-                      ? "bg-[rgba(0,102,255,0.1)] text-[var(--brand)]"
-                      : `bg-zinc-100 text-zinc-600 ${clickableHoverInset}`,
-                  ].join(" ")}
-                >
-                  Cited Contributions
-                </button>
-              </div>
-              {/* MVP stub: contributions content can be wired to backend later. */}
-            </div>
 
             <div className="space-y-4">
               <div className="text-lg font-semibold text-zinc-900">Comments</div>
@@ -1203,22 +1157,6 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                               </button>
                             </>
                           ) : null}
-
-                          <button
-                            type="button"
-                            className={`rounded-md px-1.5 py-0.5 ${clickableHoverInset}`}
-                            onClick={() => {
-                              const origin =
-                                typeof window !== "undefined" ? window.location.origin : "";
-                              void copyToClipboard(
-                                `${origin ? `${origin}${sharePath}` : sharePath}#comment-${c.id}`,
-                              );
-                            }}
-                            disabled={!isLoggedIn}
-                            title={!isLoggedIn ? "Login required" : "Copy comment link"}
-                          >
-                            Share
-                          </button>
 
                           {/* Users cannot report their own comments */}
                           {isLoggedIn && !isOwnComment(c.authorId) ? (

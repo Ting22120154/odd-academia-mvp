@@ -2,6 +2,12 @@ import {
   DEFAULT_NOTIFICATION_SETTINGS,
   type NotificationSettingsResponse,
 } from "@/modules/notifications/notification-settings.types";
+import type {
+  ListNotificationsResult,
+  NotificationSortDir,
+  NotificationSortKey,
+  NotificationTab,
+} from "@/modules/notifications/types";
 
 function normalizeSettings(raw: unknown): NotificationSettingsResponse | null {
   if (!raw || typeof raw !== "object") return null;
@@ -21,12 +27,6 @@ function normalizeSettings(raw: unknown): NotificationSettingsResponse | null {
         : DEFAULT_NOTIFICATION_SETTINGS.repliedTo,
   };
 }
-import type {
-  ListNotificationsResult,
-  NotificationSortDir,
-  NotificationSortKey,
-  NotificationTab,
-} from "@/modules/notifications/types";
 
 type ApiSuccess<T> = { success: true } & T;
 type ApiError = { success: false; error: string };
@@ -36,19 +36,25 @@ async function parseJson<T>(res: Response): Promise<T | ApiError> {
 }
 
 /** GET /api/notifications */
+const EMPTY_LIST: ListNotificationsResult = {
+  notifications: [],
+  newNotifications: [],
+  oldNotifications: [],
+  oldTotal: 0,
+  unreadCount: 0,
+};
+
 export async function fetchNotifications(opts?: {
   tab?: NotificationTab;
   sort?: NotificationSortKey;
   dir?: NotificationSortDir;
-  readOffset?: number;
+  oldLimit?: number;
 }): Promise<ListNotificationsResult> {
   const params = new URLSearchParams();
   if (opts?.tab) params.set("tab", opts.tab);
   if (opts?.sort) params.set("sort", opts.sort);
   if (opts?.dir) params.set("dir", opts.dir);
-  if (opts?.readOffset != null && opts.readOffset > 0) {
-    params.set("readOffset", String(opts.readOffset));
-  }
+  if (opts?.oldLimit != null) params.set("oldLimit", String(opts.oldLimit));
 
   const qs = params.toString();
   const res = await fetch(`/api/notifications${qs ? `?${qs}` : ""}`, {
@@ -56,13 +62,29 @@ export async function fetchNotifications(opts?: {
     credentials: "include",
   });
   const data = await parseJson<ApiSuccess<ListNotificationsResult>>(res);
-  if (!data.success) return { notifications: [], unreadCount: 0 };
+  if (!data.success) return EMPTY_LIST;
   return {
-    notifications: data.notifications,
-    unreadCount: data.unreadCount,
-    readHasMore: data.readHasMore,
-    readTotal: data.readTotal,
+    notifications: data.notifications ?? [],
+    newNotifications: data.newNotifications ?? [],
+    oldNotifications: data.oldNotifications ?? [],
+    oldTotal: data.oldTotal ?? 0,
+    unreadCount: data.unreadCount ?? 0,
   };
+}
+
+/** PATCH /api/notifications/mark-read — mark a grouped notification (all ids). */
+export async function markNotificationsRead(
+  ids: string[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const res = await fetch("/api/notifications/mark-read", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ ids }),
+  });
+  const data = await parseJson<ApiSuccess<{ read: boolean }>>(res);
+  if (!data.success) return { ok: false, error: data.error };
+  return { ok: true };
 }
 
 /** PATCH /api/notifications/:id */
