@@ -43,6 +43,13 @@ export async function POST(req: NextRequest) {
     return res;
   } catch (error) {
     console.error("POST /api/auth/login failed:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("admin_users") && message.includes("does not exist")) {
+      return err(
+        "Admin database is missing the admin_users table. Set Admin DATABASE_URL to the same value as Frontend, redeploy, then try again.",
+        500,
+      );
+    }
     return err("Login service unavailable. Check admin server configuration.", 500);
   }
 }
