@@ -3,15 +3,21 @@
   "private": true,
   "packageManager": "pnpm@10.6.3",
   "scripts": {
-    "dev":          "turbo dev",
-    "build":        "turbo build",
-    "lint":         "turbo lint",
-    "db:generate":  "pnpm --filter @odd-academia/db db:generate",
-    "db:push":      "pnpm --filter @odd-academia/db db:push",
-    "db:seed":      "pnpm --filter @odd-academia/db db:seed",
-    "db:studio":    "pnpm --filter @odd-academia/db db:studio"
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "db:generate": "pnpm --filter @odd-academia/db db:generate",
+    "db:push": "pnpm --filter @odd-academia/db db:push",
+    "db:seed": "pnpm --filter @odd-academia/db db:seed",
+    "db:studio": "pnpm --filter @odd-academia/db db:studio",
+    "test": "pnpm test:unit && pnpm test:integration",
+    "test:unit": "pnpm --filter frontend test:unit && pnpm --filter admin test:unit",
+    "test:integration": "pnpm --filter frontend test:integration && pnpm --filter admin test:integration",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "devDependencies": {
+    "@playwright/test": "1.52.0",
     "turbo": "^2.4.4"
   },
   "pnpm": {
