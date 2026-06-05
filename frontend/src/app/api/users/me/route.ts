@@ -6,40 +6,18 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuthPayload } from "@/lib/auth/require-auth";
-import {
-  profileInclude,
-  toProfilePaper,
-  toProfileUser,
-  visibilityFromUi,
-  workStatusFromUi,
-} from "@/lib/auth/profile";
+import { loadProfile } from "@/lib/auth/load-profile";
+import { visibilityFromUi, workStatusFromUi } from "@/lib/auth/profile";
 import { ok, err } from "@/lib/response";
-
-async function loadProfile(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: profileInclude,
-  });
-  if (!user) return null;
-
-  const papers = await prisma.paper.findMany({
-    where: { authorId: userId, status: "published" },
-    include: { keywords: true, categories: true },
-    orderBy: { createdAt: "desc" },
-    take: 12,
-  });
-
-  return toProfileUser(user, papers.map(toProfilePaper), {
-    viewerId: userId,
-    includeEmail: true,
-  });
-}
 
 export async function GET() {
   const auth = await requireAuthPayload();
   if (!auth.ok) return err(auth.error, auth.status);
 
-  const profile = await loadProfile(auth.payload.sub);
+  const profile = await loadProfile(auth.payload.sub, {
+    viewerId: auth.payload.sub,
+    includeEmail: true,
+  });
   if (!profile) return err("User not found.", 404);
 
   return ok({ user: profile });
@@ -111,7 +89,10 @@ export async function PATCH(req: NextRequest) {
       }
     });
 
-    const profile = await loadProfile(payload.sub);
+    const profile = await loadProfile(payload.sub, {
+      viewerId: payload.sub,
+      includeEmail: true,
+    });
     if (!profile) return err("User not found.", 404);
 
     return ok({ user: profile });

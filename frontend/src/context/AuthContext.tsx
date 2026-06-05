@@ -55,22 +55,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshSession = useCallback(async () => {
     try {
       const res = await fetch("/api/auth/me", { credentials: "include" });
-      const json = await res.json();
-      if (json.success && json.data?.user) {
+      const json = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        data?: { user?: PublicUser };
+      } | null;
+
+      if (json?.success && json.data?.user) {
         setUser(toAuthUser(json.data.user));
         setIsGuest(false);
         localStorage.removeItem("isGuest");
         return;
       }
-      // 401 = token invalid/expired, 404 = user deleted — clear the stale httpOnly cookie
-      // so the middleware stops redirecting /login back to home.
+
+      // Only clear session when the server says the token/user is invalid.
       if (res.status === 401 || res.status === 404) {
         await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => null);
+        setUser(null);
+        setIsGuest(false);
       }
     } catch {
-      // network error — keep existing cookie state, retry on next load
+      // Network error — keep existing client session; retry on next load.
     }
-    setUser(null);
   }, []);
 
   useEffect(() => {
@@ -119,7 +124,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/home");
   }, [router]);
 
-  if (!hydrated) return null;
+  if (!hydrated) {
+    return (
+      <div className="min-h-screen bg-[var(--background)]">
+        <div className="mx-auto w-full max-w-[var(--page-max)] px-6 py-6">
+          <div className="h-8 w-48 animate-pulse rounded-lg bg-zinc-200/80" />
+          <div className="mt-6 space-y-4">
+            <div className="h-32 animate-pulse rounded-2xl bg-white shadow-[var(--shadow-sm)]" />
+            <div className="h-48 animate-pulse rounded-2xl bg-white shadow-[var(--shadow-sm)]" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider

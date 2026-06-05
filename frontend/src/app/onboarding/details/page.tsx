@@ -1,19 +1,14 @@
 "use client";
 
-/** Post-signup onboarding UI; uses AuthContext for redirect guards (profile completion flow). */
+/** Post-signup onboarding — saves profile via PATCH /api/users/me */
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-
-type WorkStatus = "Open For Work" | "Not Open For Work" | "Freelance" | "None";
-
-const WORK_OPTIONS: WorkStatus[] = [
-  "Open For Work",
-  "Not Open For Work",
-  "Freelance",
-  "None",
-];
+import { ProfileAvatarPicker } from "@/components/profile/ProfileAvatarPicker";
+import { ProfileInterests } from "@/components/profile/ProfileInterests";
+import { WORK_STATUS_OPTIONS } from "@/lib/profile-constants";
+import { fetchMyProfile, updateMyProfile } from "@/lib/profile-client";
 
 function GitHubIcon() {
   return (
@@ -47,8 +42,9 @@ export default function DetailsPage() {
   const router = useRouter();
   const { refreshSession } = useAuth();
   const [ready, setReady] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Form state
   const [fullName, setFullName] = useState("");
   const [education, setEducation] = useState("");
   const [github, setGithub] = useState("");
@@ -56,33 +52,54 @@ export default function DetailsPage() {
   const [jobTitle, setJobTitle] = useState("");
   const [linkedin, setLinkedin] = useState("");
   const [bio, setBio] = useState("");
-  const [workStatus, setWorkStatus] = useState<WorkStatus>("None");
+  const [workStatus, setWorkStatus] = useState<string>("None");
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [errors, setErrors] = useState<{ fullName?: string; email?: string }>({});
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window === "undefined") return;
+
+    void (async () => {
       const pending = localStorage.getItem("pendingUser");
-      const interests = localStorage.getItem("userInterests");
-      if (!pending || !interests) {
+      if (!pending) {
         router.push("/onboarding/interests");
         return;
       }
-      // Pre-fill name and email from signup step
+
+      let interests: string[] = [];
       try {
-        const parsed = JSON.parse(pending) as {
-          fullName: string;
-          email: string;
-        };
+        const raw = localStorage.getItem("userInterests");
+        if (raw) interests = JSON.parse(raw) as string[];
+      } catch {
+        interests = [];
+      }
+
+      const { user } = await fetchMyProfile();
+      if (user?.avatarUrl) setAvatarUrl(user.avatarUrl);
+      if (interests.length === 0 && user?.interests?.length) {
+        interests = user.interests;
+        localStorage.setItem("userInterests", JSON.stringify(interests));
+      }
+
+      if (interests.length === 0) {
+        router.push("/onboarding/interests");
+        return;
+      }
+
+      setSelectedInterests(interests);
+      try {
+        const parsed = JSON.parse(pending) as { fullName: string; email: string };
         setFullName(parsed.fullName ?? "");
         setContactEmail(parsed.email ?? "");
       } catch {
         // ignore
       }
       setReady(true);
-    }
+    })();
   }, [router]);
 
-  function handleSave() {
+  async function handleSave() {
     const nextErrors: { fullName?: string; email?: string } = {};
     if (!fullName.trim()) nextErrors.fullName = "Full name is required.";
     if (!contactEmail.trim()) nextErrors.email = "Contact email is required.";
@@ -91,15 +108,33 @@ export default function DetailsPage() {
       return;
     }
     setErrors({});
+    setSaveError(null);
+    setSaving(true);
+
+    const { error } = await updateMyProfile({
+      fullName: fullName.trim(),
+      bio: bio.trim(),
+      education: education.trim(),
+      jobTitle: jobTitle.trim(),
+      github: github.trim(),
+      linkedin: linkedin.trim(),
+      workStatus,
+      interests: selectedInterests,
+    });
+
+    setSaving(false);
+    if (error) {
+      setSaveError(error);
+      return;
+    }
 
     if (typeof window !== "undefined") {
       localStorage.removeItem("pendingUser");
       localStorage.removeItem("userInterests");
     }
 
-    // Profile fields saved in a later step; user is already logged in from register.
-    void refreshSession();
-    router.push("/");
+    await refreshSession();
+    router.push("/profile");
   }
 
   const inputClass =
@@ -111,52 +146,31 @@ export default function DetailsPage() {
   return (
     <div className="flex min-h-screen flex-col bg-white px-6 py-12">
       <div className="mx-auto w-full max-w-2xl">
-        {/* Header */}
-        <h1 className="mb-8 text-2xl font-semibold text-gray-900">
-          Set up your profile
-        </h1>
+        <h1 className="mb-8 text-2xl font-semibold text-gray-900">Set up your profile</h1>
 
-        {/* Avatar section */}
-        <div className="mb-8 flex items-center gap-6">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-dashed border-gray-300 bg-gray-50">
-            <svg
-              className="h-8 w-8 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+        <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium text-gray-700">Your interests</p>
+            <button
+              type="button"
+              onClick={() => router.push("/onboarding/interests")}
+              className="text-xs font-medium text-[#2563EB] hover:underline"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z"
-              />
-            </svg>
+              Change
+            </button>
           </div>
-          <div>
+          <ProfileInterests interests={selectedInterests} />
+        </div>
+
+        <div className="mb-8 flex items-start gap-6">
+          <ProfileAvatarPicker avatarUrl={avatarUrl} onAvatarChange={setAvatarUrl} />
+          <div className="pt-2">
             <p className="text-sm font-medium text-gray-700">Profile Image</p>
-            <p className="mt-0.5 text-xs text-gray-400">
-              Choose your primary profile image
-            </p>
-            <div className="mt-2 flex gap-3 text-xs text-[#2563EB]">
-              <button type="button" className="hover:underline">
-                Upload Image
-              </button>
-              <span className="text-gray-300">·</span>
-              <button type="button" className="hover:underline">
-                Primary Image
-              </button>
-              <span className="text-gray-300">·</span>
-              <button type="button" className="hover:underline">
-                Remove Image
-              </button>
-            </div>
+            <p className="mt-0.5 text-xs text-gray-400">Upload a JPEG profile photo</p>
           </div>
         </div>
 
-        {/* Two-column form */}
         <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-          {/* Left column */}
           <div>
             <label htmlFor="fullName" className={labelClass}>
               Full Name <span className="text-red-500">*</span>
@@ -169,9 +183,7 @@ export default function DetailsPage() {
               placeholder="Jane Smith"
               className={inputClass}
             />
-            {errors.fullName && (
-              <p className="mt-1 text-xs text-red-600">{errors.fullName}</p>
-            )}
+            {errors.fullName && <p className="mt-1 text-xs text-red-600">{errors.fullName}</p>}
           </div>
 
           <div>
@@ -186,9 +198,7 @@ export default function DetailsPage() {
               placeholder="you@example.com"
               className={inputClass}
             />
-            {errors.email && (
-              <p className="mt-1 text-xs text-red-600">{errors.email}</p>
-            )}
+            {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
           </div>
 
           <div>
@@ -258,7 +268,6 @@ export default function DetailsPage() {
           </div>
         </div>
 
-        {/* Public Bio */}
         <div className="mt-4">
           <label htmlFor="bio" className={labelClass}>
             Public Bio
@@ -273,16 +282,13 @@ export default function DetailsPage() {
           />
         </div>
 
-        {/* Work availability */}
         <div className="mt-6">
           <p className="mb-3 text-sm font-medium text-gray-700">
             Are you on Odd Academia to improve your career?
           </p>
-          <p className="mb-3 text-xs text-gray-400">
-            Work Availability — simply select your preference
-          </p>
+          <p className="mb-3 text-xs text-gray-400">Work Availability — select your preference</p>
           <div className="flex flex-wrap gap-2">
-            {WORK_OPTIONS.map((option) => (
+            {WORK_STATUS_OPTIONS.map((option) => (
               <button
                 key={option}
                 type="button"
@@ -300,14 +306,16 @@ export default function DetailsPage() {
           </div>
         </div>
 
-        {/* Save button */}
+        {saveError && <p className="mt-4 text-sm text-red-600">{saveError}</p>}
+
         <div className="mt-10 flex justify-end">
           <button
             type="button"
-            onClick={handleSave}
-            className="rounded-md bg-[#2563EB] px-8 py-2.5 text-sm font-medium text-white hover:opacity-95 transition-opacity"
+            disabled={saving}
+            onClick={() => void handleSave()}
+            className="rounded-md bg-[#2563EB] px-8 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-95 disabled:opacity-60"
           >
-            Save
+            {saving ? "Saving…" : "Save"}
           </button>
         </div>
       </div>

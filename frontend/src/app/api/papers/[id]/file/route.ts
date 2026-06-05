@@ -42,7 +42,6 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const download = new URL(req.url).searchParams.get("download") === "1";
 
     const paper = await prisma.paper.findUnique({
       where: { id },
@@ -68,7 +67,7 @@ export async function GET(
     const ext = path.extname(paper.fileUrl).toLowerCase() || ".pdf";
     const filename = paperDownloadFilename(paper.title, ext);
     const contentType = MIME_BY_EXT[ext] ?? "application/octet-stream";
-    const disposition = download ? "attachment" : "inline";
+    const disposition = "inline";
     const encoded = encodeURIComponent(filename);
 
     return new Response(new Uint8Array(buffer), {
