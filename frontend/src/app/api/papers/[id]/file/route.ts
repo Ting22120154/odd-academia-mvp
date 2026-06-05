@@ -2,7 +2,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 import prisma from "@odd-academia/db/client";
 import { paperDownloadFilename } from "@/lib/files/paperFilename";
-import { isBlobUrl } from "@/lib/storage/blob";
+import { fetchBlobBuffer, isBlobUrl } from "@/lib/storage/blob";
 
 const UPLOADS_PREFIX = "/uploads/";
 
@@ -53,25 +53,31 @@ export async function GET(
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 
-    if (isBlobUrl(paper.fileUrl)) {
-      return Response.redirect(paper.fileUrl, 302);
-    }
-
-    const filePath = resolveUploadFilePath(paper.fileUrl);
-    if (!filePath) {
-      return invalidFilePath();
-    }
+    const ext = path.extname(paper.fileUrl).toLowerCase() || ".pdf";
 
     let buffer: Buffer;
-    try {
-      buffer = await readFile(filePath);
-    } catch {
-      return Response.json({ error: "File not found on disk" }, { status: 404 });
-    }
+    let contentType = MIME_BY_EXT[ext] ?? "application/octet-stream";
 
-    const ext = path.extname(paper.fileUrl).toLowerCase() || ".pdf";
+    if (isBlobUrl(paper.fileUrl)) {
+      try {
+        const blob = await fetchBlobBuffer(paper.fileUrl);
+        buffer = blob.buffer;
+        contentType = blob.contentType || contentType;
+      } catch {
+        return Response.json({ error: "File not found in storage" }, { status: 404 });
+      }
+    } else {
+      const filePath = resolveUploadFilePath(paper.fileUrl);
+      if (!filePath) {
+        return invalidFilePath();
+      }
+      try {
+        buffer = await readFile(filePath);
+      } catch {
+        return Response.json({ error: "File not found on disk" }, { status: 404 });
+      }
+    }
     const filename = paperDownloadFilename(paper.title, ext);
-    const contentType = MIME_BY_EXT[ext] ?? "application/octet-stream";
     const disposition = "inline";
     const encoded = encodeURIComponent(filename);
 

@@ -70,6 +70,7 @@ describeIfDb("avatar API integration", () => {
     if (body.success) {
       expect(
         body.data.avatarUrl.includes("/uploads/avatars/") ||
+          body.data.avatarUrl.includes("/api/users/") ||
           body.data.avatarUrl.includes("blob.vercel-storage.com"),
       ).toBe(true);
     }

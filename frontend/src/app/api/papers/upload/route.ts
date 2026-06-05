@@ -6,7 +6,7 @@ import { getRouteUserId } from "@/lib/auth/require-auth";
 import { checkRateLimit, getClientIp } from "@/lib/auth/rate-limit";
 import { paperUploadPaths } from "@/lib/files/paperFilename";
 import { paperInclude } from "@/lib/papers/constants";
-import { uploadPublicBlob, useBlobStorage } from "@/lib/storage/blob";
+import { uploadBlob, useBlobStorage } from "@/lib/storage/blob";
 
 const UPLOAD_LIMIT = 10;
 const WINDOW_MS = 60_000;
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
     let fileUrl = paths.fileUrl;
 
     if (useBlobStorage()) {
-      fileUrl = await uploadPublicBlob(
+      fileUrl = await uploadBlob(
         `papers/${paper.id}/${paths.diskName}`,
         buffer,
         detected.mime,

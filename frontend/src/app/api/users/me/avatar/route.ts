@@ -4,11 +4,15 @@ import { fileTypeFromBuffer } from "file-type";
 import { prisma } from "@/lib/prisma";
 import { requireAuthPayload } from "@/lib/auth/require-auth";
 import { ok, err } from "@/lib/response";
-import {
-  deletePublicBlob,
-  uploadPublicBlob,
-  useBlobStorage,
-} from "@/lib/storage/blob";
+import { deleteBlob, isBlobUrl, uploadBlob, useBlobStorage } from "@/lib/storage/blob";
+
+function avatarApiUrl(userId: string) {
+  return `/api/users/${userId}/avatar`;
+}
+
+function avatarBlobPath(userId: string) {
+  return `avatars/${userId}.jpg`;
+}
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const ALLOWED_MIME = "image/jpeg";
@@ -67,12 +71,17 @@ export async function POST(req: Request) {
 
   let avatarUrl: string;
   if (useBlobStorage()) {
-    await deletePublicBlob(existing?.avatarUrl);
-    avatarUrl = await uploadPublicBlob(
-      `avatars/${userId}.jpg`,
-      buffer,
-      ALLOWED_MIME,
-    );
+    try {
+      if (existing?.avatarUrl && isBlobUrl(existing.avatarUrl)) {
+        await deleteBlob(existing.avatarUrl);
+      } else {
+        await deleteBlob(avatarBlobPath(userId));
+      }
+    } catch {
+      // blob may not exist yet
+    }
+    await uploadBlob(avatarBlobPath(userId), buffer, ALLOWED_MIME);
+    avatarUrl = avatarApiUrl(userId);
   } else {
     const diskPath = avatarDiskPath(userId);
     await mkdir(path.dirname(diskPath), { recursive: true });
@@ -98,7 +107,15 @@ export async function DELETE() {
   });
 
   if (useBlobStorage()) {
-    await deletePublicBlob(existing?.avatarUrl);
+    try {
+      if (existing?.avatarUrl && isBlobUrl(existing.avatarUrl)) {
+        await deleteBlob(existing.avatarUrl);
+      } else {
+        await deleteBlob(avatarBlobPath(userId));
+      }
+    } catch {
+      // ignore
+    }
   } else {
     const diskPath = avatarDiskPath(userId);
     try {
