@@ -2,34 +2,47 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ONBOARDING_INTEREST_OPTIONS } from "@/lib/papers/categoryEmojis";
+import { InterestPicker } from "@/components/profile/InterestPicker";
+import { updateMyProfile } from "@/lib/profile-client";
 
 export default function InterestsPage() {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (!localStorage.getItem("pendingUser")) {
-        router.push("/login");
-        return;
-      }
-      setReady(true);
+    if (typeof window === "undefined") return;
+    if (!localStorage.getItem("pendingUser")) {
+      router.push("/login");
+      return;
     }
+    try {
+      const raw = localStorage.getItem("userInterests");
+      if (raw) setSelected(JSON.parse(raw) as string[]);
+    } catch {
+      // ignore
+    }
+    setReady(true);
   }, [router]);
 
-  function toggle(label: string) {
-    setSelected((prev) =>
-      prev.includes(label) ? prev.filter((i) => i !== label) : [...prev, label]
-    );
-  }
-
-  function handleNext() {
+  async function handleNext() {
     if (selected.length === 0) return;
+    setError(null);
+    setSaving(true);
+
     if (typeof window !== "undefined") {
       localStorage.setItem("userInterests", JSON.stringify(selected));
     }
+
+    const { error: err } = await updateMyProfile({ interests: selected });
+    setSaving(false);
+    if (err) {
+      setError(err);
+      return;
+    }
+
     router.push("/onboarding/details");
   }
 
@@ -38,58 +51,31 @@ export default function InterestsPage() {
   return (
     <div className="flex min-h-screen flex-col bg-white px-6 py-12">
       <div className="mx-auto w-full max-w-3xl">
-        {/* Header */}
         <div className="mb-10 text-center">
-          <h1 className="text-3xl font-semibold text-gray-900">
-            Choose your interests
-          </h1>
-          <p className="mt-2 text-sm text-gray-500">
-            Select topics you want to see in your feed
-          </p>
+          <h1 className="text-3xl font-semibold text-gray-900">Choose your interests</h1>
+          <p className="mt-2 text-sm text-gray-500">Select topics you want to see in your feed</p>
         </div>
 
-        {/* Interest grid */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-          {ONBOARDING_INTEREST_OPTIONS.map(({ label, emoji }) => {
-            const isSelected = selected.includes(label);
-            return (
-              <button
-                key={label}
-                type="button"
-                onClick={() => toggle(label)}
-                className={[
-                  "flex flex-col items-center justify-center gap-2 rounded-xl border-2 px-3 py-4 text-sm font-medium transition-colors cursor-pointer",
-                  isSelected
-                    ? "border-blue-600 bg-blue-50 text-blue-700"
-                    : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50",
-                ].join(" ")}
-              >
-                <span className="text-2xl">{emoji}</span>
-                <span className="text-center leading-tight">{label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <InterestPicker selected={selected} onChange={setSelected} />
 
-        {/* Next button */}
+        {error && <p className="mt-4 text-center text-sm text-red-600">{error}</p>}
+
         <div className="mt-10 flex flex-col items-end">
           <button
             type="button"
-            onClick={handleNext}
-            disabled={selected.length === 0}
+            onClick={() => void handleNext()}
+            disabled={selected.length === 0 || saving}
             className={[
               "w-full rounded-md py-2.5 text-sm font-medium transition-opacity sm:w-auto sm:px-10",
-              selected.length === 0
+              selected.length === 0 || saving
                 ? "cursor-not-allowed bg-gray-200 text-gray-400"
                 : "bg-[#2563EB] text-white hover:opacity-95",
             ].join(" ")}
           >
-            Next →
+            {saving ? "Saving…" : "Next →"}
           </button>
           {selected.length === 0 && (
-            <p className="mt-2 text-xs text-gray-400">
-              Select at least one interest to continue
-            </p>
+            <p className="mt-2 text-xs text-gray-400">Select at least one interest to continue</p>
           )}
         </div>
       </div>

@@ -8,6 +8,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { InterestPicker } from "@/components/profile/InterestPicker";
+import { ProfileAvatarPicker } from "@/components/profile/ProfileAvatarPicker";
+import { WORK_STATUS_OPTIONS } from "@/lib/profile-constants";
 import { fetchMyProfile, updateMyProfile } from "@/lib/profile-client";
 
 type FormState = {
@@ -28,6 +31,7 @@ export default function ProfileEditPage() {
   const { isLoggedIn, refreshSession } = useAuth();
   const router = useRouter();
   const [form, setForm] = useState<FormState | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +51,7 @@ export default function ProfileEditPage() {
         setLoading(false);
         return;
       }
+      setAvatarUrl(user.avatarUrl);
       setForm({
         fullName: user.fullName,
         email: user.email ?? "",
@@ -69,16 +74,6 @@ export default function ProfileEditPage() {
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
-  }
-
-  function removeInterest(interest: string) {
-    if (!form) return;
-    set("interests", form.interests.filter((i) => i !== interest));
-  }
-
-  function addInterest() {
-    const val = window.prompt("Add interest");
-    if (val?.trim() && form) set("interests", [...form.interests, val.trim()]);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -145,19 +140,13 @@ export default function ProfileEditPage() {
         className="mt-4 rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]"
         onSubmit={handleSubmit}
       >
-        <div className="flex items-center gap-4">
-          <div className="h-16 w-16 overflow-hidden rounded-full bg-zinc-200" />
-          <div>
-            <div className="text-sm font-semibold text-zinc-900">Profile Image</div>
-            <button
-              type="button"
-              disabled
-              className="mt-1 rounded-lg bg-zinc-300 px-4 py-1.5 text-xs font-medium text-white"
-              title="Avatar upload coming soon"
-            >
-              Change
-            </button>
-          </div>
+        <div className="flex items-start gap-4">
+          <ProfileAvatarPicker
+            size="sm"
+            avatarUrl={avatarUrl}
+            onAvatarChange={setAvatarUrl}
+          />
+          <div className="pt-2 text-sm font-semibold text-zinc-900">Profile Image</div>
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -174,32 +163,11 @@ export default function ProfileEditPage() {
               onChange={(e) => set("workStatus", e.target.value)}
               className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-900 outline-none focus:border-black/20"
             >
-              <option>Open for Work</option>
-              <option>Not Looking</option>
-              <option>Freelancing</option>
-              <option>Student</option>
-              <option>None</option>
+              {WORK_STATUS_OPTIONS.map((o) => (
+                <option key={o}>{o}</option>
+              ))}
             </select>
           </Field>
-          <Field label="Interests">
-            <div className="flex min-h-11 flex-wrap items-center gap-2 rounded-xl border border-black/[0.08] bg-white px-4 py-2">
-              {form.interests.map((i) => (
-                <span
-                  key={i}
-                  className="inline-flex items-center gap-1 rounded-full bg-[var(--brand)]/10 px-2.5 py-0.5 text-xs font-medium text-[var(--brand)]"
-                >
-                  {i}
-                  <button type="button" onClick={() => removeInterest(i)} className="ml-0.5 hover:opacity-70">
-                    ×
-                  </button>
-                </span>
-              ))}
-              <button type="button" onClick={addInterest} className="text-zinc-400 hover:text-zinc-600">
-                +
-              </button>
-            </div>
-          </Field>
-
           <Field label="Profile Visibility">
             <select
               value={form.profileVisibility}
@@ -231,6 +199,16 @@ export default function ProfileEditPage() {
           <Field label="LinkedIn">
             <Input value={form.linkedin} onChange={(e) => set("linkedin", e.target.value)} placeholder="https://linkedin.com/in/you" />
           </Field>
+        </div>
+
+        <div className="mt-6 space-y-3">
+          <div className="text-sm font-semibold text-zinc-700">Interests</div>
+          <p className="text-xs text-zinc-500">Same topics as sign-up — tap to add or remove.</p>
+          <InterestPicker
+            compact
+            selected={form.interests}
+            onChange={(next) => set("interests", next)}
+          />
         </div>
 
         <div className="mt-5 space-y-2">
