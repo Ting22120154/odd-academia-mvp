@@ -1,64 +1,82 @@
 import { describe, expect, it } from "vitest";
-import { groupNotifications } from "@/modules/notifications/notification-grouping";
-import type { NotificationResponse } from "@/modules/notifications/types";
+import {
+  groupKeyForRow,
+  groupedText,
+  mergeNotificationGroups,
+  type ResolvedNotification,
+} from "@/modules/notifications/notification-grouping";
 
 const PAPER_ID = "550e8400-e29b-41d4-a716-446655440000";
 const COMMENT_ID = "660e8400-e29b-41d4-a716-446655440001";
 
-function notif(id: string, text: string): NotificationResponse {
+function resolved(
+  id: string,
+  overrides: Partial<ResolvedNotification> = {},
+): ResolvedNotification {
   return {
     id,
+    ids: [id],
+    text: "Single notification",
     type: "Comment",
-    text,
     date: "Today",
     isRead: false,
     href: "/notifications",
-    createdAt: new Date().toISOString(),
+    createdAt: "2026-01-02T00:00:00.000Z",
+    groupCount: 1,
+    groupKey: `single:${id}`,
+    rawType: "comment",
+    paperTitle: null,
+    ...overrides,
   };
 }
 
-describe("groupNotifications", () => {
-  it("groups multiple comments on the same paper", () => {
-    const items = [
-      {
-        response: notif("n1", "Alice commented"),
-        row: { id: "n1", type: "comment" as const, referenceId: PAPER_ID, referenceType: "paper" },
-      },
-      {
-        response: notif("n2", "Bob commented"),
-        row: { id: "n2", type: "comment" as const, referenceId: PAPER_ID, referenceType: "paper" },
-      },
-    ];
-    const grouped = groupNotifications(items, new Map([[PAPER_ID, "My Paper"]]), new Map());
-    expect(grouped).toHaveLength(1);
-    expect(grouped[0].groupCount).toBe(2);
-    expect(grouped[0].text).toContain("2 new comments");
-  });
-
-  it("leaves unrelated notifications ungrouped", () => {
-    const items = [
-      {
-        response: notif("n1", "Followed you"),
-        row: { id: "n1", type: "follow" as const, referenceId: null, referenceType: null },
-      },
-    ];
-    const grouped = groupNotifications(items, new Map(), new Map());
-    expect(grouped).toHaveLength(1);
-    expect(grouped[0].groupCount).toBeUndefined();
-  });
-
-  it("resolves comment reference to paper for replies", () => {
-    const items = [
-      {
-        response: notif("n1", "Reply"),
-        row: { id: "n1", type: "reply" as const, referenceId: COMMENT_ID, referenceType: "comment" },
-      },
-    ];
-    const grouped = groupNotifications(
-      items,
-      new Map([[PAPER_ID, "Paper Title"]]),
-      new Map([[COMMENT_ID, PAPER_ID]]),
+describe("groupKeyForRow", () => {
+  it("groups comments on the same paper", () => {
+    const key = groupKeyForRow(
+      { id: "n1", type: "comment", referenceId: PAPER_ID, referenceType: "paper" },
+      new Map(),
     );
-    expect(grouped).toHaveLength(1);
+    expect(key).toBe(`comment:${PAPER_ID}`);
+  });
+
+  it("groups replies under the same anchor comment", () => {
+    const key = groupKeyForRow(
+      { id: "n1", type: "reply", referenceId: COMMENT_ID, referenceType: "comment" },
+      new Map([[COMMENT_ID, { paperId: PAPER_ID, parentId: null, isHidden: false }]]),
+    );
+    expect(key).toBe(`reply:${COMMENT_ID}`);
+  });
+
+  it("falls back to single key for follow notifications", () => {
+    const key = groupKeyForRow(
+      { id: "n9", type: "follow", referenceId: null, referenceType: null },
+      new Map(),
+    );
+    expect(key).toBe("single:n9");
+  });
+});
+
+describe("groupedText", () => {
+  it("returns fallback for single items", () => {
+    expect(groupedText("comment", 1, "Paper", "Alice commented")).toBe("Alice commented");
+  });
+
+  it("pluralizes grouped comments", () => {
+    const text = groupedText("comment", 3, "My Paper", "ignored");
+    expect(text).toContain("2 other people");
+    expect(text).toContain("My Paper");
+  });
+});
+
+describe("mergeNotificationGroups", () => {
+  it("merges notifications with the same group key", () => {
+    const key = `comment:${PAPER_ID}`;
+    const merged = mergeNotificationGroups([
+      resolved("n1", { groupKey: key, createdAt: "2026-01-02T00:00:00.000Z", paperTitle: "Paper" }),
+      resolved("n2", { groupKey: key, createdAt: "2026-01-01T00:00:00.000Z", paperTitle: "Paper" }),
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].groupCount).toBe(2);
+    expect(merged[0].ids).toEqual(["n1", "n2"]);
   });
 });

@@ -15,18 +15,26 @@ pnpm test:e2e          # Playwright (servers must be running)
 
 - Location: `frontend/tests/unit`, `admin/tests/unit`
 - No database required.
-- Covers auth helpers, validation, mappers, notification grouping, seed/category consistency.
+- Covers auth helpers, validation, mappers, profile metrics, notification grouping/validation, seed/category consistency.
+
+**Frontend unit (~35 tests):** password, jwt, profile, profile-metrics, rate-limit, user-id, response, profile-client, paperFilename, comment/notification validation & grouping, seed data.
+
+**Admin unit:** response envelope.
 
 ## Integration tests
 
 - Location: `frontend/tests/integration`, `admin/tests/integration`
-- Requires `DATABASE_URL` in `frontend/.env.local` (or `TEST_DATABASE_URL`).
+- Requires `DATABASE_URL` in `frontend/.env.local` / `admin/.env` (or `TEST_DATABASE_URL`).
 - Uses a real Postgres database; tests create/delete users with `@test.local` emails.
 - If no DB URL is set, DB-dependent suites are **skipped** automatically.
 
+**Frontend integration:** auth, users/me, avatar (JPEG/PNG), notifications settings, papers auth, comments auth, reports auth, papers list.
+
+**Admin integration:** login, dashboard stats, papers list.
+
 ## E2E tests
 
-- Location: `e2e/frontend`, `e2e/admin`
+- Location: `e2e/frontend`, `e2e/admin` (~8 scenarios)
 - Start apps first:
 
 ```bash

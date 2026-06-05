@@ -9,8 +9,11 @@ import {
 describe("profile mappers", () => {
   it("maps work status UI labels to DB enum", () => {
     expect(workStatusFromUi("Open for Work")).toBe("open");
+    expect(workStatusFromUi("Open For Work")).toBe("open");
     expect(workStatusFromUi("Not Looking")).toBe("not_open");
+    expect(workStatusFromUi("Not Open For Work")).toBe("not_open");
     expect(workStatusFromUi("Freelancing")).toBe("freelance");
+    expect(workStatusFromUi("Freelance")).toBe("freelance");
     expect(workStatusFromUi("Unknown")).toBe("none");
   });
 
