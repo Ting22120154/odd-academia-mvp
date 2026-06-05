@@ -21,6 +21,7 @@ export type ApiPaper = {
   keywords?: { keyword: string }[];
   categories?: { category: string }[];
   contributors?: { contributorName: string }[];
+  references?: { id: string; citationText: string | null }[];
 };
 
 function inferFileType(fileUrl?: string | null): MockPost["fileType"] {
@@ -48,6 +49,7 @@ export function mapApiPaperToViewerPost(paper: ApiPaper): MockPost {
   return {
     id: paper.id,
     title: paper.title,
+    abstract: abstract || undefined,
     summary: abstract.length > 200 ? `${abstract.slice(0, 200)}…` : abstract,
     authorId: paper.author?.id,
     authorName: paper.author?.fullName ?? "Unknown",
@@ -63,5 +65,12 @@ export function mapApiPaperToViewerPost(paper: ApiPaper): MockPost {
     publishedAt: paper.publishedAt ?? undefined,
     citationCount: paper.citationCount ?? 0,
     viewCount: paper.viewCount ?? 0,
+    references:
+      paper.references
+        ?.map((r) => ({
+          id: r.id,
+          citationText: r.citationText?.trim() ?? "",
+        }))
+        .filter((r) => r.citationText) ?? [],
   };
 }

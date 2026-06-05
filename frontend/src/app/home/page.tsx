@@ -90,15 +90,6 @@ export default function HomePage() {
   return (
     <section className="w-full">
       <div className="mt-4 rounded-2xl border border-black/[0.06] bg-white p-4 shadow-[var(--shadow-sm)]">
-        <div className="text-sm font-semibold text-zinc-900">Your Stats</div>
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <StatCard title="Recent views" value="45" badge="+10%" sub="from last month" color="blue" />
-          <StatCard title="Citation counts" value="6" badge="+10%" sub="from last month" color="purple" />
-          <StatCard title="New Comments" value="55" sub="Above Average, last 30 days" color="teal" />
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-2xl border border-black/[0.06] bg-white p-4 shadow-[var(--shadow-sm)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm font-semibold text-zinc-900">Search Category Cards</div>
 
@@ -335,43 +326,5 @@ export default function HomePage() {
         )}
       </div>
     </section>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-  badge,
-  sub,
-  color = "blue",
-}: {
-  title: string;
-  value: string;
-  badge?: string;
-  sub: string;
-  color?: "blue" | "purple" | "teal";
-}) {
-  const dotColor = {
-    blue: "bg-blue-500",
-    purple: "bg-purple-500",
-    teal: "bg-teal-500",
-  }[color];
-
-  return (
-    <div className="flex items-center gap-4 rounded-2xl border border-black/[0.06] bg-white p-4">
-      <div className={`h-3 w-3 rounded-full ${dotColor}`} />
-      <div className="min-w-0 flex-1">
-        <div className="text-xs font-medium text-zinc-500">{title}</div>
-        <div className="mt-1 flex items-center gap-2">
-          <div className="text-2xl font-bold text-zinc-900">{value}</div>
-          {badge && (
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
-              {badge}
-            </span>
-          )}
-          <span className="text-xs text-zinc-400">{sub}</span>
-        </div>
-      </div>
-    </div>
   );
 }

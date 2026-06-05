@@ -9,7 +9,6 @@ type Props = {
   title: string;
   summary: string;
   fileSrc: string;
-  downloadFilename: string;
 };
 
 export function PaperDocumentViewClient({
@@ -17,7 +16,6 @@ export function PaperDocumentViewClient({
   title,
   summary,
   fileSrc,
-  downloadFilename,
 }: Props) {
   return (
     <div className="min-h-screen bg-[var(--background)]">
@@ -37,7 +35,6 @@ export function PaperDocumentViewClient({
           fileSrc={fileSrc}
           title={title}
           summary={summary}
-          downloadFilename={downloadFilename}
         />
       </div>
     </div>
