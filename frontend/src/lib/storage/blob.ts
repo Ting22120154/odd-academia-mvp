@@ -1,7 +1,11 @@
 import { del, put } from "@vercel/blob";
 
+/** True when Blob is available — read-write token OR Vercel OIDC store connection. */
 export function blobStorageEnabled() {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
+  if (process.env.BLOB_READ_WRITE_TOKEN?.trim()) return true;
+  // Connected via Storage → Connect to Project (OIDC; no read-write token required)
+  if (process.env.VERCEL && process.env.BLOB_STORE_ID?.trim()) return true;
+  return false;
 }
 
 export function storageNotConfiguredResponse() {
