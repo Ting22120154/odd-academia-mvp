@@ -1,7 +1,7 @@
 /**
  * Next.js proxy — page-level access control only (UI routing).
  * - Does NOT protect /api/* (each route calls getAuthPayload + jwt.verify).
- * - Uses verifyTokenEdge() (jose) — jsonwebtoken does not run reliably in middleware.
+ * - Uses verifyTokenEdge() — jsonwebtoken does not run reliably in proxy.
  * - Redirects anonymous users away from AUTH_ONLY_PREFIXES to /login.
  */
 import { NextResponse } from "next/server";

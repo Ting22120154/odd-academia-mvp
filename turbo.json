@@ -1,5 +1,12 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "DATABASE_URL",
+    "JWT_SECRET",
+    "BLOB_READ_WRITE_TOKEN",
+    "GMAIL_USER",
+    "GMAIL_APP_PASSWORD"
+  ],
   "tasks": {
     "dev": {
       "persistent": true,
