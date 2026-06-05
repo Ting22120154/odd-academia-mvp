@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { describe, expect, it, beforeAll, afterAll, beforeEach } from "vitest";
 import { POST as registerPost } from "@/app/api/auth/register/route";
 import { GET as meGet, PATCH as mePatch } from "@/app/api/users/me/route";
 import { GET as userGet } from "@/app/api/users/[id]/route";
@@ -26,9 +26,12 @@ describeIfDb("users/me API integration", () => {
       }),
     );
     authCookie = cookieFromResponse(res, USER_TOKEN_COOKIE)!;
-    setTestCookie(USER_TOKEN_COOKIE, authCookie);
     const user = await prisma.user.findUnique({ where: { email } });
     userId = user!.id;
+  });
+
+  beforeEach(() => {
+    setTestCookie(USER_TOKEN_COOKIE, authCookie);
   });
 
   afterAll(async () => {

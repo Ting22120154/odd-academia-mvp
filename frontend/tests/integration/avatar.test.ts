@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { describe, expect, it, beforeAll, afterAll, beforeEach } from "vitest";
 import { POST as registerPost } from "@/app/api/auth/register/route";
 import { POST as uploadAvatar, DELETE as deleteAvatar } from "@/app/api/users/me/avatar/route";
 import { createTestPrisma, hasTestDatabase, uniqueSuffix } from "../helpers/db";
@@ -21,6 +21,7 @@ describeIfDb("avatar API integration", () => {
   let prisma: ReturnType<typeof createTestPrisma>;
   let userId = "";
   let authHeader = "";
+  let authToken = "";
   const suffix = uniqueSuffix();
   const email = `test_avatar_${suffix}@test.local`;
 
@@ -36,11 +37,14 @@ describeIfDb("avatar API integration", () => {
         },
       }),
     );
-    const token = cookieFromResponse(res, USER_TOKEN_COOKIE)!;
-    authHeader = authCookieHeader(token);
-    setTestCookie(USER_TOKEN_COOKIE, token);
+    authToken = cookieFromResponse(res, USER_TOKEN_COOKIE)!;
+    authHeader = authCookieHeader(authToken);
     const user = await prisma.user.findUnique({ where: { email } });
     userId = user!.id;
+  });
+
+  beforeEach(() => {
+    setTestCookie(USER_TOKEN_COOKIE, authToken);
   });
 
   afterAll(async () => {
@@ -57,7 +61,9 @@ describeIfDb("avatar API integration", () => {
   it("accepts JPEG upload", async () => {
     const form = new FormData();
     form.append("file", jpegFile());
-    const res = await uploadAvatar(formRequest("/api/users/me/avatar", form));
+    const res = await uploadAvatar(
+      formRequest("/api/users/me/avatar", form, { cookie: authHeader }),
+    );
     expect(res.status).toBe(200);
     const body = await readApi<{ avatarUrl: string }>(res);
     expect(body.success).toBe(true);
@@ -67,7 +73,9 @@ describeIfDb("avatar API integration", () => {
   it("rejects PNG upload", async () => {
     const form = new FormData();
     form.append("file", pngFile());
-    const res = await uploadAvatar(formRequest("/api/users/me/avatar", form));
+    const res = await uploadAvatar(
+      formRequest("/api/users/me/avatar", form, { cookie: authHeader }),
+    );
     expect(res.status).toBe(400);
   });
 
