@@ -1,4 +1,4 @@
-import { del, put, type PutCommandOptions } from "@vercel/blob";
+import { del, head, put, type PutCommandOptions } from "@vercel/blob";
 
 function blobCredentials(): Pick<PutCommandOptions, "token" | "storeId" | "oidcToken"> {
   const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
@@ -49,26 +49,22 @@ export async function deleteBlob(urlOrPathname: string) {
 export async function fetchBlobBuffer(
   urlOrPathname: string,
 ): Promise<{ buffer: Buffer; contentType: string }> {
-  const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
   const creds = blobCredentials();
+  const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
 
+  const blobUrl = urlOrPathname.startsWith("https://")
+    ? urlOrPathname
+    : (await head(urlOrPathname, creds)).url;
+
+  const headers: Record<string, string> = {};
   if (token) {
-    const res = await fetch(urlOrPathname, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) {
-      throw new Error(`Blob fetch failed (${res.status})`);
-    }
-    const buffer = Buffer.from(await res.arrayBuffer());
-    const contentType = res.headers.get("content-type") ?? "application/octet-stream";
-    return { buffer, contentType };
+    headers.authorization = `Bearer ${token}`;
+  } else if (creds.oidcToken) {
+    headers.authorization = `Bearer ${creds.oidcToken}`;
   }
 
-  // OIDC: use SDK-delivered download URL via authenticated fetch on the blob URL
-  const res = await fetch(urlOrPathname, {
-    headers: creds.oidcToken
-      ? { authorization: `Bearer ${creds.oidcToken}` }
-      : undefined,
+  const res = await fetch(blobUrl, {
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
   });
   if (!res.ok) {
     throw new Error(`Blob fetch failed (${res.status})`);
