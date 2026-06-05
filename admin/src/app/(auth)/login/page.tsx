@@ -49,13 +49,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      let data: { success?: boolean; error?: string } = {};
-      try {
-        data = await res.json();
-      } catch {
-        setError(`Server error (${res.status}). Check Vercel admin env vars.`);
-        return;
-      }
+      const data = await res.json();
 
       if (!res.ok || !data.success) {
         setError(data.error ?? "Login failed.");
