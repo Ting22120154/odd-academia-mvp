@@ -45,7 +45,7 @@ function displayType(type: NotificationType): NotificationDisplayType {
     case "paper":
       return "Paper";
     case "contact":
-      return "MESSAGE";
+      return "Message";
     case "citation":
       return "Citation";
     case "follow":
