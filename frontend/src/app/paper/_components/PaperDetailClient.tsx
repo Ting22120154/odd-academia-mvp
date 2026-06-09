@@ -607,12 +607,15 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   }, [loadComments]);
 
   useEffect(() => {
-    if (commentsLoading || comments.length === 0) return;
     const hash = typeof window !== "undefined" ? window.location.hash : "";
     if (!hash.startsWith("#comment-")) return;
 
     const targetId = hash.slice(1);
+    let cancelled = false;
+    let attempts = 0;
+
     const scrollToComment = () => {
+      if (cancelled) return;
       const el = document.getElementById(targetId);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -620,12 +623,18 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
         window.setTimeout(() => {
           el.classList.remove("ring-2", "ring-[var(--brand)]", "ring-offset-2", "rounded-xl");
         }, 2500);
+        return;
+      }
+      if (attempts < 20) {
+        attempts += 1;
+        window.setTimeout(scrollToComment, 300);
       }
     };
 
     scrollToComment();
-    const retry = window.setTimeout(scrollToComment, 400);
-    return () => window.clearTimeout(retry);
+    return () => {
+      cancelled = true;
+    };
   }, [commentsLoading, comments]);
 
   const related = relatedPosts;

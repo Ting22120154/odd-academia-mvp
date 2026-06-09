@@ -116,6 +116,11 @@ export default function NotificationsPage() {
 
   async function handleNotificationClick(n: NotificationResponse) {
     const tabAtClick = activeTab;
+    const destination = n.href;
+
+    if (destination && destination !== "/notifications") {
+      router.push(destination);
+    }
 
     if (!n.isRead) {
       const result = await markNotificationsRead(n.ids);
@@ -129,7 +134,6 @@ export default function NotificationsPage() {
         markReadInLists(n);
       }
     }
-    router.push(n.href);
   }
 
   const hasNewTabContent = newItems.length > 0 || oldItems.length > 0;

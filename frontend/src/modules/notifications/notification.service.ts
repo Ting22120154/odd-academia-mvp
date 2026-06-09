@@ -79,9 +79,14 @@ function tabWhere(tab: ListNotificationsQuery["tab"]) {
   return {};
 }
 
-async function loadCommentLookup(
-  rows: NotificationRow[],
-): Promise<Map<string, { paperId: string; parentId: string | null; isHidden: boolean }>> {
+type CommentMeta = {
+  paperId: string;
+  parentId: string | null;
+  isHidden: boolean;
+  authorId: string;
+};
+
+async function loadCommentLookup(rows: NotificationRow[]): Promise<Map<string, CommentMeta>> {
   const commentIds = new Set<string>();
   for (const row of rows) {
     if (row.referenceType === "comment" && row.referenceId) {
@@ -92,7 +97,7 @@ async function loadCommentLookup(
 
   const comments = await prisma.comment.findMany({
     where: { id: { in: [...commentIds] } },
-    select: { id: true, paperId: true, parentId: true, isHidden: true },
+    select: { id: true, paperId: true, parentId: true, isHidden: true, authorId: true },
   });
   return new Map(comments.map((c) => [c.id, c]));
 }
@@ -115,10 +120,56 @@ async function loadUserNames(userIds: Set<string>): Promise<Map<string, string>>
   return new Map(users.map((u) => [u.id, u.fullName]));
 }
 
-function collectUserIds(rows: NotificationRow[]): Set<string> {
+async function loadLikerFallback(rows: NotificationRow[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const needs = rows.filter(
+    (r) => r.type === "like" && !r.actorId && r.referenceType === "comment" && r.referenceId,
+  );
+  if (needs.length === 0) return out;
+
+  const commentIds = [...new Set(needs.map((r) => r.referenceId!))];
+  const likes = await prisma.commentLike.findMany({
+    where: { commentId: { in: commentIds } },
+    select: { commentId: true, userId: true, createdAt: true },
+  });
+
+  const likesByComment = new Map<string, typeof likes>();
+  for (const like of likes) {
+    const list = likesByComment.get(like.commentId) ?? [];
+    list.push(like);
+    likesByComment.set(like.commentId, list);
+  }
+
+  for (const row of needs) {
+    const candidates = likesByComment.get(row.referenceId!) ?? [];
+    if (candidates.length === 0) continue;
+    if (candidates.length === 1) {
+      out.set(row.id, candidates[0].userId);
+      continue;
+    }
+    let best = candidates[0];
+    let bestDiff = Math.abs(best.createdAt.getTime() - row.createdAt.getTime());
+    for (const candidate of candidates.slice(1)) {
+      const diff = Math.abs(candidate.createdAt.getTime() - row.createdAt.getTime());
+      if (diff < bestDiff) {
+        best = candidate;
+        bestDiff = diff;
+      }
+    }
+    out.set(row.id, best.userId);
+  }
+  return out;
+}
+
+function collectUserIds(
+  rows: NotificationRow[],
+  commentById: Map<string, CommentMeta>,
+  likerByNotificationId: Map<string, string>,
+): Set<string> {
   const ids = new Set<string>();
   for (const row of rows) {
-    if (row.actorId) ids.add(row.actorId);
+    const actorId = resolveActorId(row, commentById, likerByNotificationId);
+    if (actorId) ids.add(actorId);
     if (row.referenceType === "user" && row.referenceId) ids.add(row.referenceId);
   }
   return ids;
@@ -129,58 +180,90 @@ function userName(userMap: Map<string, string>, userId: string | null | undefine
   return userMap.get(userId) ?? "Someone";
 }
 
-function resolvePaperIdForRow(
+/** Old rows may lack actorId; infer from comment author or nearest like record. */
+function resolveActorId(
   row: NotificationRow,
-  commentById: Map<string, { paperId: string; parentId: string | null; isHidden: boolean }>,
+  commentById: Map<string, CommentMeta>,
+  likerByNotificationId: Map<string, string>,
 ): string | null {
-  if (row.referenceType === "paper" && row.referenceId) return row.referenceId;
-  if (row.referenceType === "comment" && row.referenceId) {
-    const comment = commentById.get(row.referenceId);
-    if (comment && !comment.isHidden) return comment.paperId;
+  if (row.actorId) return row.actorId;
+  if (row.type === "like") return likerByNotificationId.get(row.id) ?? null;
+  if (
+    row.referenceType === "comment" &&
+    row.referenceId &&
+    (row.type === "comment" || row.type === "reply")
+  ) {
+    return commentById.get(row.referenceId)?.authorId ?? null;
   }
   return null;
+}
+
+function resolvePaperIdForRow(row: NotificationRow, commentById: Map<string, CommentMeta>): string | null {
+  if (row.referenceType === "paper" && row.referenceId) return row.referenceId;
+  if (row.referenceType === "comment" && row.referenceId) {
+    return commentById.get(row.referenceId)?.paperId ?? null;
+  }
+  return null;
+}
+
+function paperTitleForId(paperId: string, titleByPaperId: Map<string, string>): string {
+  return titleByPaperId.get(paperId) ?? "your paper";
 }
 
 function resolveOne(
   row: NotificationRow,
   seededPaperIds: string[],
-  commentById: Map<string, { paperId: string; parentId: string | null; isHidden: boolean }>,
+  commentById: Map<string, CommentMeta>,
   titleByPaperId: Map<string, string>,
   userMap: Map<string, string>,
+  likerByNotificationId: Map<string, string>,
 ): ResolvedNotification {
   const paperId = resolvePaperIdForRow(row, commentById);
-  const paperTitle = paperId ? (titleByPaperId.get(paperId) ?? "your paper") : null;
-  const actor = userName(userMap, row.actorId);
+  const paperTitle = paperId ? paperTitleForId(paperId, titleByPaperId) : null;
+  const actor = userName(userMap, resolveActorId(row, commentById, likerByNotificationId));
 
   let text = "New notification";
   let href = "/notifications";
 
   if (row.type === "paper" && row.referenceType === "paper" && row.referenceId) {
-    text = `New paper published: ${titleByPaperId.get(row.referenceId) ?? "your paper"}`;
+    text = `New paper published: ${paperTitleForId(row.referenceId, titleByPaperId)}`;
     href = paperPathForId(row.referenceId, seededPaperIds);
   } else if (row.type === "comment" && row.referenceType === "comment" && row.referenceId) {
     const comment = commentById.get(row.referenceId);
-    if (comment && !comment.isHidden) {
-      text = `${actor} commented on your paper: ${paperTitle ?? "your paper"}`;
-      href = paperCommentHref(comment.paperId, row.referenceId, seededPaperIds);
+    if (comment) {
+      text = `${actor} commented on your paper: ${paperTitleForId(comment.paperId, titleByPaperId)}`;
+      href = paperCommentHref(
+        comment.paperId,
+        comment.isHidden ? null : row.referenceId,
+        seededPaperIds,
+      );
     }
   } else if (row.type === "comment" && row.referenceType === "paper" && row.referenceId) {
-    text = `${actor} commented on your paper: ${titleByPaperId.get(row.referenceId) ?? "your paper"}`;
+    text = `${actor} commented on your paper: ${paperTitleForId(row.referenceId, titleByPaperId)}`;
     href = paperPathForId(row.referenceId, seededPaperIds);
   } else if (row.type === "reply" && row.referenceType === "comment" && row.referenceId) {
     const comment = commentById.get(row.referenceId);
-    if (comment && !comment.isHidden) {
+    if (comment) {
       const anchor = comment.parentId ?? row.referenceId;
-      text = `${actor} replied to your comment on ${paperTitle ?? "your paper"}`;
-      href = paperCommentHref(comment.paperId, anchor, seededPaperIds);
+      const anchorId = comment.isHidden && comment.parentId ? comment.parentId : anchor;
+      text = `${actor} replied to your comment on ${paperTitleForId(comment.paperId, titleByPaperId)}`;
+      href = paperCommentHref(
+        comment.paperId,
+        comment.isHidden && !comment.parentId ? null : anchorId,
+        seededPaperIds,
+      );
     } else {
       text = `${actor} replied to your comment`;
     }
   } else if (row.type === "like" && row.referenceType === "comment" && row.referenceId) {
     const comment = commentById.get(row.referenceId);
-    if (comment && !comment.isHidden) {
-      text = `${actor} liked your comment on ${paperTitle ?? "your paper"}`;
-      href = paperCommentHref(comment.paperId, row.referenceId, seededPaperIds);
+    if (comment) {
+      text = `${actor} liked your comment on ${paperTitleForId(comment.paperId, titleByPaperId)}`;
+      href = paperCommentHref(
+        comment.paperId,
+        comment.isHidden ? null : row.referenceId,
+        seededPaperIds,
+      );
     } else {
       text = `${actor} liked your comment`;
     }
@@ -236,9 +319,10 @@ async function resolveAndGroup(
     }
   }
   const titleByPaperId = await loadPaperTitles(paperIds);
-  const userMap = await loadUserNames(collectUserIds(rows));
+  const likerByNotificationId = await loadLikerFallback(rows);
+  const userMap = await loadUserNames(collectUserIds(rows, commentById, likerByNotificationId));
   const resolved = rows.map((row) =>
-    resolveOne(row, seededPaperIds, commentById, titleByPaperId, userMap),
+    resolveOne(row, seededPaperIds, commentById, titleByPaperId, userMap, likerByNotificationId),
   );
   return mergeNotificationGroups(resolved);
 }

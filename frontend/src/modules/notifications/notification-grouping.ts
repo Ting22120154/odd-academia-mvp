@@ -25,6 +25,8 @@ export function groupKeyForRow(
   }
 
   if (row.type === "like" && row.referenceType === "comment" && row.referenceId) {
+    const comment = commentById.get(row.referenceId);
+    if (comment) return `like:${comment.paperId}`;
     return `like:${row.referenceId}`;
   }
 
@@ -74,7 +76,7 @@ export function groupedText(
   if (rawType === "like") {
     const others = groupCount - 1;
     const people = others === 1 ? "person" : "people";
-    return `${others} other ${people} liked your comment on ${title}`;
+    return `${others} other ${people} liked comments on ${title}`;
   }
 
   if (rawType === "paper") {
