@@ -99,5 +99,17 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  await prisma.notification
+    .create({
+      data: {
+        userId: recipientId,
+        type: "contact",
+        referenceId: auth.payload.sub,
+        referenceType: "user",
+        actorId: auth.payload.sub,
+      },
+    })
+    .catch((e) => console.error("[messages] notification failed:", e));
+
   return NextResponse.json(message, { status: 201 });
 }

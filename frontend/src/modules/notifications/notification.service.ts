@@ -156,8 +156,11 @@ function resolveOne(
       text = `Your work was cited: ${paperTitle ?? "Paper"}`;
       href = paperPathForId(row.referenceId, seededPaperIds);
     }
+  } else if (row.type === "contact" && row.referenceType === "user" && row.referenceId) {
+    text = "Sent you a message";
+    href = `/user/${row.referenceId}?chat=1`;
   } else if (row.type === "contact") {
-    text = "Someone contacted you — check your email";
+    text = "Someone contacted you";
   } else if (row.type === "follow" && row.referenceType === "user" && row.referenceId) {
     text = "You have a new follower";
     href = `/user/${row.referenceId}`;
