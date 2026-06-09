@@ -85,10 +85,10 @@ export async function POST(req: NextRequest) {
 
   const message = await prisma.message.create({
     data: {
-      senderId:    auth.payload.sub,
+      senderId: auth.payload.sub,
       recipientId,
-      subject:     "",
-      body:        msgBody.trim(),
+      subject: "",
+      body: msgBody.trim(),
     },
     select: {
       id:        true,
@@ -98,6 +98,18 @@ export async function POST(req: NextRequest) {
       createdAt: true,
     },
   });
+
+  await prisma.notification
+    .create({
+      data: {
+        userId: recipientId,
+        type: "contact",
+        referenceId: auth.payload.sub,
+        referenceType: "user",
+        actorId: auth.payload.sub,
+      },
+    })
+    .catch((e) => console.error("[messages] notification failed:", e));
 
   return NextResponse.json(message, { status: 201 });
 }

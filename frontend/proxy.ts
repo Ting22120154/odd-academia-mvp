@@ -15,6 +15,7 @@ const AUTH_ONLY_PREFIXES = [
   "/notifications",
   "/upload",
   "/following",
+  "/messages",
 ];
 
 async function getSession(req: NextRequest) {

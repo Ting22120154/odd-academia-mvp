@@ -28,7 +28,6 @@ export function ChatModal({ recipientId, recipientName, onClose }: Props) {
   const inputRef  = useRef<HTMLInputElement>(null);
 
   const fetchMessages = useCallback(async () => {
-    if (!user) return;
     const res = await fetch(`/api/messages?with=${recipientId}`, { credentials: "include" });
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -42,7 +41,7 @@ export function ChatModal({ recipientId, recipientName, onClose }: Props) {
     }
     setLoadError(null);
     setMessages(data as Message[]);
-  }, [user, recipientId]);
+  }, [recipientId]);
 
   // Initial load
   useEffect(() => {
@@ -62,21 +61,25 @@ export function ChatModal({ recipientId, recipientName, onClose }: Props) {
   }, [messages]);
 
   async function sendMessage() {
-    if (!user || !draft.trim() || sending) return;
+    if (!draft.trim() || sending) return;
+    const body = draft.trim();
     setSending(true);
     setSendError(null);
     try {
       const res = await fetch("/api/messages", {
-        method:      "POST",
-        headers:     { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body:        JSON.stringify({ recipientId, body: draft.trim() }),
+        body: JSON.stringify({ recipientId, body }),
       });
       if (res.ok) {
+        const created = (await res.json()) as Message;
         setDraft("");
-        await fetchMessages();
+        setLoadError(null);
+        setMessages((prev) => [...prev, created]);
+        void fetchMessages();
       } else {
-        const data = await res.json().catch(() => null) as { error?: string } | null;
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
         setSendError(data?.error ?? "Failed to send message.");
       }
     } finally {
@@ -178,10 +181,7 @@ export function ChatModal({ recipientId, recipientName, onClose }: Props) {
 
         {/* Input */}
         <div className="flex items-center gap-2 border-t border-black/[0.06] bg-white px-3 py-3 flex-shrink-0">
-          {!user ? (
-            <p className="text-xs text-zinc-400 text-center w-full">Log in to send messages.</p>
-          ) : (
-            <>
+          <>
               <input
                 ref={inputRef}
                 type="text"
@@ -203,8 +203,7 @@ export function ChatModal({ recipientId, recipientName, onClose }: Props) {
                   <polygon points="22 2 15 22 11 13 2 9 22 2"/>
                 </svg>
               </button>
-            </>
-          )}
+          </>
         </div>
       </div>
     </div>
