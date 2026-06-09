@@ -23,6 +23,7 @@ function toCommentResponse(
   row: CommentWithAuthor,
   replies: CommentResponse[] = [],
   likeMeta: LikeMeta = { likesCount: 0, likedByMe: false },
+  viewerId: string | null = null,
 ): CommentResponse {
   return {
     id: row.id,
@@ -35,6 +36,7 @@ function toCommentResponse(
     content: row.content,
     likesCount: likeMeta.likesCount,
     likedByMe: likeMeta.likedByMe,
+    isOwn: viewerId ? row.authorId === viewerId : undefined,
     replies,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -152,7 +154,7 @@ export async function getCommentsForPaper(paperId: string, viewerId: string | nu
   const roots: CommentResponse[] = [];
 
   for (const row of rows) {
-    byId.set(row.id, toCommentResponse(row, [], likeMeta.get(row.id)!));
+    byId.set(row.id, toCommentResponse(row, [], likeMeta.get(row.id)!, viewerId));
   }
 
   for (const row of rows) {

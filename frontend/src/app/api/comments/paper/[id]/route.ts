@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { jsonError, jsonOk } from "@/lib/api/response";
-import { getUserIdFromRequest } from "@/lib/auth/session";
+import { getRouteUserId } from "@/lib/auth/require-auth";
 import * as commentService from "@/modules/comments/comment.service";
 import { parsePaperIdParam } from "@/modules/comments/comment.validation";
 
@@ -13,7 +13,7 @@ export async function GET(
   const parsed = parsePaperIdParam(id);
   if (!parsed.ok) return jsonError(parsed.error, 400);
 
-  const viewerId = getUserIdFromRequest(req);
+  const viewerId = await getRouteUserId(req);
 
   try {
     const comments = await commentService.getCommentsForPaper(parsed.data, viewerId);

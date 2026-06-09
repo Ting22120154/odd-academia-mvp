@@ -193,6 +193,7 @@ function CitationModal({
 type UiReply = {
   id: string;
   authorId: string;
+  isOwn: boolean;
   name: string;
   time: string;
   text: string;
@@ -203,6 +204,7 @@ type UiReply = {
 type UiComment = {
   id: string;
   authorId: string;
+  isOwn: boolean;
   name: string;
   time: string;
   text: string;
@@ -222,10 +224,13 @@ function formatRelativeTime(iso: string): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-function mapComment(c: CommentResponse): UiComment {
+function mapComment(c: CommentResponse, viewerId: string | null): UiComment {
+  const isOwn =
+    c.isOwn === true || Boolean(viewerId && c.user.id === viewerId);
   return {
     id: c.id,
     authorId: c.user.id,
+    isOwn,
     name: c.user.fullName,
     time: formatRelativeTime(c.createdAt),
     text: c.content,
@@ -234,6 +239,7 @@ function mapComment(c: CommentResponse): UiComment {
     replies: c.replies.map((r) => ({
       id: r.id,
       authorId: r.user.id,
+      isOwn: r.isOwn === true || Boolean(viewerId && r.user.id === viewerId),
       name: r.user.fullName,
       time: formatRelativeTime(r.createdAt),
       text: r.content,
@@ -586,14 +592,14 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
     setCommentsError(null);
     try {
       const rows = await fetchCommentsForPaper(commentsPaperId);
-      setComments(rows.map(mapComment));
+      setComments(rows.map((row) => mapComment(row, currentUserId)));
     } catch {
       setCommentsError("Could not load comments.");
       setComments([]);
     } finally {
       setCommentsLoading(false);
     }
-  }, [commentsPaperId, isLoggedIn]);
+  }, [commentsPaperId, currentUserId]);
 
   useEffect(() => {
     void loadComments();
@@ -674,8 +680,8 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
     await loadComments();
   }
 
-  function isOwnComment(authorId: string) {
-    return Boolean(currentUserId && authorId === currentUserId);
+  function isOwnComment(comment: { authorId: string; isOwn: boolean }) {
+    return comment.isOwn || Boolean(currentUserId && comment.authorId === currentUserId);
   }
 
   function startEdit(commentId: string, currentText: string) {
@@ -1120,7 +1126,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                             {c.replies.length > 0 ? `${c.replies.length} Reply` : "Reply"}
                           </button>
 
-                          {isOwnComment(c.authorId) && editingCommentId !== c.id ? (
+                          {isOwnComment(c) && editingCommentId !== c.id ? (
                             <>
                               <button
                                 type="button"
@@ -1142,7 +1148,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                           ) : null}
 
                           {/* Users cannot report their own comments */}
-                          {isLoggedIn && !isOwnComment(c.authorId) ? (
+                          {isLoggedIn && !isOwnComment(c) ? (
                             <button
                               type="button"
                               className={`rounded-md px-1.5 py-0.5 ${clickableHoverInset}`}
@@ -1218,7 +1224,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                                   />
                                 ) : null}
 
-                                {isOwnComment(r.authorId) && editingCommentId !== r.id ? (
+                                {isOwnComment(r) && editingCommentId !== r.id ? (
                                   <>
                                     <button
                                       type="button"
@@ -1239,7 +1245,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                                   </>
                                 ) : null}
 
-                                {isLoggedIn && !isOwnComment(r.authorId) ? (
+                                {isLoggedIn && !isOwnComment(r) ? (
                                   <button
                                     type="button"
                                     className={`rounded-md px-1.5 py-0.5 ${clickableHoverInset}`}

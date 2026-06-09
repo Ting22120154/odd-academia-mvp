@@ -14,6 +14,8 @@ export type CommentResponse = {
   likesCount: number;
   /** Set when the request includes an authenticated viewer. */
   likedByMe?: boolean;
+  /** True when the authenticated viewer wrote this comment. */
+  isOwn?: boolean;
   replies: CommentResponse[];
   createdAt: string;
   updatedAt: string;
