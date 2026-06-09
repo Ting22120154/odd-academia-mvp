@@ -10,7 +10,6 @@ import { useEffect, useRef, useState } from "react";
 import { OddAcademiaLogo } from "@/components/OddAcademiaLogo";
 import { useAuth } from "@/context/AuthContext";
 import { useNotificationCount } from "@/context/NotificationContext";
-import { fetchUnreadMessageCount } from "@/lib/messages-client";
 
 function IconButton({
   children,
@@ -133,26 +132,12 @@ export function TopNav() {
   const pathname = usePathname();
   const { isLoggedIn } = useAuth();
   const { unreadCount } = useNotificationCount();
-  const [unreadMessages, setUnreadMessages] = useState(0);
-
-  useEffect(() => {
-    if (!isLoggedIn) {
-      setUnreadMessages(0);
-      return;
-    }
-    void fetchUnreadMessageCount().then(setUnreadMessages);
-    const interval = setInterval(() => {
-      void fetchUnreadMessageCount().then(setUnreadMessages);
-    }, 30_000);
-    return () => clearInterval(interval);
-  }, [isLoggedIn, pathname]);
 
   if (pathname === "/login") return null;
 
   const isHome = pathname === "/" || pathname === "/home";
   const isFollowing = pathname?.startsWith("/following");
   const isNotifications = pathname?.startsWith("/notifications");
-  const isMessages = pathname?.startsWith("/messages");
   const isProfile = pathname === "/profile" || pathname?.startsWith("/profile/") || pathname?.startsWith("/user/");
 
   return (
@@ -192,23 +177,6 @@ export function TopNav() {
               <path d="M22 21a5 5 0 0 0-7.5-4.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
             </svg>
           </IconButton>
-          {isLoggedIn ? (
-            <div className="relative">
-              <IconButton href="/messages" label="Messages" active={isMessages}>
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
-                </svg>
-              </IconButton>
-              {unreadMessages > 0 ? (
-                <span
-                  aria-label={`${unreadMessages} unread messages`}
-                  className="pointer-events-none absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white"
-                >
-                  {unreadMessages > 99 ? "99+" : unreadMessages}
-                </span>
-              ) : null}
-            </div>
-          ) : null}
           <div className="relative">
             <IconButton href="/notifications" label="Notifications" active={isNotifications}>
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>

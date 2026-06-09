@@ -24,7 +24,6 @@ import {
   fetchPaperFollowStatus,
   togglePaperFollow,
 } from "@/lib/paper-follow-client";
-import { ChatModal } from "@/components/ChatModal";
 import {
   brandButtonHover,
   cardLinkHover,
@@ -510,7 +509,6 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   const [followAuthor, setFollowAuthor] = useState(false);
   const [authorFollowerCount, setAuthorFollowerCount] = useState(0);
   const [followAuthorBusy, setFollowAuthorBusy] = useState(false);
-  const [authorChatOpen, setAuthorChatOpen] = useState(false);
   const [comments, setComments] = useState<UiComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
@@ -956,15 +954,6 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                   ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-4 text-sm">
-                  {canFollowAuthor && authorId ? (
-                    <button
-                      type="button"
-                      onClick={() => setAuthorChatOpen(true)}
-                      className="font-medium text-[var(--brand)] hover:underline"
-                    >
-                      Message author
-                    </button>
-                  ) : null}
                   <button
                     type="button"
                     onClick={() => setReportingPaper(true)}
@@ -1299,13 +1288,6 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
         onClose={() => setCiteModalOpen(false)}
         citation={citation}
       />
-      {authorChatOpen && authorId ? (
-        <ChatModal
-          recipientId={authorId}
-          recipientName={post.authorName}
-          onClose={() => setAuthorChatOpen(false)}
-        />
-      ) : null}
     </div>
   );
 }
