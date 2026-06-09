@@ -13,6 +13,7 @@ import { useAuth } from "@/context/AuthContext";
 type NotificationContextValue = {
   unreadCount: number;
   decrementUnread: () => void;
+  decrementUnreadBy: (amount: number) => void;
   resetUnread: () => void;
   refreshUnreadCount: () => Promise<void>;
 };
@@ -20,6 +21,7 @@ type NotificationContextValue = {
 const NotificationContext = createContext<NotificationContextValue>({
   unreadCount: 0,
   decrementUnread: () => {},
+  decrementUnreadBy: () => {},
   resetUnread: () => {},
   refreshUnreadCount: async () => {},
 });
@@ -57,13 +59,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setUnreadCount((c) => Math.max(0, c - 1));
   }, []);
 
+  const decrementUnreadBy = useCallback((amount: number) => {
+    if (amount <= 0) return;
+    setUnreadCount((c) => Math.max(0, c - amount));
+  }, []);
+
   const resetUnread = useCallback(() => {
     setUnreadCount(0);
   }, []);
 
   return (
     <NotificationContext.Provider
-      value={{ unreadCount, decrementUnread, resetUnread, refreshUnreadCount }}
+      value={{ unreadCount, decrementUnread, decrementUnreadBy, resetUnread, refreshUnreadCount }}
     >
       {children}
     </NotificationContext.Provider>

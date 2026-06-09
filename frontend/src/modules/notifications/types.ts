@@ -9,7 +9,14 @@ export type NotificationDisplayType =
   | "Citation"
   | "Moderation";
 
-export type NotificationTab = "new" | "all" | "papers" | "comments" | "contact" | "citations";
+export type NotificationTab =
+  | "new"
+  | "all"
+  | "papers"
+  | "comments"
+  | "contact"
+  | "citations"
+  | "moderation";
 
 export type NotificationSortKey = "type" | "date";
 export type NotificationSortDir = "asc" | "desc";

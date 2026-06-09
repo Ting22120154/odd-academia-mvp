@@ -80,6 +80,7 @@ function tabWhere(tab: ListNotificationsQuery["tab"]) {
   if (tab === "comments") return { type: { in: ["comment", "reply", "like"] as NotificationType[] } };
   if (tab === "contact") return { type: "contact" as const };
   if (tab === "citations") return { type: "citation" as const };
+  if (tab === "moderation") return { type: "moderation" as const };
   return {};
 }
 

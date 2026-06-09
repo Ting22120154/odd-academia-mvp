@@ -14,6 +14,7 @@ const TABS = new Set<NotificationTab>([
   "comments",
   "contact",
   "citations",
+  "moderation",
 ]);
 
 const SORT_KEYS = new Set<NotificationSortKey>(["type", "date"]);

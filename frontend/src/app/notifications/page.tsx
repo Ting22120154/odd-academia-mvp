@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { useNotificationCount } from "@/context/NotificationContext";
 import {
   fetchNotifications,
   markNotificationsRead,
@@ -15,9 +16,24 @@ import type {
   NotificationTab,
 } from "@/modules/notifications/types";
 
-type NotifTabLabel = "New" | "All" | "Papers" | "Comments" | "Message" | "Citations";
+type NotifTabLabel =
+  | "New"
+  | "All"
+  | "Papers"
+  | "Comments"
+  | "Message"
+  | "Citations"
+  | "Moderation";
 
-const TABS: NotifTabLabel[] = ["New", "All", "Papers", "Comments", "Message", "Citations"];
+const TABS: NotifTabLabel[] = [
+  "New",
+  "All",
+  "Papers",
+  "Comments",
+  "Message",
+  "Citations",
+  "Moderation",
+];
 
 const TAB_TO_API: Record<NotifTabLabel, NotificationTab> = {
   New: "new",
@@ -26,6 +42,7 @@ const TAB_TO_API: Record<NotifTabLabel, NotificationTab> = {
   Comments: "comments",
   Message: "contact",
   Citations: "citations",
+  Moderation: "moderation",
 };
 
 const OLD_PAGE_SIZE = 5;
@@ -35,6 +52,7 @@ type SortDir = NotificationSortDir;
 
 export default function NotificationsPage() {
   const { isLoggedIn } = useAuth();
+  const { decrementUnreadBy, refreshUnreadCount } = useNotificationCount();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<NotifTabLabel>("New");
   const [sortKey, setSortKey] = useState<SortKey>("date");
@@ -123,12 +141,15 @@ export default function NotificationsPage() {
     }
 
     if (!n.isRead) {
+      decrementUnreadBy(n.ids.length);
       const result = await markNotificationsRead(n.ids);
       if (!result.ok) {
         setError(result.error);
+        await refreshUnreadCount();
         return;
       }
       setUnreadCount((c) => Math.max(0, c - n.ids.length));
+      await refreshUnreadCount();
 
       if (activeTabRef.current === tabAtClick) {
         markReadInLists(n);
@@ -319,9 +340,31 @@ function NotificationRow({
           {n.text}
         </button>
       </td>
-      <td className="px-4 py-3 text-zinc-500">{n.type}</td>
+      <td className="px-4 py-3">
+        <TypeBadge type={n.type} />
+      </td>
       <td className="px-4 py-3 text-zinc-500">{n.date}</td>
     </tr>
+  );
+}
+
+function TypeBadge({ type }: { type: NotificationResponse["type"] }) {
+  const styles: Record<NotificationResponse["type"], string> = {
+    Paper: "bg-blue-50 text-blue-700 ring-blue-100",
+    Comment: "bg-zinc-100 text-zinc-700 ring-zinc-200",
+    Reply: "bg-violet-50 text-violet-700 ring-violet-100",
+    Message: "bg-sky-50 text-sky-700 ring-sky-100",
+    Follow: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+    Citation: "bg-amber-50 text-amber-800 ring-amber-100",
+    Moderation: "bg-orange-50 text-orange-800 ring-orange-100",
+  };
+
+  return (
+    <span
+      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${styles[type] ?? styles.Comment}`}
+    >
+      {type}
+    </span>
   );
 }
 
