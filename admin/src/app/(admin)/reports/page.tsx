@@ -43,12 +43,14 @@ type CommentReportRow = {
 type PaperReportRow = {
   id: string; subject: string; reason: string; status: string; createdAt: string;
   paperId: string | null; paperTitle: string | null;
+  adminNote: string | null; outcome: string | null;
   paper: { id: string; title: string } | null;
   reporter: Reporter;
 };
 type UserReportRow = {
   id: string; subject: string; reason: string; status: string; createdAt: string;
   reportedId: string;
+  adminNote: string | null; outcome: string | null;
   reported: { id: string; fullName: string; username: string; avatarUrl: string | null };
   reporter: Reporter;
 };
@@ -77,7 +79,7 @@ function normalizePaper(r: PaperReportRow): NormalizedReport {
     targetName: r.paper?.title ?? r.paperTitle ?? "(deleted paper)",
     targetDetail: null,
     subject: r.subject, reason: r.reason, fullContent: r.reason,
-    adminNote: null, outcome: null, commentId: null,
+    adminNote: r.adminNote ?? null, outcome: r.outcome ?? null, commentId: null,
   };
 }
 
@@ -89,7 +91,7 @@ function normalizeUser(r: UserReportRow): NormalizedReport {
     targetName: r.reported?.fullName ?? "(deleted user)",
     targetDetail: null,
     subject: r.subject, reason: r.reason, fullContent: r.reason,
-    adminNote: null, outcome: null, commentId: null,
+    adminNote: r.adminNote ?? null, outcome: r.outcome ?? null, commentId: null,
   };
 }
 

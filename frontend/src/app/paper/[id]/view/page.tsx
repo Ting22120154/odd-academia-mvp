@@ -1,6 +1,7 @@
 import {
   getPublishedPaperByIdFromDb,
 } from "@/lib/papers/db";
+import { getServerUserId } from "@/lib/auth/server-user";
 import { PaperDocumentViewClient } from "./PaperDocumentViewClient";
 
 export default async function PaperDocumentViewPage({
@@ -9,7 +10,8 @@ export default async function PaperDocumentViewPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const post = await getPublishedPaperByIdFromDb(id);
+  const viewerId = await getServerUserId();
+  const post = await getPublishedPaperByIdFromDb(id, viewerId);
 
   if (!post?.fileUrl || post.fileType !== "pdf") {
     return (

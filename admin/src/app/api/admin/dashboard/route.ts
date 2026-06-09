@@ -20,6 +20,11 @@ export async function GET(req: Request) {
   const range = parseRange(req);
   const createdAt = range ? { gte: range.from, lte: range.to } : undefined;
 
+  const publishedPaperWhere = {
+    status: "published" as const,
+    ...(createdAt ? { createdAt } : {}),
+  };
+
   const [
     userCount,
     paperCount,
@@ -32,7 +37,7 @@ export async function GET(req: Request) {
     recentPapers,
   ] = await Promise.all([
     prisma.user.count({ where: createdAt ? { createdAt } : undefined }),
-    prisma.paper.count({ where: createdAt ? { createdAt } : undefined }),
+    prisma.paper.count({ where: publishedPaperWhere }),
     prisma.user.count({ where: { isBanned: true, ...(createdAt ? { createdAt } : {}) } }),
     prisma.comment.count({ where: createdAt ? { createdAt } : undefined }),
     prisma.commentReport.count({ where: { status: "pending", ...(createdAt ? { createdAt } : {}) } }),
@@ -45,7 +50,7 @@ export async function GET(req: Request) {
       select: { id: true, fullName: true, email: true, createdAt: true, isBanned: true },
     }),
     prisma.paper.findMany({
-      where: createdAt ? { createdAt } : undefined,
+      where: publishedPaperWhere,
       orderBy: { createdAt: "desc" },
       take: 5,
       select: { id: true, title: true, createdAt: true, authorId: true, status: true },

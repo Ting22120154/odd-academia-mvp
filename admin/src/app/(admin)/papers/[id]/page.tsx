@@ -90,12 +90,19 @@ function RemovePaperModal({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [removed, setRemoved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function confirmRemove() {
     setBusy(true);
+    setError(null);
     const res = await fetch(`/api/admin/papers/${paperId}`, { method: "DELETE" });
     setBusy(false);
-    if (res.ok) setRemoved(true);
+    if (res.ok) {
+      setRemoved(true);
+      return;
+    }
+    const json = await res.json().catch(() => null) as { error?: string } | null;
+    setError(json?.error ?? `Failed to remove paper (${res.status}).`);
   }
 
   return (
@@ -115,6 +122,7 @@ function RemovePaperModal({
               <span className="font-semibold text-gray-800">{paperTitle}</span>? It will no longer appear on the
               platform.
             </p>
+            {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
             <div className="flex gap-3">
               <button
                 onClick={onCancel}

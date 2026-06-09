@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { ok, err } from "@/lib/response";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { getAdminUserFromPayload } from "@/lib/auth/get-admin-user";
 import { prisma } from "@/lib/prisma";
 
 // APPEAL INFO: Admin contact email must be surfaced in both email and UI error message
@@ -63,7 +64,7 @@ export async function POST(
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) return err("User not found.", 404);
 
-  const adminUser = await prisma.adminUser.findUnique({ where: { adminEmail: payload.email } });
+  const adminUser = await getAdminUserFromPayload(payload);
   if (!adminUser) return err("Admin user not found.", 403);
 
   type UserPatch = Parameters<typeof prisma.user.update>[0]["data"];

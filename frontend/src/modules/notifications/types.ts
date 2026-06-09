@@ -6,7 +6,8 @@ export type NotificationDisplayType =
   | "Reply"
   | "Message"
   | "Follow"
-  | "Citation";
+  | "Citation"
+  | "Moderation";
 
 export type NotificationTab = "new" | "all" | "papers" | "comments" | "contact" | "citations";
 

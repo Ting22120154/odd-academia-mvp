@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { ok, err } from "@/lib/response";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { getAdminUserFromPayload } from "@/lib/auth/get-admin-user";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -56,7 +57,7 @@ export async function DELETE(
   const paper = await prisma.paper.findUnique({ where: { id } });
   if (!paper) return err("Paper not found.", 404);
 
-  const adminUser = await prisma.adminUser.findUnique({ where: { adminEmail: payload.email } });
+  const adminUser = await getAdminUserFromPayload(payload);
   if (!adminUser) return err("Admin user not found.", 403);
 
   const [updated] = await prisma.$transaction([

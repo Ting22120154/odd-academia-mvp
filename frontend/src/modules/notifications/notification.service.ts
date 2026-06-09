@@ -22,6 +22,7 @@ type NotificationRow = {
   referenceId: string | null;
   referenceType: ReferenceType | null;
   actorId: string | null;
+  body: string | null;
   isRead: boolean;
   createdAt: Date;
 };
@@ -32,6 +33,7 @@ const ROW_SELECT = {
   referenceId: true,
   referenceType: true,
   actorId: true,
+  body: true,
   isRead: true,
   createdAt: true,
 } as const;
@@ -52,6 +54,8 @@ function displayType(type: NotificationType): NotificationDisplayType {
       return "Citation";
     case "follow":
       return "Follow";
+    case "moderation":
+      return "Moderation";
     default:
       return "Comment";
   }
@@ -284,6 +288,22 @@ function resolveOne(
   } else if (row.type === "follow" && row.referenceType === "paper" && row.referenceId) {
     text = `${actor} followed your paper: ${titleByPaperId.get(row.referenceId) ?? "your paper"}`;
     href = paperPathForId(row.referenceId, seededPaperIds);
+  } else if (row.type === "moderation") {
+    text = row.body ?? "Moderation update";
+    if (row.referenceType === "paper" && row.referenceId) {
+      href = paperPathForId(row.referenceId, seededPaperIds);
+    } else if (row.referenceType === "user" && row.referenceId) {
+      href = `/user/${row.referenceId}`;
+    } else if (row.referenceType === "comment" && row.referenceId) {
+      const comment = commentById.get(row.referenceId);
+      if (comment) {
+        href = paperCommentHref(
+          comment.paperId,
+          comment.isHidden ? null : row.referenceId,
+          seededPaperIds,
+        );
+      }
+    }
   }
 
   const groupKey = groupKeyForRow(row, commentById);

@@ -58,6 +58,8 @@ enum ModerationAction {
   warn_user
   ban_user
   unban_user
+  review_report
+  dismiss_report
 }
 
 // ─── Models ───────────────────────────────────────────────────────────────────
@@ -104,6 +106,7 @@ model User {
   reportsReceived      UserReport[]          @relation("ReportedUser")
   paperReports         PaperReport[]         @relation("PaperReporter")
   moderationLogs       ModerationLog[]
+  paperViews           PaperView[]
 
   @@index([role])
   @@index([createdAt])
@@ -158,6 +161,7 @@ model Paper {
   linkedMessages Message[]
   reports        PaperReport[]
   followers      PaperFollow[]
+  views          PaperView[]
 
   @@index([authorId])
   @@index([status])
@@ -380,6 +384,10 @@ model PaperReport {
   status     ReportStatus @default(pending)
   createdAt  DateTime     @default(now()) @map("created_at")
   updatedAt  DateTime     @updatedAt @map("updated_at")
+  adminNote  String?      @map("admin_note")
+  outcome    String?      @map("outcome")
+  resolvedAt DateTime?    @map("resolved_at")
+  resolvedBy String?      @map("resolved_by")
 
   paper    Paper? @relation(fields: [paperId], references: [id], onDelete: SetNull)
   reporter User   @relation("PaperReporter", fields: [reporterId], references: [id], onDelete: Cascade)
@@ -398,6 +406,10 @@ model UserReport {
   status     ReportStatus @default(pending)
   createdAt  DateTime     @default(now()) @map("created_at")
   updatedAt  DateTime     @updatedAt @map("updated_at")
+  adminNote  String?      @map("admin_note")
+  outcome    String?      @map("outcome")
+  resolvedAt DateTime?    @map("resolved_at")
+  resolvedBy String?      @map("resolved_by")
 
   reported User @relation("ReportedUser", fields: [reportedId], references: [id], onDelete: Cascade)
   reporter User @relation("ReportingUser", fields: [reporterId], references: [id], onDelete: Cascade)
@@ -405,6 +417,21 @@ model UserReport {
   @@index([reportedId])
   @@index([status])
   @@map("user_reports")
+}
+
+model PaperView {
+  id        String   @id @default(uuid())
+  paperId   String   @map("paper_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  paper Paper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([paperId, userId])
+  @@index([paperId])
+  @@index([userId])
+  @@map("paper_views")
 }
 
 model ModerationLog {

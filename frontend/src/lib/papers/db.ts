@@ -1,6 +1,7 @@
 import prisma from "@odd-academia/db/client";
 import { mapApiPaperToViewerPost, type ApiPaper } from "@/lib/mapApiPaper";
 import type { MockPost } from "@/lib/mockPosts";
+import { recordUniquePaperView } from "@/lib/papers/record-view";
 import { paperInclude } from "./constants";
 
 function assertDatabaseUrl() {
@@ -46,24 +47,31 @@ export async function listPublishedPapersFromDb(
   };
 }
 
-export async function getPublishedPaperByIdFromDb(id: string): Promise<MockPost | null> {
+export async function getPublishedPaperByIdFromDb(
+  id: string,
+  viewerId?: string | null,
+): Promise<MockPost | null> {
   assertDatabaseUrl();
 
   const existing = await prisma.paper.findUnique({
     where: { id },
-    select: { id: true, status: true },
+    select: { id: true, status: true, authorId: true },
   });
 
   if (!existing || existing.status === "removed" || existing.status !== "published") {
     return null;
   }
 
-  const paper = await prisma.paper.update({
+  if (viewerId) {
+    await recordUniquePaperView(id, viewerId, existing.authorId);
+  }
+
+  const paper = await prisma.paper.findUnique({
     where: { id },
-    data: { viewCount: { increment: 1 } },
     include: paperInclude,
   });
 
+  if (!paper) return null;
   return mapApiPaperToViewerPost(paper as ApiPaper);
 }
 

@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import prisma from "@odd-academia/db/client";
 import { getRouteUserId } from "@/lib/auth/require-auth";
+import { recordUniquePaperView } from "@/lib/papers/record-view";
 
 const paperInclude = {
   author: {
@@ -24,7 +25,7 @@ function parsePublishedAt(value: string | undefined): Date | undefined | null {
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -32,18 +33,26 @@ export async function GET(
 
     const existing = await prisma.paper.findUnique({
       where: { id },
-      select: { id: true, status: true },
+      select: { id: true, status: true, authorId: true },
     });
 
     if (!existing || existing.status === "removed" || existing.status !== "published") {
       return Response.json({ error: "Post not found" }, { status: 404 });
     }
 
-    const post = await prisma.paper.update({
+    const viewerId = await getRouteUserId(req);
+    if (viewerId) {
+      await recordUniquePaperView(id, viewerId, existing.authorId);
+    }
+
+    const post = await prisma.paper.findUnique({
       where: { id },
-      data: { viewCount: { increment: 1 } },
       include: paperInclude,
     });
+
+    if (!post) {
+      return Response.json({ error: "Post not found" }, { status: 404 });
+    }
 
     return Response.json(post);
   } catch (error) {

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { ok, err } from "@/lib/response";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { getAdminUserFromPayload } from "@/lib/auth/get-admin-user";
 import { prisma } from "@/lib/prisma";
 
 export async function DELETE(
@@ -16,7 +17,7 @@ export async function DELETE(
   const comment = await prisma.comment.findUnique({ where: { id } });
   if (!comment) return err("Comment not found.", 404);
 
-  const adminUser = await prisma.adminUser.findUnique({ where: { adminEmail: payload.email } });
+  const adminUser = await getAdminUserFromPayload(payload);
   if (!adminUser) return err("Admin user not found.", 403);
 
   // DELETE: Remove comment record and all associated replies/reactions if hard-deleted

@@ -19,6 +19,8 @@ const ACTION_LABELS: Record<string, string> = {
   warn_user:      "Warned user",
   ban_user:       "Banned user",
   unban_user:     "Unbanned user",
+  review_report:  "Reviewed report",
+  dismiss_report: "Dismissed report",
 };
 
 function formatAction(action: string) {

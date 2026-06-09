@@ -2,6 +2,7 @@ import {
   getPublishedPaperByIdFromDb,
   getRelatedPublishedPapersFromDb,
 } from "@/lib/papers/db";
+import { getServerUserId } from "@/lib/auth/server-user";
 import { PaperDetailClient } from "@/app/paper/_components/PaperDetailClient";
 
 export default async function PaperDetailPage({
@@ -10,7 +11,8 @@ export default async function PaperDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const post = await getPublishedPaperByIdFromDb(id);
+  const viewerId = await getServerUserId();
+  const post = await getPublishedPaperByIdFromDb(id, viewerId);
 
   if (!post) {
     return (
