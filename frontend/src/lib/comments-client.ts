@@ -64,14 +64,18 @@ export async function unlikeComment(
 }
 
 /** GET /api/comments/paper/:paperId — public threaded list */
-export async function fetchCommentsForPaper(paperId: string): Promise<CommentResponse[]> {
+export async function fetchCommentsForPaper(
+  paperId: string,
+): Promise<{ comments: CommentResponse[]; viewerId: string | null }> {
   const res = await fetch(`/api/comments/paper/${paperId}`, {
     cache: "no-store",
     credentials: "include",
   });
-  const data = await parseJson<ApiSuccess<{ comments: CommentResponse[] }>>(res);
-  if (!data.success) return [];
-  return data.comments;
+  const data = await parseJson<ApiSuccess<{ comments: CommentResponse[]; viewerId?: string | null }>>(
+    res,
+  );
+  if (!data.success) return { comments: [], viewerId: null };
+  return { comments: data.comments, viewerId: data.viewerId ?? null };
 }
 
 /** PUT /api/comments/:id */

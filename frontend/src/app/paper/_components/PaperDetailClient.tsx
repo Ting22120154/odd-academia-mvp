@@ -591,8 +591,9 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
     setCommentsLoading(true);
     setCommentsError(null);
     try {
-      const rows = await fetchCommentsForPaper(commentsPaperId);
-      setComments(rows.map((row) => mapComment(row, currentUserId)));
+      const { comments: rows, viewerId } = await fetchCommentsForPaper(commentsPaperId);
+      const whoami = viewerId ?? currentUserId;
+      setComments(rows.map((row) => mapComment(row, whoami)));
     } catch {
       setCommentsError("Could not load comments.");
       setComments([]);

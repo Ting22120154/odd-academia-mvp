@@ -1,6 +1,6 @@
 /** API + UI shapes for notifications (Person 3). */
 
-export type NotificationDisplayType = "Paper" | "Comment" | "Reply" | "Contact" | "Citation";
+export type NotificationDisplayType = "Paper" | "Comment" | "Reply" | "MESSAGE" | "Citation";
 
 export type NotificationTab = "new" | "all" | "papers" | "comments" | "contact" | "citations";
 

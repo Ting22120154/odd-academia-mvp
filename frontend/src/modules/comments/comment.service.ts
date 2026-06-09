@@ -132,7 +132,7 @@ export async function createComment(authorId: string, body: CreateCommentRequest
     console.error("[comments] Failed to fetch like meta after create:", e);
   }
   const meta = likeMeta.get(created.id) ?? { likesCount: 0, likedByMe: false };
-  return toCommentResponse(created, [], meta);
+  return toCommentResponse(created, [], meta, authorId);
 }
 
 export async function getCommentsForPaper(paperId: string, viewerId: string | null = null) {

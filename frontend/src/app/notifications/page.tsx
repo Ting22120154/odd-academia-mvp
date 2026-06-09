@@ -15,16 +15,16 @@ import type {
   NotificationTab,
 } from "@/modules/notifications/types";
 
-type NotifTabLabel = "New" | "All" | "Papers" | "Comments" | "Contact" | "Citations";
+type NotifTabLabel = "New" | "All" | "Papers" | "Comments" | "MESSAGE" | "Citations";
 
-const TABS: NotifTabLabel[] = ["New", "All", "Papers", "Comments", "Contact", "Citations"];
+const TABS: NotifTabLabel[] = ["New", "All", "Papers", "Comments", "MESSAGE", "Citations"];
 
 const TAB_TO_API: Record<NotifTabLabel, NotificationTab> = {
   New: "new",
   All: "all",
   Papers: "papers",
   Comments: "comments",
-  Contact: "contact",
+  MESSAGE: "contact",
   Citations: "citations",
 };
 
