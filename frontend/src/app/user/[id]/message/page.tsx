@@ -9,7 +9,7 @@ export default function MessageRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace(`/user/${id}`);
+    router.replace(`/user/${id}?chat=1`);
   }, [id, router]);
 
   return null;

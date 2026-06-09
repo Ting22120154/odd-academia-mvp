@@ -22,16 +22,26 @@ export function ChatModal({ recipientId, recipientName, onClose }: Props) {
   const [messages,  setMessages]  = useState<Message[]>([]);
   const [draft,     setDraft]     = useState("");
   const [sending,   setSending]   = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLInputElement>(null);
 
   const fetchMessages = useCallback(async () => {
     if (!user) return;
-    const res  = await fetch(`/api/messages?with=${recipientId}`, { credentials: "include" });
-    if (!res.ok) return;
-    const data = await res.json() as Message[];
-    setMessages(data);
+    const res = await fetch(`/api/messages?with=${recipientId}`, { credentials: "include" });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      setLoadError(data?.error ?? `Could not load messages (${res.status}).`);
+      return;
+    }
+    const data = (await res.json()) as unknown;
+    if (!Array.isArray(data)) {
+      setLoadError("Invalid response from server.");
+      return;
+    }
+    setLoadError(null);
+    setMessages(data as Message[]);
   }, [user, recipientId]);
 
   // Initial load
@@ -126,7 +136,12 @@ export function ChatModal({ recipientId, recipientName, onClose }: Props) {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-zinc-50">
-          {messages.length === 0 && (
+          {loadError && (
+            <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-center text-xs text-red-600">
+              {loadError}
+            </div>
+          )}
+          {!loadError && messages.length === 0 && (
             <div className="flex h-full items-center justify-center">
               <p className="text-sm text-zinc-400">No messages yet. Say hello!</p>
             </div>

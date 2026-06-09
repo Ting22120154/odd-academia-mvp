@@ -6,8 +6,8 @@
  * Own id redirects to /profile.
  */
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { isValidUserId } from "@/lib/auth/user-id";
 import { toggleFollow } from "@/lib/follow-client";
@@ -24,9 +24,12 @@ import { ChatModal } from "@/components/ChatModal";
 import { SuggestedPaperCard } from "@/components/SuggestedPaperCard";
 import { profilePaperToViewerPost } from "@/lib/auth/profile";
 
-export default function UserProfilePage() {
+const PRIVATE_PROFILE_MSG = "This profile is private.";
+
+function UserProfilePageInner() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user: sessionUser, isLoggedIn } = useAuth();
   const [profile, setProfile] = useState<ProfileUser | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -69,11 +72,50 @@ export default function UserProfilePage() {
     };
   }, [id, sessionUser?.id, router]);
 
+  useEffect(() => {
+    if (searchParams.get("chat") !== "1" || loading) return;
+    if (profile || error === PRIVATE_PROFILE_MSG) setChatOpen(true);
+  }, [searchParams, loading, profile, error]);
+
   if (loading) {
     return (
       <section className="mx-auto w-full max-w-[var(--page-max)] py-12 text-center text-sm text-zinc-500">
         Loading profile…
       </section>
+    );
+  }
+
+  if (error === PRIVATE_PROFILE_MSG) {
+    return (
+      <>
+        <section className="mx-auto w-full max-w-[var(--page-max)] py-12 text-center">
+          <p className="text-sm text-zinc-600">{PRIVATE_PROFILE_MSG}</p>
+          {isLoggedIn && id ? (
+            <button
+              type="button"
+              onClick={() => setChatOpen(true)}
+              className="mt-4 inline-flex h-9 items-center rounded-lg border border-[var(--brand)] px-4 text-xs font-semibold text-[var(--brand)] hover:bg-blue-50"
+            >
+              Message
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => router.push("/login")}
+              className="mt-4 text-sm font-medium text-[var(--brand)] hover:underline"
+            >
+              Log in to send a message
+            </button>
+          )}
+        </section>
+        {chatOpen && id && (
+          <ChatModal
+            recipientId={id}
+            recipientName="User"
+            onClose={() => setChatOpen(false)}
+          />
+        )}
+      </>
     );
   }
 
@@ -304,5 +346,13 @@ export default function UserProfilePage() {
         </div>
       )}
     </section>
+  );
+}
+
+export default function UserProfilePage() {
+  return (
+    <Suspense>
+      <UserProfilePageInner />
+    </Suspense>
   );
 }

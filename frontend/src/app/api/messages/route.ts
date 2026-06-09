@@ -79,6 +79,9 @@ export async function POST(req: NextRequest) {
     select: { id: true },
   });
   if (!recipientExists) return NextResponse.json({ error: "Recipient not found." }, { status: 404 });
+  if (recipientId === auth.payload.sub) {
+    return NextResponse.json({ error: "You cannot message yourself." }, { status: 400 });
+  }
 
   const message = await prisma.message.create({
     data: {
