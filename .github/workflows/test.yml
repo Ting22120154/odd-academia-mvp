@@ -4,23 +4,40 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DATABASE_URL: postgresql://test:test@localhost:5432/odd_academia_test
+  JWT_SECRET: ci-test-jwt-secret
 
 jobs:
   unit:
+    name: Unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: pnpm/action-setup@v4
         with:
           version: 10.6.3
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
+
       - run: pnpm install --frozen-lockfile
       - run: pnpm test:unit
 
   integration:
+    name: Integration tests
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -36,19 +53,99 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    env:
-      DATABASE_URL: postgresql://test:test@localhost:5432/odd_academia_test
-      JWT_SECRET: ci-test-jwt-secret
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: pnpm/action-setup@v4
         with:
           version: 10.6.3
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
+
       - run: pnpm install --frozen-lockfile
+
+      - name: Write test env files
+        run: |
+          printf 'DATABASE_URL=%s\nJWT_SECRET=%s\n' "$DATABASE_URL" "$JWT_SECRET" > frontend/.env.local
+          printf 'DATABASE_URL=%s\nJWT_SECRET=%s\n' "$DATABASE_URL" "$JWT_SECRET" > admin/.env
+
       - run: pnpm db:push
       - run: pnpm db:seed
       - run: pnpm test:integration
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: odd_academia_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d odd_academia_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.6.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Write test env files
+        run: |
+          printf 'DATABASE_URL=%s\nJWT_SECRET=%s\n' "$DATABASE_URL" "$JWT_SECRET" > frontend/.env.local
+          printf 'DATABASE_URL=%s\nJWT_SECRET=%s\n' "$DATABASE_URL" "$JWT_SECRET" > admin/.env
+
+      - run: pnpm db:push
+      - run: pnpm db:seed
+
+      - name: Build apps
+        run: |
+          pnpm --filter frontend build
+          pnpm --filter admin build
+
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start servers
+        run: |
+          pnpm --filter frontend start &
+          pnpm --filter admin start &
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:3000 >/dev/null && curl -sf http://127.0.0.1:3001 >/dev/null && exit 0
+            sleep 2
+          done
+          echo "Servers did not become ready in time"
+          exit 1
+
+      - name: Run E2E tests
+        run: pnpm test:e2e
+        env:
+          PLAYWRIGHT_FRONTEND_URL: http://127.0.0.1:3000
+          PLAYWRIGHT_ADMIN_URL: http://127.0.0.1:3001
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
