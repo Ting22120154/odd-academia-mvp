@@ -24,6 +24,10 @@ export function groupKeyForRow(
     }
   }
 
+  if (row.type === "like" && row.referenceType === "comment" && row.referenceId) {
+    return `like:${row.referenceId}`;
+  }
+
   if (row.type === "comment") {
     if (row.referenceType === "comment" && row.referenceId) {
       const comment = commentById.get(row.referenceId);
@@ -65,6 +69,12 @@ export function groupedText(
     const others = groupCount - 1;
     const people = others === 1 ? "person" : "people";
     return `${others} other ${people} commented on your paper: ${title}`;
+  }
+
+  if (rawType === "like") {
+    const others = groupCount - 1;
+    const people = others === 1 ? "person" : "people";
+    return `${others} other ${people} liked your comment on ${title}`;
   }
 
   if (rawType === "paper") {

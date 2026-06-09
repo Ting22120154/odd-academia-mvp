@@ -211,17 +211,6 @@ type UiComment = {
   replies: UiReply[];
 };
 
-function getDbUserIdFromCookie(): string | null {
-  if (typeof document === "undefined") return null;
-  for (const part of document.cookie.split(";")) {
-    const [name, ...rest] = part.trim().split("=");
-    if (name === "auth-user-id") {
-      return decodeURIComponent(rest.join("=")) || null;
-    }
-  }
-  return null;
-}
-
 function formatRelativeTime(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diffMs / 60_000);
@@ -452,6 +441,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   const router = useRouter();
   const { showToast } = useToast();
   const { isLoggedIn, user: sessionUser } = useAuth();
+  const currentUserId = sessionUser?.id ?? null;
   const authorId = post.authorId;
   const canFollowAuthor = Boolean(
     authorId && isValidUserId(authorId) && sessionUser?.id !== authorId,
@@ -584,14 +574,8 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   const [composer, setComposer] = useState("");
   const [activeReplyFor, setActiveReplyFor] = useState<string | null>(null);
   const [replyDraft, setReplyDraft] = useState("");
-  const [dbUserId, setDbUserId] = useState<string | null>(null);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
-
-  useEffect(() => {
-    if (isLoggedIn) setDbUserId(getDbUserIdFromCookie());
-    else setDbUserId(null);
-  }, [isLoggedIn]);
 
   const loadComments = useCallback(async () => {
     if (!commentsPaperId) {
@@ -600,7 +584,6 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
     }
     setCommentsLoading(true);
     setCommentsError(null);
-    if (isLoggedIn) setDbUserId(getDbUserIdFromCookie());
     try {
       const rows = await fetchCommentsForPaper(commentsPaperId);
       setComments(rows.map(mapComment));
@@ -692,7 +675,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   }
 
   function isOwnComment(authorId: string) {
-    return Boolean(dbUserId && authorId === dbUserId);
+    return Boolean(currentUserId && authorId === currentUserId);
   }
 
   function startEdit(commentId: string, currentText: string) {
@@ -1254,6 +1237,17 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                                       Delete
                                     </button>
                                   </>
+                                ) : null}
+
+                                {isLoggedIn && !isOwnComment(r.authorId) ? (
+                                  <button
+                                    type="button"
+                                    className={`rounded-md px-1.5 py-0.5 ${clickableHoverInset}`}
+                                    onClick={() => setReportingCommentId(r.id)}
+                                    title="Report comment"
+                                  >
+                                    Report
+                                  </button>
                                 ) : null}
                               </div>
                             </div>

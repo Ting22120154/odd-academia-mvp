@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { createNotificationsForNewComment } from "@/modules/notifications/notification.service";
+import {
+  createNotificationForCommentLike,
+  createNotificationsForNewComment,
+} from "@/modules/notifications/notification.service";
 import type { CommentResponse, CreateCommentRequest, UpdateCommentRequest } from "./types";
 
 type CommentWithAuthor = {
@@ -197,15 +200,23 @@ export async function updateComment(commentId: string, authorId: string, body: U
 export async function likeComment(commentId: string, userId: string) {
   const comment = await prisma.comment.findUnique({
     where: { id: commentId },
-    select: { id: true, isHidden: true },
+    select: { id: true, isHidden: true, authorId: true },
   });
   if (!comment || comment.isHidden) throw new Error("NOT_FOUND");
 
-  await prisma.commentLike.upsert({
+  const existing = await prisma.commentLike.findUnique({
     where: { userId_commentId: { userId, commentId } },
-    create: { userId, commentId },
-    update: {},
   });
+
+  if (!existing) {
+    await prisma.commentLike.create({ data: { userId, commentId } });
+    if (comment.authorId !== userId) {
+      await createNotificationForCommentLike({
+        commentId,
+        authorId: comment.authorId,
+      });
+    }
+  }
 
   const meta = await getLikeMetaByCommentId([commentId], userId);
   return { commentId, liked: true, likesCount: meta.get(commentId)!.likesCount };

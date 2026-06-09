@@ -40,6 +40,8 @@ function displayType(type: NotificationType): NotificationDisplayType {
       return "Comment";
     case "reply":
       return "Reply";
+    case "like":
+      return "Comment";
     case "paper":
       return "Paper";
     case "contact":
@@ -69,7 +71,7 @@ function paperCommentHref(
 function tabWhere(tab: ListNotificationsQuery["tab"]) {
   if (tab === "new") return { isRead: false };
   if (tab === "papers") return { type: "paper" as const };
-  if (tab === "comments") return { type: { in: ["comment", "reply"] as NotificationType[] } };
+  if (tab === "comments") return { type: { in: ["comment", "reply", "like"] as NotificationType[] } };
   if (tab === "contact") return { type: "contact" as const };
   if (tab === "citations") return { type: "citation" as const };
   return {};
@@ -149,6 +151,15 @@ function resolveOne(
       href = paperCommentHref(comment.paperId, anchor, seededPaperIds);
     } else {
       text = "New reply to your comment";
+    }
+  } else if (row.type === "like" && row.referenceType === "comment" && row.referenceId) {
+    const comment = commentById.get(row.referenceId);
+    if (comment && !comment.isHidden) {
+      anchorCommentId = row.referenceId;
+      text = `Someone liked your comment on ${paperTitle ?? "Paper"}`;
+      href = paperCommentHref(comment.paperId, row.referenceId, seededPaperIds);
+    } else {
+      text = "Someone liked your comment";
     }
   } else if (row.type === "citation") {
     text = "Your work was cited";
@@ -335,4 +346,19 @@ export async function createNotificationsForNewComment(input: {
       },
     });
   }
+}
+
+/** Called after a comment receives a new like. */
+export async function createNotificationForCommentLike(input: {
+  commentId: string;
+  authorId: string;
+}) {
+  await prisma.notification.create({
+    data: {
+      userId: input.authorId,
+      type: "like",
+      referenceId: input.commentId,
+      referenceType: "comment",
+    },
+  });
 }

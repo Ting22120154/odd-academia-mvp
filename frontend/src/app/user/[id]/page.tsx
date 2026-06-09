@@ -186,7 +186,7 @@ function UserProfilePageInner() {
                   Message
                 </button>
               )}
-              {isLoggedIn && (
+              {isLoggedIn && sessionUser?.id !== id && (
                 <button
                   type="button"
                   onClick={() => setReportingUser(true)}

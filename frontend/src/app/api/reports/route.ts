@@ -35,16 +35,23 @@ export async function POST(req: NextRequest) {
     if (!commentId || !reason) {
       return NextResponse.json({ error: "commentId and reason are required." }, { status: 400 });
     }
-    let comment: { content: string; author: { fullName: string } | null } | null = null;
+    let comment: { content: string; authorId: string; author: { fullName: string } | null } | null = null;
     try {
       comment = await prisma.comment.findUnique({
-        where:   { id: commentId },
-        include: { author: { select: { fullName: true } } },
+        where: { id: commentId },
+        select: {
+          content: true,
+          authorId: true,
+          author: { select: { fullName: true } },
+        },
       });
     } catch {
       // Invalid UUID format — treat as not found
     }
     if (!comment) return NextResponse.json({ error: "Comment not found." }, { status: 404 });
+    if (comment.authorId === reporterId) {
+      return NextResponse.json({ error: "You cannot report your own comment." }, { status: 400 });
+    }
 
     const report = await prisma.commentReport.create({
       data: {
@@ -63,8 +70,14 @@ export async function POST(req: NextRequest) {
     if (!paperId || !subject || !reason) {
       return NextResponse.json({ error: "paperId, subject and reason are required." }, { status: 400 });
     }
-    const paper = await prisma.paper.findUnique({ where: { id: paperId }, select: { title: true } }).catch(() => null);
+    const paper = await prisma.paper.findUnique({
+      where: { id: paperId },
+      select: { title: true, authorId: true },
+    }).catch(() => null);
     if (!paper) return NextResponse.json({ error: "Paper not found." }, { status: 404 });
+    if (paper.authorId === reporterId) {
+      return NextResponse.json({ error: "You cannot report your own paper." }, { status: 400 });
+    }
 
     const report = await prisma.paperReport.create({
       data: { paperId, paperTitle: paper.title, reporterId, subject, reason },
@@ -82,6 +95,9 @@ export async function POST(req: NextRequest) {
       select: { id: true },
     });
     if (!reported) return NextResponse.json({ error: "User not found." }, { status: 404 });
+    if (reportedId === reporterId) {
+      return NextResponse.json({ error: "You cannot report yourself." }, { status: 400 });
+    }
 
     const report = await prisma.userReport.create({
       data: { reportedId, reporterId, subject, reason },
