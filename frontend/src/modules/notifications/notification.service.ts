@@ -21,6 +21,7 @@ type NotificationRow = {
   type: NotificationType;
   referenceId: string | null;
   referenceType: ReferenceType | null;
+  actorId: string | null;
   isRead: boolean;
   createdAt: Date;
 };
@@ -30,6 +31,7 @@ const ROW_SELECT = {
   type: true,
   referenceId: true,
   referenceType: true,
+  actorId: true,
   isRead: true,
   createdAt: true,
 } as const;
@@ -49,7 +51,7 @@ function displayType(type: NotificationType): NotificationDisplayType {
     case "citation":
       return "Citation";
     case "follow":
-      return "Paper";
+      return "Follow";
     default:
       return "Comment";
   }
@@ -104,6 +106,29 @@ async function loadPaperTitles(paperIds: Set<string>): Promise<Map<string, strin
   return new Map(papers.map((p) => [p.id, p.title]));
 }
 
+async function loadUserNames(userIds: Set<string>): Promise<Map<string, string>> {
+  if (userIds.size === 0) return new Map();
+  const users = await prisma.user.findMany({
+    where: { id: { in: [...userIds] } },
+    select: { id: true, fullName: true },
+  });
+  return new Map(users.map((u) => [u.id, u.fullName]));
+}
+
+function collectUserIds(rows: NotificationRow[]): Set<string> {
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (row.actorId) ids.add(row.actorId);
+    if (row.referenceType === "user" && row.referenceId) ids.add(row.referenceId);
+  }
+  return ids;
+}
+
+function userName(userMap: Map<string, string>, userId: string | null | undefined): string {
+  if (!userId) return "Someone";
+  return userMap.get(userId) ?? "Someone";
+}
+
 function resolvePaperIdForRow(
   row: NotificationRow,
   commentById: Map<string, { paperId: string; parentId: string | null; isHidden: boolean }>,
@@ -121,60 +146,61 @@ function resolveOne(
   seededPaperIds: string[],
   commentById: Map<string, { paperId: string; parentId: string | null; isHidden: boolean }>,
   titleByPaperId: Map<string, string>,
+  userMap: Map<string, string>,
 ): ResolvedNotification {
   const paperId = resolvePaperIdForRow(row, commentById);
-  const paperTitle = paperId ? (titleByPaperId.get(paperId) ?? "Paper") : null;
+  const paperTitle = paperId ? (titleByPaperId.get(paperId) ?? "your paper") : null;
+  const actor = userName(userMap, row.actorId);
 
   let text = "New notification";
   let href = "/notifications";
-  let anchorCommentId: string | null = null;
 
   if (row.type === "paper" && row.referenceType === "paper" && row.referenceId) {
-    text = `New paper published: ${paperTitle ?? "Paper"}`;
+    text = `New paper published: ${titleByPaperId.get(row.referenceId) ?? "your paper"}`;
     href = paperPathForId(row.referenceId, seededPaperIds);
   } else if (row.type === "comment" && row.referenceType === "comment" && row.referenceId) {
     const comment = commentById.get(row.referenceId);
     if (comment && !comment.isHidden) {
-      text = `New comment on your paper: ${paperTitle ?? "Paper"}`;
-      anchorCommentId = row.referenceId;
+      text = `${actor} commented on your paper: ${paperTitle ?? "your paper"}`;
       href = paperCommentHref(comment.paperId, row.referenceId, seededPaperIds);
     }
   } else if (row.type === "comment" && row.referenceType === "paper" && row.referenceId) {
-    text = `New comment on your paper: ${paperTitle ?? "Paper"}`;
+    text = `${actor} commented on your paper: ${titleByPaperId.get(row.referenceId) ?? "your paper"}`;
     href = paperPathForId(row.referenceId, seededPaperIds);
   } else if (row.type === "reply" && row.referenceType === "comment" && row.referenceId) {
     const comment = commentById.get(row.referenceId);
     if (comment && !comment.isHidden) {
       const anchor = comment.parentId ?? row.referenceId;
-      anchorCommentId = anchor;
-      text = `New reply to your comment on ${paperTitle ?? "Paper"}`;
+      text = `${actor} replied to your comment on ${paperTitle ?? "your paper"}`;
       href = paperCommentHref(comment.paperId, anchor, seededPaperIds);
     } else {
-      text = "New reply to your comment";
+      text = `${actor} replied to your comment`;
     }
   } else if (row.type === "like" && row.referenceType === "comment" && row.referenceId) {
     const comment = commentById.get(row.referenceId);
     if (comment && !comment.isHidden) {
-      anchorCommentId = row.referenceId;
-      text = `Someone liked your comment on ${paperTitle ?? "Paper"}`;
+      text = `${actor} liked your comment on ${paperTitle ?? "your paper"}`;
       href = paperCommentHref(comment.paperId, row.referenceId, seededPaperIds);
     } else {
-      text = "Someone liked your comment";
+      text = `${actor} liked your comment`;
     }
   } else if (row.type === "citation") {
     text = "Your work was cited";
     if (row.referenceType === "paper" && row.referenceId) {
-      text = `Your work was cited: ${paperTitle ?? "Paper"}`;
+      text = `Your work was cited: ${titleByPaperId.get(row.referenceId) ?? "your paper"}`;
       href = paperPathForId(row.referenceId, seededPaperIds);
     }
   } else if (row.type === "contact" && row.referenceType === "user" && row.referenceId) {
-    text = "Sent you a message";
+    text = `${userName(userMap, row.referenceId)} sent you a message`;
     href = `/user/${row.referenceId}?chat=1`;
   } else if (row.type === "contact") {
-    text = "Someone contacted you";
+    text = `${actor} sent you a message`;
   } else if (row.type === "follow" && row.referenceType === "user" && row.referenceId) {
-    text = "You have a new follower";
+    text = `${userName(userMap, row.referenceId)} started following you`;
     href = `/user/${row.referenceId}`;
+  } else if (row.type === "follow" && row.referenceType === "paper" && row.referenceId) {
+    text = `${actor} followed your paper: ${titleByPaperId.get(row.referenceId) ?? "your paper"}`;
+    href = paperPathForId(row.referenceId, seededPaperIds);
   }
 
   const groupKey = groupKeyForRow(row, commentById);
@@ -205,10 +231,14 @@ async function resolveAndGroup(
     const paperId = resolvePaperIdForRow(row, commentById);
     if (paperId) paperIds.add(paperId);
     if (row.referenceType === "paper" && row.referenceId) paperIds.add(row.referenceId);
+    if (row.type === "follow" && row.referenceType === "paper" && row.referenceId) {
+      paperIds.add(row.referenceId);
+    }
   }
   const titleByPaperId = await loadPaperTitles(paperIds);
+  const userMap = await loadUserNames(collectUserIds(rows));
   const resolved = rows.map((row) =>
-    resolveOne(row, seededPaperIds, commentById, titleByPaperId),
+    resolveOne(row, seededPaperIds, commentById, titleByPaperId, userMap),
   );
   return mergeNotificationGroups(resolved);
 }
@@ -330,6 +360,7 @@ export async function createNotificationsForNewComment(input: {
           type: "reply",
           referenceId: input.commentId,
           referenceType: "comment",
+          actorId: input.authorId,
         },
       });
     }
@@ -343,6 +374,7 @@ export async function createNotificationsForNewComment(input: {
         type: "comment",
         referenceId: input.commentId,
         referenceType: "comment",
+        actorId: input.authorId,
       },
     });
   }
@@ -352,6 +384,7 @@ export async function createNotificationsForNewComment(input: {
 export async function createNotificationForCommentLike(input: {
   commentId: string;
   authorId: string;
+  likerId: string;
 }) {
   await prisma.notification.create({
     data: {
@@ -359,6 +392,7 @@ export async function createNotificationForCommentLike(input: {
       type: "like",
       referenceId: input.commentId,
       referenceType: "comment",
+      actorId: input.likerId,
     },
   });
 }

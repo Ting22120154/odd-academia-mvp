@@ -81,6 +81,10 @@ export function groupedText(
     return `${groupCount} new papers were published`;
   }
 
+  if (rawType === "follow") {
+    return `${groupCount} people started following you`;
+  }
+
   return fallbackSingleText;
 }
 

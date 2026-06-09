@@ -216,6 +216,7 @@ export async function likeComment(commentId: string, userId: string) {
       await createNotificationForCommentLike({
         commentId,
         authorId: comment.authorId,
+        likerId: userId,
       });
     }
   }
