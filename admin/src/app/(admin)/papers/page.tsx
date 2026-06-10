@@ -5,6 +5,7 @@
  * Data: GET /api/admin/papers (Neon + Prisma).
  */
 
+import { formatDateAU } from "@odd-academia/db/date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -31,14 +32,6 @@ function SortIcon() {
       <polyline points="6 9 12 3 18 9"/><polyline points="6 15 12 21 18 15"/>
     </svg>
   );
-}
-
-function formatPublished(iso: string) {
-  return new Date(iso).toLocaleDateString("en-AU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
 }
 
 const INITIAL_ROWS = 5;
@@ -156,7 +149,7 @@ export default function PapersPage() {
                 <td className="px-4 py-3 text-gray-900 max-w-[180px] truncate">{p.title}</td>
                 <td className="px-4 py-3 text-gray-600">{p.author}</td>
                 <td className="px-4 py-3 text-gray-600">{p.category}</td>
-                <td className="px-4 py-3 text-gray-600">{formatPublished(p.published)}</td>
+                <td className="px-4 py-3 text-gray-600">{formatDateAU(p.published)}</td>
                 <td className="px-4 py-3 text-gray-600">{p.views.toLocaleString()}</td>
                 <td className="px-4 py-3 text-gray-600">{p.cited}</td>
                 <td className="px-4 py-3 text-gray-600">{p.downloaded}</td>

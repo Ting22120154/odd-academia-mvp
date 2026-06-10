@@ -1,5 +1,6 @@
 "use client";
 
+import { formatTimeAU } from "@odd-academia/db/date";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -94,10 +95,6 @@ export function ChatModal({ recipientId, recipientName, onClose }: Props) {
     }
   }
 
-  function formatTime(iso: string) {
-    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  }
-
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-end p-4 sm:items-center sm:justify-center pointer-events-none">
       {/* Backdrop */}
@@ -163,7 +160,7 @@ export function ChatModal({ recipientId, recipientName, onClose }: Props) {
                 >
                   <p>{m.body}</p>
                   <p className={`mt-1 text-[10px] ${isMine ? "text-white/60" : "text-zinc-400"} text-right`}>
-                    {formatTime(m.createdAt)}
+                    {formatTimeAU(m.createdAt)}
                   </p>
                 </div>
               </div>

@@ -4,7 +4,8 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
-    "./client": "./src/client.ts"
+    "./client": "./src/client.ts",
+    "./date": "./src/date.ts"
   },
   "scripts": {
     "build": "prisma generate",

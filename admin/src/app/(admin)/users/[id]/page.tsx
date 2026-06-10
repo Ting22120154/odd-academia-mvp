@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateAU } from "@odd-academia/db/date";
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
@@ -351,10 +352,6 @@ export default function UserDetailPage() {
     setComments(prev => prev.filter(c => c.id !== commentId));
   }
 
-  function formatDate(iso: string) {
-    return new Date(iso).toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" });
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-gray-400 text-sm">Loading…</div>
@@ -546,7 +543,7 @@ export default function UserDetailPage() {
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-gray-900 max-w-xs truncate">{p.title}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{p.categories[0]?.name ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-500">{formatDate(p.createdAt)}</td>
+                    <td className="px-4 py-3 text-gray-500">{formatDateAU(p.createdAt)}</td>
                     <td className="px-4 py-3 text-gray-500 capitalize">{p.status}</td>
                     <td className="px-4 py-3 text-right relative">
                       <button
@@ -611,7 +608,7 @@ export default function UserDetailPage() {
                       </span>
                     )}
 
-                    <span className="text-xs text-gray-400 ml-auto">{formatDate(c.createdAt)}</span>
+                    <span className="text-xs text-gray-400 ml-auto">{formatDateAU(c.createdAt)}</span>
 
                     <div className="relative">
                       <button

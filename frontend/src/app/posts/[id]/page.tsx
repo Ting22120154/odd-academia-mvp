@@ -1,3 +1,4 @@
+import { formatDateAU, formatDateTimeAU } from "@odd-academia/db/date";
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -111,7 +112,7 @@ export default async function LegacyPostDetailPage({
                 {isNonEmptyString(post.publishedDate) ? (
                   <div>
                     <div className="text-xs font-medium text-zinc-500">Published</div>
-                    <div className="mt-1">{post.publishedDate}</div>
+                    <div className="mt-1">{formatDateAU(post.publishedDate)}</div>
                   </div>
                 ) : null}
 
@@ -196,12 +197,7 @@ export default async function LegacyPostDetailPage({
         <article className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm text-zinc-500">
-              {new Intl.DateTimeFormat("en-GB", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-                timeZone: "UTC",
-              }).format(new Date(post.date))}
+              {formatDateAU(post.date)}
             </div>
             <div className="flex items-center gap-2">
               <Link
@@ -329,7 +325,7 @@ export default async function LegacyPostDetailPage({
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                         <div className="font-medium text-zinc-900">{comment.user}</div>
                         <div className="text-xs text-zinc-500">
-                          {new Date(comment.date).toLocaleString()}
+                          {formatDateTimeAU(comment.date)}
                         </div>
                       </div>
                       <p className="mt-2 text-sm leading-6 text-zinc-700">{comment.text}</p>

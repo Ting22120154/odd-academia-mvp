@@ -1,4 +1,5 @@
 import type { NotificationType, ReferenceType } from "@prisma/client";
+import { formatDateAU } from "@odd-academia/db/date";
 import { prisma } from "@/lib/prisma";
 import {
   getSeededPaperIds,
@@ -59,10 +60,6 @@ function displayType(type: NotificationType): NotificationDisplayType {
     default:
       return "Comment";
   }
-}
-
-function formatDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
 }
 
 function paperCommentHref(
@@ -314,7 +311,7 @@ function resolveOne(
     ids: [row.id],
     text,
     type: displayType(row.type),
-    date: formatDate(row.createdAt),
+    date: formatDateAU(row.createdAt),
     isRead: row.isRead,
     href,
     createdAt: row.createdAt.toISOString(),

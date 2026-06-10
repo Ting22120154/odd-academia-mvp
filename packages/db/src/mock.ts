@@ -11,6 +11,7 @@
  */
 
 import { users as _rawUsers, papers, comments, citations } from "./data"
+import { formatDateAU } from "./date"
 
 // Not all users in data.ts have bio/githubUrl/linkedinUrl (they're optional).
 // TypeScript infers a union type for the array, so we widen to a common shape here.
@@ -32,9 +33,7 @@ const users = _rawUsers as UserRow[]
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmt(date: Date): string {
-  const d = String(date.getDate()).padStart(2, "0")
-  const m = String(date.getMonth() + 1).padStart(2, "0")
-  return `${d}/${m}/${date.getFullYear()}`
+  return formatDateAU(date)
 }
 
 function lookupUser(username: string): string {

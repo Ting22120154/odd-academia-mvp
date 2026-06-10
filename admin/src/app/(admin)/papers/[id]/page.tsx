@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateAU } from "@odd-academia/db/date";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -60,14 +61,6 @@ const TAB_PARAM: Record<(typeof USER_TABS)[number], string> = {
   Shares: "shares",
   Downloads: "downloads",
 };
-
-function formatPublished(iso: string) {
-  return new Date(iso).toLocaleDateString("en-AU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
 
 function StatusBadge({ status }: { status: string }) {
   const colours: Record<string, string> = {
@@ -318,7 +311,7 @@ export default function PaperDetailPage() {
     );
   }
 
-  const publishedLabel = formatPublished(paper.published);
+  const publishedLabel = formatDateAU(paper.published);
   const inRange = isPublishedInRange(paper.published, range);
   const isRemoved = paper.status === "removed";
   const userPageCount = Math.max(1, Math.ceil(userTotal / 20));
@@ -492,7 +485,7 @@ export default function PaperDetailPage() {
                       onClick={() => router.push(`/users/${u.id}`)}
                     >
                       <td className="px-4 py-3 font-medium text-gray-900">{u.name}</td>
-                      <td className="px-4 py-3 text-gray-500">{formatPublished(u.registered)}</td>
+                      <td className="px-4 py-3 text-gray-500">{formatDateAU(u.registered)}</td>
                       <td className="px-4 py-3 text-gray-500">{u.papers}</td>
                       <td className="px-4 py-3 text-gray-500">{u.following}</td>
                       <td className="px-4 py-3 text-gray-500">{u.followers}</td>

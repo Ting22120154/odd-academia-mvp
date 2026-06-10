@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTimeAU } from "@odd-academia/db/date";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
@@ -93,7 +94,7 @@ export default function ModerationLogPage() {
                 return (
                   <tr key={log.id} className="hover:bg-gray-50/80">
                     <td className="whitespace-nowrap px-4 py-3 text-gray-600">
-                      {new Date(log.createdAt).toLocaleString()}
+                      {formatDateTimeAU(log.createdAt)}
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900">{log.admin.fullName}</td>
                     <td className="px-4 py-3 text-gray-800">{formatAction(log.action)}</td>

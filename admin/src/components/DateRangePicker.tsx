@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateRangeAU } from "@odd-academia/db/date";
 import { useEffect, useRef, useState } from "react";
 
 export type DateRange = { from: Date; to: Date };
@@ -36,12 +37,7 @@ function isInRange(day: Date, from: Date, to: Date): boolean {
 }
 
 export function formatDateRange(from: Date, to: Date): string {
-  const fmt = (d: Date) => {
-    const dd = String(d.getDate()).padStart(2, "0");
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    return `${dd}.${mm}.${d.getFullYear()}`;
-  };
-  return `${fmt(from)}–${fmt(to)}`;
+  return formatDateRangeAU(from, to);
 }
 
 export function lastNDaysRange(days: number): DateRange {

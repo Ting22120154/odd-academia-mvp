@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateAU } from "@odd-academia/db/date";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -47,10 +48,6 @@ function StatusBadge({ status }: { status: Status }) {
 
 function toStatus(isBanned: boolean): Status {
   return isBanned ? "Suspended" : "Active";
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 // ---------------------------------------------------------------------------
@@ -160,7 +157,7 @@ export default function UsersPage() {
                   onClick={() => router.push(`/users/${u.id}`)}
                 >
                   <td className="px-4 py-3 font-medium text-gray-900">{u.fullName}</td>
-                  <td className="px-4 py-3 text-gray-500">{formatDate(u.createdAt)}</td>
+                  <td className="px-4 py-3 text-gray-500">{formatDateAU(u.createdAt)}</td>
                   <td className="px-4 py-3 text-gray-500">{u._count.papers}</td>
                   <td className="px-4 py-3 text-gray-500">{u._count.following}</td>
                   <td className="px-4 py-3 text-gray-500">{u._count.followers}</td>

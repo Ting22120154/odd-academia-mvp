@@ -45,7 +45,7 @@ Other tabs return `notifications` only (grouped). Each item includes `ids[]` (ro
       "id": "uuid",
       "text": "New comment on your paper: …",
       "type": "Comment",
-      "date": "2025-01-29",
+      "date": "29/01/2025",
       "isRead": false,
       "href": "/paper/1#comment-uuid",
       "createdAt": "ISO-8601"

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateLongAU, formatDateTimeAU } from "@odd-academia/db/date";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -213,17 +214,6 @@ type UiComment = {
   replies: UiReply[];
 };
 
-function formatRelativeTime(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diffMs / 60_000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins} min ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} hr. ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days} day${days === 1 ? "" : "s"} ago`;
-}
-
 function mapComment(c: CommentResponse, viewerId: string | null): UiComment {
   const isOwn =
     c.isOwn === true || Boolean(viewerId && c.user.id === viewerId);
@@ -232,7 +222,7 @@ function mapComment(c: CommentResponse, viewerId: string | null): UiComment {
     authorId: c.user.id,
     isOwn,
     name: c.user.fullName,
-    time: formatRelativeTime(c.createdAt),
+    time: formatDateTimeAU(c.createdAt),
     text: c.content,
     likes: c.likesCount,
     likedByMe: c.likedByMe ?? false,
@@ -241,7 +231,7 @@ function mapComment(c: CommentResponse, viewerId: string | null): UiComment {
       authorId: r.user.id,
       isOwn: r.isOwn === true || Boolean(viewerId && r.user.id === viewerId),
       name: r.user.fullName,
-      time: formatRelativeTime(r.createdAt),
+      time: formatDateTimeAU(r.createdAt),
       text: r.content,
       likes: r.likesCount,
       likedByMe: r.likedByMe ?? false,
@@ -415,14 +405,7 @@ function ReportModal({
 }
 
 function formatPaperDate(value?: string) {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  return formatDateLongAU(value);
 }
 
 function PlusIcon() {
