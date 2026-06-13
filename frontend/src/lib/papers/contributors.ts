@@ -17,12 +17,12 @@ export type PaperContributorDisplay = {
 
 type DbContributorRow = {
   contributorName: string;
-  contributorUserId: string | null;
+  contributorUserId?: string | null;
   user?: {
     id: string;
     fullName: string;
     username: string;
-    avatarUrl: string | null;
+    avatarUrl?: string | null;
   } | null;
 };
 

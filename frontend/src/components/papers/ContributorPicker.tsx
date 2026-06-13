@@ -31,7 +31,7 @@ export function ContributorPicker({ value, onChange, excludeUserId }: Props) {
   const [results, setResults] = useState<SearchUser[]>([]);
   const [searching, setSearching] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const addContributor = useCallback(
     (tag: PaperContributorDisplay) => {
