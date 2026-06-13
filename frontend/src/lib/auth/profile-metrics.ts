@@ -5,28 +5,53 @@ import { prisma } from "@/lib/prisma";
 
 export type ProfileMetrics = {
   papersPublished: number;
-  totalLikes: number;
-  paperEngagement: number;
+  paperViews: number;
+  /** Other users following this author's published papers */
+  paperFollows: number;
+  /** Other users commenting on this author's published papers */
+  commentsOnPapers: number;
+  /** Published papers this user follows */
+  followedPapers: number;
 };
 
+const publishedBy = (userId: string) =>
+  ({ authorId: userId, status: "published" as const });
+
 export async function loadProfileMetrics(userId: string): Promise<ProfileMetrics> {
-  const [papersPublished, totalLikes, viewsAgg, paperFollows] = await Promise.all([
-    prisma.paper.count({
-      where: { authorId: userId, status: "published" },
-    }),
-    prisma.commentLike.count({
-      where: { comment: { authorId: userId } },
-    }),
+  const publishedWhere = publishedBy(userId);
+
+  const [
+    papersPublished,
+    viewsAgg,
+    paperFollows,
+    commentsOnPapers,
+    followedPapers,
+  ] = await Promise.all([
+    prisma.paper.count({ where: publishedWhere }),
     prisma.paper.aggregate({
-      where: { authorId: userId, status: "published" },
+      where: publishedWhere,
       _sum: { viewCount: true },
     }),
     prisma.paperFollow.count({
-      where: { paper: { authorId: userId, status: "published" } },
+      where: { paper: publishedWhere },
+    }),
+    prisma.comment.count({
+      where: {
+        paper: publishedWhere,
+        authorId: { not: userId },
+        isHidden: false,
+      },
+    }),
+    prisma.paperFollow.count({
+      where: { userId, paper: { status: "published" } },
     }),
   ]);
 
-  const paperEngagement = (viewsAgg._sum.viewCount ?? 0) + paperFollows;
-
-  return { papersPublished, totalLikes, paperEngagement };
+  return {
+    papersPublished,
+    paperViews: viewsAgg._sum.viewCount ?? 0,
+    paperFollows,
+    commentsOnPapers,
+    followedPapers,
+  };
 }

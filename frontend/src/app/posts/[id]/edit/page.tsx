@@ -188,19 +188,6 @@ export default function EditPaperPage() {
     }
   }
 
-  async function shareToSocials(url: string) {
-    try {
-      if (typeof navigator !== "undefined" && "share" in navigator) {
-        await (navigator as any).share({ title: "ODD Academia paper", url });
-        return;
-      }
-    } catch {
-      // fall through
-    }
-    const encoded = encodeURIComponent(url);
-    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encoded}`, "_blank", "noopener,noreferrer");
-  }
-
   async function onSave(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -650,14 +637,6 @@ export default function EditPaperPage() {
                 ⧉
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => shareToSocials(successUrl)}
-              className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-[var(--brand)] text-sm font-medium text-white hover:opacity-95"
-            >
-              Share to Socials
-            </button>
           </div>
         </div>
       ) : null}

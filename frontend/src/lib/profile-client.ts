@@ -21,9 +21,10 @@ export type ProfileUser = {
     papers: number;
     followers: number;
     following: number;
-    citedComments: number;
-    totalLikes: number;
-    paperEngagement: number;
+    paperViews: number;
+    paperFollows: number;
+    commentsOnPapers: number;
+    followedPapers: number;
   };
   papers: {
     id: string;

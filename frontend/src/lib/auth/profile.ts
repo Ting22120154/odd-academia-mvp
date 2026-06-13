@@ -2,7 +2,7 @@
  * Profile DTOs and mappers (server-side).
  * - Maps Prisma workStatus enum ↔ UI labels
  * - Maps profileVisibility boolean ↔ PUBLIC | PRIVATE
- * - Stats: followers/following/comments via _count; papers/likes/engagement via profile-metrics
+ * - Stats: followers/following via _count; engagement metrics via profile-metrics
  */
 import type { Paper, User, WorkStatus } from "@prisma/client";
 import { toApiRole } from "@/lib/auth/user";
@@ -24,13 +24,17 @@ export type ProfilePaper = {
 export type ProfileStats = {
   /** Published papers by this author */
   papers: number;
+  /** People following this user profile */
   followers: number;
   following: number;
-  citedComments: number;
-  /** Likes received on this user's comments */
-  totalLikes: number;
-  /** Sum of published paper views + paper follows */
-  paperEngagement: number;
+  /** Times this user's published papers were viewed */
+  paperViews: number;
+  /** People following this user's published papers */
+  paperFollows: number;
+  /** Comments from other users on this user's published papers */
+  commentsOnPapers: number;
+  /** Published papers this user follows */
+  followedPapers: number;
 };
 
 export type ProfileUser = {
@@ -59,7 +63,6 @@ type UserWithRelations = User & {
     papers: number;
     followers: number;
     following: number;
-    comments: number;
   };
 };
 
@@ -182,9 +185,10 @@ export function toProfileUser(
       papers: options.metrics.papersPublished,
       followers: user._count.followers,
       following: user._count.following,
-      citedComments: user._count.comments,
-      totalLikes: options.metrics.totalLikes,
-      paperEngagement: options.metrics.paperEngagement,
+      paperViews: options.metrics.paperViews,
+      paperFollows: options.metrics.paperFollows,
+      commentsOnPapers: options.metrics.commentsOnPapers,
+      followedPapers: options.metrics.followedPapers,
     },
     papers,
     isOwnProfile,
@@ -199,7 +203,6 @@ export const profileInclude = {
       papers: true,
       followers: true,
       following: true,
-      comments: true,
     },
   },
 } as const;

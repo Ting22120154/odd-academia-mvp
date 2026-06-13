@@ -409,23 +409,6 @@ export default function UploadPage() {
     }
   }
 
-  async function shareToSocials(url: string) {
-    try {
-      if (typeof navigator !== "undefined" && "share" in navigator) {
-        await navigator.share({ title: "ODD Academia paper", url });
-        return;
-      }
-    } catch {
-      // fall through
-    }
-    const encoded = encodeURIComponent(url);
-    window.open(
-      `https://www.linkedin.com/sharing/share-offsite/?url=${encoded}`,
-      "_blank",
-      "noopener,noreferrer",
-    );
-  }
-
   if (!isLoggedIn) return null;
 
   return (
@@ -879,18 +862,6 @@ export default function UploadPage() {
                 </svg>
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => shareToSocials(successUrl)}
-              className="mt-4 inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-medium text-white transition hover:bg-emerald-700 hover:opacity-95 hover:ring-2 hover:ring-emerald-400/40 active:opacity-90"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10A15.3 15.3 0 0 1 12 2" />
-              </svg>
-              Share to Socials
-            </button>
           </div>
         </div>
       )}

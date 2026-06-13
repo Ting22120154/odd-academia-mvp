@@ -72,12 +72,9 @@ export async function POST(req: NextRequest) {
     }
     const paper = await prisma.paper.findUnique({
       where: { id: paperId },
-      select: { title: true, authorId: true },
+      select: { title: true },
     }).catch(() => null);
     if (!paper) return NextResponse.json({ error: "Paper not found." }, { status: 404 });
-    if (paper.authorId === reporterId) {
-      return NextResponse.json({ error: "You cannot report your own paper." }, { status: 400 });
-    }
 
     const report = await prisma.paperReport.create({
       data: { paperId, paperTitle: paper.title, reporterId, subject, reason },
