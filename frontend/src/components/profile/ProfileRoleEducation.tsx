@@ -12,7 +12,7 @@ export function ProfileRoleEducation({ jobTitle, education }: Props) {
     <div className="mt-3 space-y-1 text-sm text-zinc-600">
       {jobTitle && (
         <p>
-          <span className="font-medium text-zinc-700">Job role:</span> {jobTitle}
+          <span className="font-medium text-zinc-700">Job title:</span> {jobTitle}
         </p>
       )}
       {education && (

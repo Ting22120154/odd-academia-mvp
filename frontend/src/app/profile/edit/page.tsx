@@ -9,7 +9,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { InterestCategoryPicker } from "@/components/InterestCategoryPicker";
-import { InterestPicker } from "@/components/profile/InterestPicker";
 import { ProfileAvatarPicker } from "@/components/profile/ProfileAvatarPicker";
 import { WORK_STATUS_OPTIONS } from "@/lib/profile-constants";
 import { fetchMyProfile, updateMyProfile } from "@/lib/profile-client";
@@ -200,7 +199,7 @@ export default function ProfileEditPage() {
           <Field label="Username">
             <Input value={form.username} onChange={(e) => set("username", e.target.value)} placeholder="r_smith" />
           </Field>
-          <Field label="Job Role">
+          <Field label="Job Title">
             <Input value={form.jobTitle} onChange={(e) => set("jobTitle", e.target.value)} placeholder="AI Engineer" />
           </Field>
 
@@ -210,16 +209,6 @@ export default function ProfileEditPage() {
           <Field label="LinkedIn">
             <Input value={form.linkedin} onChange={(e) => set("linkedin", e.target.value)} placeholder="https://linkedin.com/in/you" />
           </Field>
-        </div>
-
-        <div className="mt-6 space-y-3">
-          <div className="text-sm font-semibold text-zinc-700">Interests</div>
-          <p className="text-xs text-zinc-500">Same topics as sign-up — tap to add or remove.</p>
-          <InterestPicker
-            compact
-            selected={form.interests}
-            onChange={(next) => set("interests", next)}
-          />
         </div>
 
         <div className="mt-5 space-y-2">

@@ -64,25 +64,28 @@ type UserWithRelations = User & {
 };
 
 const WORK_STATUS_UI: Record<WorkStatus, string> = {
-  open: "Open for Work",
-  not_open: "Not Looking",
+  open: "Employed",
+  not_open: "Seeking employment",
   freelance: "Freelancing",
-  none: "None",
+  none: "Undisclosed",
 };
 
 const WORK_STATUS_DB: Record<string, WorkStatus> = {
+  Employed: "open",
   "Open for Work": "open",
   "Open For Work": "open",
+  "Seeking employment": "not_open",
   "Not Looking": "not_open",
   "Not Open For Work": "not_open",
   Freelancing: "freelance",
   Freelance: "freelance",
   Student: "none",
+  Undisclosed: "none",
   None: "none",
 };
 
 export function workStatusToUi(status: WorkStatus): string {
-  return WORK_STATUS_UI[status] ?? "None";
+  return WORK_STATUS_UI[status] ?? "Undisclosed";
 }
 
 export function workStatusFromUi(label: string): WorkStatus {

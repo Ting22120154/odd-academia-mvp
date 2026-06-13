@@ -343,10 +343,10 @@ export const mockFrontendViewerPosts: FrontendViewerPost[] = papers.map((p, i) =
 // ── Frontend: Current user (profile shape) ────────────────────────────────────
 
 const WORK_STATUS_LABELS: Record<string, string> = {
-  open:      "Open for Work",
-  not_open:  "Not Looking",
+  open:      "Employed",
+  not_open:  "Seeking employment",
   freelance: "Freelancing",
-  none:      "Student",
+  none:      "Undisclosed",
 }
 
 export interface FrontendUser {

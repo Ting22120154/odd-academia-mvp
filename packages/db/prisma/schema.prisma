@@ -72,7 +72,7 @@ model User {
   username          String     @unique
   avatarUrl         String?    @map("avatar_url")
   bio               String?
-  workStatus        WorkStatus @default(open) @map("work_status")
+  workStatus        WorkStatus @default(none) @map("work_status")
   jobTitle          String?    @map("job_title")
   education         String?
   githubUrl         String?    @map("github_url")

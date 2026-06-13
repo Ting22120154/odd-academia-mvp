@@ -1,8 +1,10 @@
 /** UI labels for work status — must match lib/auth/profile.ts WORK_STATUS_DB keys */
 export const WORK_STATUS_OPTIONS = [
-  "Open for Work",
-  "Not Looking",
+  "Employed",
+  "Seeking employment",
   "Freelancing",
   "Student",
-  "None",
+  "Undisclosed",
 ] as const;
+
+export const DEFAULT_WORK_STATUS = "Undisclosed" as const;

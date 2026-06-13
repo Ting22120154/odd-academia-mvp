@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
         username,
         fullName,
         passwordHash,
+        workStatus: "none",
         role: "user", // Never allow self-registration as admin
         notificationSettings: {
           create: DEFAULT_NOTIFICATION_SETTINGS,

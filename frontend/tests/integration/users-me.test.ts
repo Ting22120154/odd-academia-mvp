@@ -50,7 +50,7 @@ describeIfDb("users/me API integration", () => {
           education: "BSc CS",
           github: "https://github.com/test",
           linkedin: "https://linkedin.com/in/test",
-          workStatus: "Open for Work",
+          workStatus: "Employed",
           interests: ["AI", "Technology"],
         },
       }),
@@ -68,7 +68,7 @@ describeIfDb("users/me API integration", () => {
     expect(user.education).toBe("BSc CS");
     expect(user.github).toBe("https://github.com/test");
     expect(user.linkedin).toBe("https://linkedin.com/in/test");
-    expect(user.workStatus).toBe("Open for Work");
+    expect(user.workStatus).toBe("Employed");
     expect(user.interests).toEqual(["AI", "Technology"]);
   });
 

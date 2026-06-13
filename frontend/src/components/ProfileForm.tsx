@@ -1,6 +1,4 @@
-"use client";
-
-import { useMemo, useState } from "react";
+import { WORK_STATUS_OPTIONS } from "@/lib/profile-constants";
 import type { FrontendUser as MockUser } from "@odd-academia/db";
 
 type Props = {
@@ -199,10 +197,11 @@ export function ProfileForm({ user }: Props) {
               }
               className="pr-12"
             >
-              <option>Open for Work</option>
-              <option>Not Looking</option>
-              <option>Freelancing</option>
-              <option>Student</option>
+              {WORK_STATUS_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
             </SelectInput>
             <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
               <Toggle on />

@@ -7,7 +7,10 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { ProfileAvatarPicker } from "@/components/profile/ProfileAvatarPicker";
 import { ProfileInterests } from "@/components/profile/ProfileInterests";
-import { WORK_STATUS_OPTIONS } from "@/lib/profile-constants";
+import {
+  DEFAULT_WORK_STATUS,
+  WORK_STATUS_OPTIONS,
+} from "@/lib/profile-constants";
 import { fetchMyProfile, updateMyProfile } from "@/lib/profile-client";
 
 function GitHubIcon() {
@@ -52,7 +55,7 @@ export default function DetailsPage() {
   const [jobTitle, setJobTitle] = useState("");
   const [linkedin, setLinkedin] = useState("");
   const [bio, setBio] = useState("");
-  const [workStatus, setWorkStatus] = useState<string>("None");
+  const [workStatus, setWorkStatus] = useState<string>(DEFAULT_WORK_STATUS);
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [errors, setErrors] = useState<{ fullName?: string; email?: string }>({});
