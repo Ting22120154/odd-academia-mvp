@@ -245,7 +245,7 @@ function UserProfilePageInner() {
         </div>
       </div>
 
-      <ProfileEngagementMetrics stats={profile.stats} />
+      <ProfileEngagementMetrics stats={profile.stats} profileName={profile.fullName} />
 
       <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
         <div className="mb-4 text-sm font-semibold text-zinc-900">Papers</div>

@@ -9,45 +9,64 @@ type Metric = {
   icon: "papers" | "followers" | "paperViews" | "paperFollows" | "comments" | "followedPapers";
 };
 
-export function ProfileEngagementMetrics({ stats }: { stats: ProfileUser["stats"] }) {
-  const items: Metric[] = [
+function possessive(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "Their";
+  return trimmed.endsWith("s") ? `${trimmed}'` : `${trimmed}'s`;
+}
+
+function buildMetrics(stats: ProfileUser["stats"], profileName: string): Metric[] {
+  const name = profileName.trim() || "This user";
+  const poss = possessive(name);
+
+  return [
     {
       label: "Published papers",
-      description: "Papers you have published",
+      description: `Papers ${name} has published`,
       value: formatCount(stats.papers),
       icon: "papers",
     },
     {
       label: "Followers",
-      description: "People following your profile",
+      description: `People following ${poss} profile`,
       value: formatCount(stats.followers),
       icon: "followers",
     },
     {
-      label: "Views on your papers",
-      description: "Times your papers were opened",
+      label: "Paper views",
+      description: `Times ${poss} papers were opened`,
       value: formatCount(stats.paperViews),
       icon: "paperViews",
     },
     {
-      label: "Follows on your papers",
-      description: "People following your papers",
+      label: "Paper follows",
+      description: `People following ${poss} papers`,
       value: formatCount(stats.paperFollows),
       icon: "paperFollows",
     },
     {
-      label: "Comments on your papers",
-      description: "Comments from other users",
+      label: "Paper comments",
+      description: `Comments from other users on ${poss} papers`,
       value: formatCount(stats.commentsOnPapers),
       icon: "comments",
     },
     {
-      label: "Papers you follow",
-      description: "Published papers you follow",
+      label: "Followed papers",
+      description: `Published papers ${name} follows`,
       value: formatCount(stats.followedPapers),
       icon: "followedPapers",
     },
   ];
+}
+
+export function ProfileEngagementMetrics({
+  stats,
+  profileName,
+}: {
+  stats: ProfileUser["stats"];
+  profileName: string;
+}) {
+  const items = buildMetrics(stats, profileName);
 
   return (
     <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-[var(--shadow-sm)]">
