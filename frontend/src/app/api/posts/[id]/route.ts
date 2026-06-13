@@ -2,21 +2,8 @@ import { revalidatePath } from "next/cache";
 import prisma from "@odd-academia/db/client";
 import { getRouteUserId } from "@/lib/auth/require-auth";
 import { recordUniquePaperView } from "@/lib/papers/record-view";
-
-const paperInclude = {
-  author: {
-    select: {
-      id: true,
-      fullName: true,
-      avatarUrl: true,
-      bio: true,
-    },
-  },
-  keywords: true,
-  categories: true,
-  contributors: true,
-  references: true,
-} as const;
+import { paperInclude } from "@/lib/papers/constants";
+import { resolveContributorsForSave } from "@/lib/papers/contributors";
 
 function parsePublishedAt(value: string | undefined): Date | undefined | null {
   if (value === undefined) return undefined;
@@ -99,14 +86,10 @@ export async function PUT(
   const references = Array.isArray(b.references)
     ? (b.references.filter((x) => typeof x === "string") as string[])
     : undefined;
-  const contributors = Array.isArray(b.contributors)
-    ? (b.contributors.filter(
-        (x) =>
-          x &&
-          typeof x === "object" &&
-          typeof (x as { label?: unknown }).label === "string",
-      ) as { label: string; href?: string }[])
-    : undefined;
+  const contributors =
+    b.contributors !== undefined
+      ? await resolveContributorsForSave(prisma, b.contributors)
+      : undefined;
 
   try {
     const updated = await prisma.$transaction(async (tx) => {
@@ -134,7 +117,8 @@ export async function PUT(
           await tx.paperContributor.createMany({
             data: contributors.map((c) => ({
               paperId: id,
-              contributorName: c.label.trim(),
+              contributorName: c.contributorName,
+              contributorUserId: c.contributorUserId,
             })),
           });
         }

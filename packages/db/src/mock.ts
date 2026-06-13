@@ -304,6 +304,12 @@ const GRADIENTS = [
 
 const DUMMY_PDF = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
 
+export interface PaperContributorView {
+  label: string;
+  userId?: string;
+  avatarUrl?: string;
+}
+
 export interface FrontendViewerPost {
   id:                   string
   title:                string
@@ -313,7 +319,7 @@ export interface FrontendViewerPost {
   authorAvatarUrl?:     string
   authorBio?:           string
   authorJobTitle?:      string
-  contributors?:        string[]
+  contributors?:        PaperContributorView[]
   subject:              string
   categories?:          string[]
   tags?:                string[]

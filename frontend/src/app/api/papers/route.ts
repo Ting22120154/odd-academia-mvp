@@ -2,6 +2,7 @@ import prisma from "@odd-academia/db/client";
 import { getRouteUserId } from "@/lib/auth/require-auth";
 import { paperInclude } from "@/lib/papers/constants";
 import { splitKeywordsAndCategories } from "@/lib/papers/categories";
+import { resolveContributorsForSave } from "@/lib/papers/contributors";
 
 // File uploads: POST /api/papers/upload (multipart/form-data)
 
@@ -88,14 +89,7 @@ export async function POST(req: Request) {
   const doi = typeof b.doi === "string" ? b.doi.trim() || undefined : undefined;
   const publishedAt = parsePublishedAt(b.publishedAt);
 
-  const contributors = Array.isArray(b.contributors)
-    ? (b.contributors.filter(
-        (x) =>
-          x &&
-          typeof x === "object" &&
-          typeof (x as { label?: unknown }).label === "string",
-      ) as { label: string; href?: string }[])
-    : [];
+  const contributors = await resolveContributorsForSave(prisma, b.contributors);
 
   const references = Array.isArray(b.references)
     ? (b.references.filter(
@@ -126,9 +120,7 @@ export async function POST(req: Request) {
         contributors:
           contributors.length > 0
             ? {
-                create: contributors.map((c) => ({
-                  contributorName: c.label.trim(),
-                })),
+                create: contributors,
               }
             : undefined,
         references:

@@ -1,21 +1,8 @@
 import prisma from "@odd-academia/db/client";
 import { getRouteUserId } from "@/lib/auth/require-auth";
 import { splitKeywordsAndCategories } from "@/lib/papers/categories";
-
-const paperInclude = {
-  author: {
-    select: {
-      id: true,
-      fullName: true,
-      avatarUrl: true,
-      bio: true,
-    },
-  },
-  keywords: true,
-  categories: true,
-  contributors: true,
-  references: true,
-} as const;
+import { paperInclude } from "@/lib/papers/constants";
+import { resolveContributorsForSave } from "@/lib/papers/contributors";
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   const n = Number.parseInt(value ?? "", 10);
@@ -96,14 +83,7 @@ export async function POST(req: Request) {
   const references = Array.isArray(b.references)
     ? (b.references.filter((x) => typeof x === "string") as string[])
     : [];
-  const contributors = Array.isArray(b.contributors)
-    ? (b.contributors.filter(
-        (x) =>
-          x &&
-          typeof x === "object" &&
-          typeof (x as { label?: unknown }).label === "string",
-      ) as { label: string; href?: string }[])
-    : [];
+  const contributors = await resolveContributorsForSave(prisma, b.contributors);
 
   let publishedAt: Date | undefined;
   if (publishedDate) {
@@ -131,9 +111,7 @@ export async function POST(req: Request) {
         contributors:
           contributors.length > 0
             ? {
-                create: contributors.map((c) => ({
-                  contributorName: c.label.trim(),
-                })),
+                create: contributors,
               }
             : undefined,
         references:

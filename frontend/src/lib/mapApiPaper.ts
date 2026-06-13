@@ -1,5 +1,6 @@
 import type { MockPost } from "@/lib/mockPosts";
 import { getPaperBrowseCategories } from "@/lib/papers/categories";
+import { mapDbContributors } from "@/lib/papers/contributors";
 
 export type ApiPaperAuthor = {
   id: string;
@@ -20,7 +21,16 @@ export type ApiPaper = {
   author?: ApiPaperAuthor | null;
   keywords?: { keyword: string }[];
   categories?: { category: string }[];
-  contributors?: { contributorName: string }[];
+  contributors?: {
+    contributorName: string;
+    contributorUserId?: string | null;
+    user?: {
+      id: string;
+      fullName: string;
+      username: string;
+      avatarUrl?: string | null;
+    } | null;
+  }[];
   references?: { id: string; citationText: string | null }[];
 };
 
@@ -56,7 +66,7 @@ export function mapApiPaperToViewerPost(paper: ApiPaper): MockPost {
     authorAvatarUrl: paper.author?.avatarUrl ?? "/avatars/profile.svg",
     authorBio: paper.author?.bio ?? undefined,
     authorJobTitle: paper.author?.jobTitle ?? undefined,
-    contributors: paper.contributors?.map((c) => c.contributorName).filter(Boolean) ?? [],
+    contributors: mapDbContributors(paper.contributors ?? []),
     subject,
     categories: browseCategories,
     tags,

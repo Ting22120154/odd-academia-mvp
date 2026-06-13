@@ -539,9 +539,24 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
   const followPaperLabel = followPaperBusy ? "…" : followPaper ? "Following Paper" : "Follow Paper";
   const followAuthorMainLabel = followAuthorBusy ? "…" : followAuthor ? "Following Author" : "Follow Author";
 
-  const contributorLine = (post.contributors ?? []).length
-    ? `Contributions by ${(post.contributors ?? []).join(", ")}`
-    : null;
+  const contributorLine =
+    (post.contributors ?? []).length > 0 ? (
+      <p className="text-sm text-zinc-500">
+        Contributions by{" "}
+        {(post.contributors ?? []).map((c, i) => (
+          <span key={c.userId ?? `${c.label}-${i}`}>
+            {i > 0 ? ", " : null}
+            {c.userId ? (
+              <Link href={`/user/${c.userId}`} className="hover:underline">
+                {c.label}
+              </Link>
+            ) : (
+              c.label
+            )}
+          </span>
+        ))}
+      </p>
+    ) : null;
   const metaTags = [
     formatPaperDate(post.publishedAt),
     ...(post.tags ?? post.categories ?? []).slice(0, 2),
@@ -891,9 +906,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                   )}
                 </p>
               </div>
-              {contributorLine ? (
-                <p className="text-sm text-zinc-500">{contributorLine}</p>
-              ) : null}
+              {contributorLine}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">

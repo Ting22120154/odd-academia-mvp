@@ -11,6 +11,17 @@ export const paperInclude = {
   },
   keywords: true,
   categories: true,
-  contributors: true,
+  contributors: {
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          username: true,
+          avatarUrl: true,
+        },
+      },
+    },
+  },
   references: true,
 } as const;

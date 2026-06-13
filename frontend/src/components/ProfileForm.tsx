@@ -1,3 +1,6 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import { WORK_STATUS_OPTIONS } from "@/lib/profile-constants";
 import type { FrontendUser as MockUser } from "@odd-academia/db";
 

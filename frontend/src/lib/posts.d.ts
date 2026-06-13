@@ -7,7 +7,9 @@ export type Comment = {
 
 export type Contributor = {
   label: string;
+  userId?: string;
   href?: string;
+  avatarUrl?: string;
 };
 
 export type Attachment = {

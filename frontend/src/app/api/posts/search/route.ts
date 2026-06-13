@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import prisma from "@odd-academia/db/client"
+import { paperInclude } from "@/lib/papers/constants"
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -27,13 +28,7 @@ export async function GET(request: NextRequest) {
       skip,
       take: limit,
       orderBy: { publishedAt: "desc" },
-      include: {
-        author: { select: { id: true, fullName: true, avatarUrl: true, bio: true } },
-        keywords: true,
-        categories: true,
-        contributors: true,
-        references: true,
-      },
+      include: paperInclude,
     }),
     prisma.paper.count({ where }),
   ])

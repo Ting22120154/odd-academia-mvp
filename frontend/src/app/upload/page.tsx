@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 import { PAPER_CATEGORIES, type PaperCategory } from "@/lib/papers/categories";
+import { ContributorPicker } from "@/components/papers/ContributorPicker";
+import type { PaperContributorDisplay } from "@/lib/papers/contributors";
 
 const CATEGORY_OPTIONS: PaperCategory[] = [...PAPER_CATEGORIES];
 
@@ -174,7 +176,7 @@ export default function UploadPage() {
   const [selectedCategories, setSelectedCategories] = useState<PaperCategory[]>([]);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [abstract, setAbstract] = useState("");
-  const [contributors, setContributors] = useState("");
+  const [contributors, setContributors] = useState<PaperContributorDisplay[]>([]);
   const [doi, setDoi] = useState("");
 
   const [refQuery, setRefQuery] = useState("");
@@ -324,11 +326,10 @@ export default function UploadPage() {
     const uploadPdf = file;
     if (!uploadPdf) return;
 
-    const contributorList = contributors
-      .split(",")
-      .map((name) => name.trim())
-      .filter(Boolean)
-      .map((label) => ({ label }));
+    const contributorList = contributors.map((c) => ({
+      label: c.label,
+      ...(c.userId ? { userId: c.userId } : {}),
+    }));
 
     const publishedDate =
       published.trim() || new Date().toISOString().split("T")[0];
@@ -553,7 +554,7 @@ export default function UploadPage() {
         ) : null}
         </div>
 
-        {/* ── Title + Published ── */}
+        {/* ── Title + Publication date ── */}
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="space-y-2">
             <div className="text-sm font-semibold text-zinc-900">Title</div>
@@ -580,7 +581,10 @@ export default function UploadPage() {
             ) : null}
           </div>
           <div className="space-y-2">
-            <div className="text-sm font-semibold text-zinc-900">Published</div>
+            <div className="text-sm font-semibold text-zinc-900">
+              Publication date
+              <span className="ml-1.5 font-normal text-zinc-400">(DD/MM/YYYY)</span>
+            </div>
             <div className="relative">
               <input
                 ref={dateInputRef}
@@ -720,11 +724,10 @@ export default function UploadPage() {
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="space-y-2">
             <div className="text-sm font-semibold text-zinc-900">Contributors</div>
-            <input
+            <ContributorPicker
               value={contributors}
-              onChange={(e) => setContributors(e.target.value)}
-              placeholder="Optional"
-              className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-black/20"
+              onChange={setContributors}
+              excludeUserId={user?.id}
             />
           </div>
           <div className="space-y-2">

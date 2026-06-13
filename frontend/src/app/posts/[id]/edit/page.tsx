@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { PAPER_CATEGORIES as CATEGORIES, type PaperCategory as PostCategory } from "@/lib/papers/categories";
+import { ContributorPicker } from "@/components/papers/ContributorPicker";
+import { mapPrismaContributorsToTags } from "@/lib/papers/contributors";
+import type { PaperContributorDisplay } from "@/lib/papers/contributors";
 
-type ContributorTag = {
-  label: string;
-  href?: string;
-};
+type ContributorTag = PaperContributorDisplay;
 
 type Attachment = {
   fileName: string;
@@ -81,7 +81,6 @@ export default function EditPaperPage() {
   const [categories, setCategories] = useState<PostCategory[]>([]);
   const [abstract, setAbstract] = useState("");
   const [anonymous, setAnonymous] = useState(false);
-  const [contributorsInput, setContributorsInput] = useState("");
   const [contributors, setContributors] = useState<ContributorTag[]>([]);
   const [doi, setDoi] = useState("");
   const [referenceInput, setReferenceInput] = useState("");
@@ -110,7 +109,7 @@ export default function EditPaperPage() {
         setPublished(post.publishedDate ?? "");
         setDoi(post.doi ?? "");
         setReferences(Array.isArray(post.references) ? post.references : []);
-        setContributors(Array.isArray(post.contributors) ? post.contributors : []);
+        setContributors(mapPrismaContributorsToTags(post.contributors));
         setExistingAttachment(post.attachment ?? null);
         setAnonymous(post.author?.name === "Anonymous");
 
@@ -181,20 +180,6 @@ export default function EditPaperPage() {
     setReferences((prev) => prev.filter((c) => c !== citation));
   }
 
-  function addContributor(raw: string) {
-    const trimmed = raw.trim();
-    if (!trimmed) return;
-    const tag: ContributorTag = { label: trimmed };
-    setContributors((prev) =>
-      prev.some((c) => c.label.toLowerCase() === tag.label.toLowerCase()) ? prev : [...prev, tag],
-    );
-    setContributorsInput("");
-  }
-
-  function removeContributor(label: string) {
-    setContributors((prev) => prev.filter((c) => c.label !== label));
-  }
-
   async function copyLink(url: string) {
     try {
       await navigator.clipboard.writeText(url);
@@ -256,7 +241,10 @@ export default function EditPaperPage() {
           publishedDate: published || undefined,
           doi: doi.trim() || undefined,
           references,
-          contributors,
+          contributors: contributors.map((c) => ({
+            label: c.label,
+            ...(c.userId ? { userId: c.userId } : {}),
+          })),
           author: {
             name: anonymous ? "Anonymous" : user?.fullName || "User",
           },
@@ -436,7 +424,10 @@ export default function EditPaperPage() {
             />
           </div>
           <div className="space-y-2">
-            <div className="text-sm font-semibold text-zinc-900">Published</div>
+            <div className="text-sm font-semibold text-zinc-900">
+              Publication date
+              <span className="ml-1.5 font-normal text-zinc-400">(DD/MM/YYYY)</span>
+            </div>
             <input
               type="date"
               value={published}
@@ -552,44 +543,11 @@ export default function EditPaperPage() {
 
           <div className="space-y-2">
             <div className="text-sm font-semibold text-zinc-900">Contributors</div>
-            <input
-              value={contributorsInput}
-              onChange={(e) => setContributorsInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addContributor(contributorsInput);
-                }
-              }}
-              placeholder="Optional"
-              className="h-11 w-full rounded-xl border border-black/[0.08] bg-white px-4 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-black/20"
+            <ContributorPicker
+              value={contributors}
+              onChange={setContributors}
+              excludeUserId={user?.id}
             />
-            {contributors.length ? (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {contributors.map((c) => (
-                  <span
-                    key={c.label}
-                    className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-1 text-xs text-zinc-700"
-                  >
-                    {c.href ? (
-                      <a href={c.href} className="hover:underline">
-                        {c.label}
-                      </a>
-                    ) : (
-                      c.label
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => removeContributor(c.label)}
-                      className="text-zinc-500 hover:text-zinc-900"
-                      aria-label={`Remove ${c.label}`}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : null}
           </div>
 
           <div className="space-y-2">

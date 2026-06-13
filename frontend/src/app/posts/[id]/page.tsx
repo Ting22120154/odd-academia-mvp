@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import type { Post } from "@/lib/posts";
+import { mapContributorsForPostPage } from "@/lib/papers/contributors";
 
 function getThumbSrc(id: number) {
   return `/post-thumbs/thumb-${((id - 1) % 6) + 1}.svg`;
@@ -37,7 +38,11 @@ export default async function LegacyPostDetailPage({
   if (!postRes.ok) {
     redirect(`/paper/${id}`);
   }
-  const post = (await postRes.json()) as Post;
+  const postRaw = (await postRes.json()) as Record<string, unknown>;
+  const post = {
+    ...(postRaw as Post),
+    contributors: mapContributorsForPostPage(postRaw.contributors),
+  };
 
   const relatedRes = await fetch(`${origin}/api/posts`, { cache: "no-store" });
   const relatedAll = (relatedRes.ok ? ((await relatedRes.json()) as Post[]) : []) ?? [];
@@ -128,10 +133,10 @@ export default async function LegacyPostDetailPage({
                     <div className="text-xs font-medium text-zinc-500">Contributors</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {post.contributors.map((c) =>
-                        c.href ? (
+                        c.href || c.userId ? (
                           <Link
                             key={c.label}
-                            href={c.href}
+                            href={c.href ?? `/user/${c.userId}`}
                             className="rounded-full bg-zinc-100 px-3 py-1 text-xs text-zinc-700 hover:underline"
                           >
                             {c.label}

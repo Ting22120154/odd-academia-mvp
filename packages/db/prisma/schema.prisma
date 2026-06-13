@@ -107,6 +107,7 @@ model User {
   paperReports         PaperReport[]         @relation("PaperReporter")
   moderationLogs       ModerationLog[]
   paperViews           PaperView[]
+  paperContributions   PaperContributor[] @relation("PaperContributions")
 
   @@index([role])
   @@index([createdAt])
@@ -194,13 +195,16 @@ model PaperCategory {
 }
 
 model PaperContributor {
-  id              String @id @default(uuid())
-  paperId         String @map("paper_id")
-  contributorName String @map("contributor_name")
+  id                String  @id @default(uuid())
+  paperId           String  @map("paper_id")
+  contributorName   String  @map("contributor_name")
+  contributorUserId String? @map("contributor_user_id")
 
   paper Paper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  user  User? @relation("PaperContributions", fields: [contributorUserId], references: [id], onDelete: SetNull)
 
   @@index([paperId])
+  @@index([contributorUserId])
   @@map("paper_contributors")
 }
 
