@@ -275,6 +275,28 @@ function initials(name: string) {
   return (a + b).toUpperCase();
 }
 
+const profileNameLinkClass =
+  "text-sm font-semibold text-[var(--brand)] underline underline-offset-2 hover:opacity-80";
+
+function ProfileNameLink({
+  userId,
+  name,
+  className = profileNameLinkClass,
+}: {
+  userId: string;
+  name: string;
+  className?: string;
+}) {
+  if (isValidUserId(userId)) {
+    return (
+      <Link href={`/user/${userId}`} className={className}>
+        {name}
+      </Link>
+    );
+  }
+  return <span className="text-sm font-semibold text-zinc-900">{name}</span>;
+}
+
 function Chip({ icon, children }: { icon: string; children: React.ReactNode }) {
   return (
     <span className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600">
@@ -546,8 +568,8 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
         {(post.contributors ?? []).map((c, i) => (
           <span key={c.userId ?? `${c.label}-${i}`}>
             {i > 0 ? ", " : null}
-            {c.userId ? (
-              <Link href={`/user/${c.userId}`} className="hover:underline">
+            {c.userId && isValidUserId(c.userId) ? (
+              <Link href={`/user/${c.userId}`} className={profileNameLinkClass}>
                 {c.label}
               </Link>
             ) : (
@@ -1084,7 +1106,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
-                          <div className="text-sm font-semibold text-zinc-900">{c.name}</div>
+                          <ProfileNameLink userId={c.authorId} name={c.name} />
                           <div className="text-xs text-zinc-400">{c.time}</div>
                         </div>
                         {editingCommentId === c.id ? (
@@ -1194,7 +1216,7 @@ export function PaperDetailClient({ post, commentsPaperId, relatedPosts = [] }: 
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-baseline gap-2">
-                                <div className="text-sm font-semibold text-zinc-900">{r.name}</div>
+                                <ProfileNameLink userId={r.authorId} name={r.name} />
                                 <div className="text-xs text-zinc-400">{r.time}</div>
                               </div>
                               {editingCommentId === r.id ? (
