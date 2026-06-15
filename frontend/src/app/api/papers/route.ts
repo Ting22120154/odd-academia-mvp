@@ -3,6 +3,7 @@ import { getRouteUserId } from "@/lib/auth/require-auth";
 import { paperInclude } from "@/lib/papers/constants";
 import { splitKeywordsAndCategories } from "@/lib/papers/categories";
 import { resolveContributorsForSave } from "@/lib/papers/contributors";
+import { ABSTRACT_MAX_WORDS, isAbstractWithinWordLimit } from "@/lib/papers/abstract";
 
 // File uploads: POST /api/papers/upload (multipart/form-data)
 
@@ -74,6 +75,12 @@ export async function POST(req: Request) {
   }
   if (typeof b.abstract !== "string" || !b.abstract.trim()) {
     return Response.json({ error: "Missing required field: abstract" }, { status: 400 });
+  }
+  if (!isAbstractWithinWordLimit(b.abstract)) {
+    return Response.json(
+      { error: `Abstract must be at most ${ABSTRACT_MAX_WORDS} words.` },
+      { status: 400 },
+    );
   }
 
   const rawKeywords = Array.isArray(b.keywords)

@@ -4,6 +4,7 @@ import { getRouteUserId } from "@/lib/auth/require-auth";
 import { recordUniquePaperView } from "@/lib/papers/record-view";
 import { paperInclude } from "@/lib/papers/constants";
 import { resolveContributorsForSave } from "@/lib/papers/contributors";
+import { ABSTRACT_MAX_WORDS, isAbstractWithinWordLimit } from "@/lib/papers/abstract";
 
 function parsePublishedAt(value: string | undefined): Date | undefined | null {
   if (value === undefined) return undefined;
@@ -90,6 +91,16 @@ export async function PUT(
     b.contributors !== undefined
       ? await resolveContributorsForSave(prisma, b.contributors)
       : undefined;
+
+  if (typeof b.content === "string") {
+    const next = b.content.trim();
+    if (next && !isAbstractWithinWordLimit(next)) {
+      return Response.json(
+        { error: `Abstract must be at most ${ABSTRACT_MAX_WORDS} words.` },
+        { status: 400 },
+      );
+    }
+  }
 
   try {
     const updated = await prisma.$transaction(async (tx) => {

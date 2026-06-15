@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 import { PAPER_CATEGORIES, type PaperCategory } from "@/lib/papers/categories";
+import {
+  ABSTRACT_MAX_WORDS,
+  countWords,
+  trimToMaxWords,
+} from "@/lib/papers/abstract";
 import { ContributorPicker } from "@/components/papers/ContributorPicker";
 import type { PaperContributorDisplay } from "@/lib/papers/contributors";
 
@@ -202,7 +207,7 @@ export default function UploadPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const abstractCount = useMemo(() => Math.min(abstract.length, 200), [abstract]);
+  const abstractWordCount = useMemo(() => countWords(abstract), [abstract]);
 
   const isPdfFile = useCallback((f: File) => {
     const name = f.name.toLowerCase();
@@ -682,7 +687,9 @@ export default function UploadPage() {
             <textarea
               value={abstract}
               onChange={(e) => {
-                const next = e.target.value.slice(0, 200);
+                const raw = e.target.value;
+                const next =
+                  countWords(raw) <= ABSTRACT_MAX_WORDS ? raw : trimToMaxWords(raw);
                 setAbstract(next);
                 if (next.trim()) {
                   setFieldErrors((prev) => clearFieldError(prev, "abstract"));
@@ -693,7 +700,7 @@ export default function UploadPage() {
               className="min-h-[140px] w-full resize-none bg-transparent px-1 py-1 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none"
             />
             <div className="text-right text-[11px] text-zinc-400">
-              {abstractCount}/200
+              {abstractWordCount}/{ABSTRACT_MAX_WORDS} words
             </div>
           </div>
           {fieldErrors.abstract ? (

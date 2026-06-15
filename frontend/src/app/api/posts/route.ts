@@ -3,6 +3,7 @@ import { getRouteUserId } from "@/lib/auth/require-auth";
 import { splitKeywordsAndCategories } from "@/lib/papers/categories";
 import { paperInclude } from "@/lib/papers/constants";
 import { resolveContributorsForSave } from "@/lib/papers/contributors";
+import { ABSTRACT_MAX_WORDS, isAbstractWithinWordLimit } from "@/lib/papers/abstract";
 
 function parsePositiveInt(value: string | null, fallback: number): number {
   const n = Number.parseInt(value ?? "", 10);
@@ -67,6 +68,15 @@ export async function POST(req: Request) {
   }
 
   const content = typeof b.content === "string" ? b.content : "";
+  if (!content.trim()) {
+    return Response.json({ error: "Missing required field: content" }, { status: 400 });
+  }
+  if (!isAbstractWithinWordLimit(content)) {
+    return Response.json(
+      { error: `Abstract must be at most ${ABSTRACT_MAX_WORDS} words.` },
+      { status: 400 },
+    );
+  }
   const rawKeywords = Array.isArray(b.keywords)
     ? (b.keywords.filter((x) => typeof x === "string") as string[])
     : [];

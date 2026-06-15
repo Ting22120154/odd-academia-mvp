@@ -5,6 +5,11 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { PAPER_CATEGORIES as CATEGORIES, type PaperCategory as PostCategory } from "@/lib/papers/categories";
+import {
+  ABSTRACT_MAX_WORDS,
+  countWords,
+  trimToMaxWords,
+} from "@/lib/papers/abstract";
 import { ContributorPicker } from "@/components/papers/ContributorPicker";
 import { mapPrismaContributorsToTags } from "@/lib/papers/contributors";
 import type { PaperContributorDisplay } from "@/lib/papers/contributors";
@@ -90,7 +95,7 @@ export default function EditPaperPage() {
   const [error, setError] = useState<string | null>(null);
   const [successUrl, setSuccessUrl] = useState<string | null>(null);
 
-  const abstractCount = useMemo(() => Math.min(abstract.length, 200), [abstract]);
+  const abstractWordCount = useMemo(() => countWords(abstract), [abstract]);
 
   useEffect(() => {
     async function load() {
@@ -493,11 +498,18 @@ export default function EditPaperPage() {
           <div className="rounded-2xl border border-black/[0.08] bg-white p-3">
             <textarea
               value={abstract}
-              onChange={(e) => setAbstract(e.target.value.slice(0, 200))}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setAbstract(
+                  countWords(raw) <= ABSTRACT_MAX_WORDS ? raw : trimToMaxWords(raw),
+                );
+              }}
               placeholder="Explain your research to your audience in a simple way so anyone without assumed knowledge can understand"
               className="min-h-[164px] w-full resize-none bg-transparent px-1 py-1 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none"
             />
-            <div className="text-right text-[11px] text-zinc-400">{abstractCount}/200</div>
+            <div className="text-right text-[11px] text-zinc-400">
+              {abstractWordCount}/{ABSTRACT_MAX_WORDS} words
+            </div>
           </div>
         </div>
 
