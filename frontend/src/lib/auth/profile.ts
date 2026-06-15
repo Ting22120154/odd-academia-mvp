@@ -5,9 +5,10 @@
  * - Stats: followers/following via _count; engagement metrics via profile-metrics
  */
 import type { Paper, User, WorkStatus } from "@prisma/client";
-import { toApiRole } from "@/lib/auth/user";
+import { toApiRole, resolveAvatarUrl } from "@/lib/auth/user";
 import type { ProfileMetrics } from "@/lib/auth/profile-metrics";
 import { getPaperBrowseCategories } from "@/lib/papers/categories";
+import { normalizeProfileInterests } from "@/lib/interests";
 
 export type ProfileVisibility = "PUBLIC" | "PRIVATE";
 
@@ -92,7 +93,12 @@ export function workStatusToUi(status: WorkStatus): string {
 }
 
 export function workStatusFromUi(label: string): WorkStatus {
-  return WORK_STATUS_DB[label] ?? "none";
+  const trimmed = label.trim();
+  if (WORK_STATUS_DB[trimmed]) return WORK_STATUS_DB[trimmed];
+  const match = Object.keys(WORK_STATUS_DB).find(
+    (key) => key.toLowerCase() === trimmed.toLowerCase(),
+  );
+  return match ? WORK_STATUS_DB[match]! : "none";
 }
 
 export function visibilityToUi(publicFlag: boolean): ProfileVisibility {
@@ -170,7 +176,7 @@ export function toProfileUser(
     id: user.id,
     fullName: user.fullName,
     username: user.username,
-    avatarUrl: user.avatarUrl ?? undefined,
+    avatarUrl: resolveAvatarUrl(user.id, user.avatarUrl),
     bio: user.bio ?? undefined,
     education: user.education ?? undefined,
     jobTitle: user.jobTitle ?? undefined,
@@ -178,7 +184,7 @@ export function toProfileUser(
     profileVisibility: visibilityToUi(user.profileVisibility),
     github: user.githubUrl ?? undefined,
     linkedin: user.linkedinUrl ?? undefined,
-    interests: user.interests.map((i) => i.interest.name),
+    interests: normalizeProfileInterests(user.interests.map((i) => i.interest.name)),
     role: toApiRole(user.role),
     email: options.includeEmail ? user.email : undefined,
     stats: {

@@ -2,7 +2,6 @@
 
 /**
  * Edit own profile — loads GET /api/users/me, saves PATCH /api/users/me.
- * Email is read-only; avatar upload not implemented yet.
  */
 
 import { useEffect, useState } from "react";
@@ -12,6 +11,7 @@ import { InterestCategoryPicker } from "@/components/InterestCategoryPicker";
 import { ProfileAvatarPicker } from "@/components/profile/ProfileAvatarPicker";
 import { WORK_STATUS_OPTIONS } from "@/lib/profile-constants";
 import { fetchMyProfile, updateMyProfile } from "@/lib/profile-client";
+import { normalizeProfileInterests } from "@/lib/interests";
 
 type FormState = {
   fullName: string;
@@ -63,7 +63,7 @@ export default function ProfileEditPage() {
         github: user.github ?? "",
         linkedin: user.linkedin ?? "",
         bio: user.bio ?? "",
-        interests: user.interests,
+        interests: normalizeProfileInterests(user.interests),
       });
       setLoading(false);
     })();
@@ -92,7 +92,7 @@ export default function ProfileEditPage() {
       github: form.github,
       linkedin: form.linkedin,
       bio: form.bio,
-      interests: form.interests,
+      interests: normalizeProfileInterests(form.interests),
     });
 
     setSaving(false);

@@ -1,10 +1,21 @@
 import { readFile } from "fs/promises";
-import path from "path";
 import { prisma } from "@/lib/prisma";
+import {
+  AVATAR_EXTENSIONS,
+  avatarDiskPath,
+  avatarBlobPath,
+} from "@/lib/auth/avatar-storage";
 import { fetchBlobBuffer, isBlobUrl } from "@/lib/storage/blob";
 
-function localAvatarPath(userId: string) {
-  return path.join(process.cwd(), "public", "uploads", "avatars", `${userId}.jpg`);
+async function loadAvatarBlob(userId: string) {
+  for (const ext of AVATAR_EXTENSIONS) {
+    try {
+      return await fetchBlobBuffer(avatarBlobPath(userId, ext));
+    } catch {
+      // try next extension
+    }
+  }
+  throw new Error("Avatar blob not found");
 }
 
 /** GET /api/users/:id/avatar — serve avatar (local disk or private Blob) */
@@ -25,7 +36,7 @@ export async function GET(
 
   try {
     if (isBlobUrl(user.avatarUrl) || user.avatarUrl.startsWith("/api/users/")) {
-      const { buffer, contentType } = await fetchBlobBuffer(`avatars/${id}.jpg`);
+      const { buffer, contentType } = await loadAvatarBlob(id);
       return new Response(new Uint8Array(buffer), {
         headers: {
           "Content-Type": contentType,
@@ -35,13 +46,22 @@ export async function GET(
     }
 
     if (user.avatarUrl.startsWith("/uploads/avatars/")) {
-      const buffer = await readFile(localAvatarPath(id));
-      return new Response(new Uint8Array(buffer), {
-        headers: {
-          "Content-Type": "image/jpeg",
-          "Cache-Control": "private, max-age=3600",
-        },
-      });
+      for (const ext of AVATAR_EXTENSIONS) {
+        try {
+          const buffer = await readFile(avatarDiskPath(id, ext));
+          const contentType =
+            ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+          return new Response(new Uint8Array(buffer), {
+            headers: {
+              "Content-Type": contentType,
+              "Cache-Control": "private, max-age=3600",
+            },
+          });
+        } catch {
+          // try next extension
+        }
+      }
+      return new Response("Not found", { status: 404 });
     }
 
     return Response.redirect(user.avatarUrl, 302);

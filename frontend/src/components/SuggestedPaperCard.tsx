@@ -83,6 +83,39 @@ function CoverImage({
   );
 }
 
+function UserAvatar({
+  name,
+  src,
+  className = "h-8 w-8",
+}: {
+  name: string;
+  src?: string;
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const initial = name.trim().charAt(0).toUpperCase() || "?";
+
+  if (src && !failed) {
+    return (
+      /* eslint-disable-next-line @next/next/no-img-element */
+      <img
+        src={src}
+        alt=""
+        className={`${className} shrink-0 rounded-full object-cover bg-zinc-200`}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <span
+      className={`${className} flex shrink-0 items-center justify-center rounded-full bg-zinc-200 text-xs font-semibold text-zinc-700`}
+    >
+      {initial}
+    </span>
+  );
+}
+
 /**
  * Figma-style paper card: topical cover photo + title, summary, tags, author.
  */
@@ -105,7 +138,7 @@ export function SuggestedPaperCard({ post, eager }: Props) {
           : []
   ).slice(0, 2);
 
-  const initial = post.authorName.trim().charAt(0).toUpperCase() || "?";
+  const contributors = post.contributors ?? [];
 
   return (
     <li className="group relative list-none">
@@ -138,15 +171,16 @@ export function SuggestedPaperCard({ post, eager }: Props) {
             ))}
           </div>
 
-          <div className="mt-auto flex items-center justify-between pt-1">
+          <div className="mt-auto space-y-1.5 pt-1">
             <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-200 text-xs font-semibold text-zinc-700">
-                {initial}
-              </span>
-              <span className="text-sm font-medium text-zinc-800">
-                {post.authorName}
-              </span>
+              <UserAvatar name={post.authorName} src={post.authorAvatarUrl} />
+              <span className="text-sm font-medium text-zinc-800">{post.authorName}</span>
             </div>
+            {contributors.length > 0 ? (
+              <p className="text-xs leading-snug text-zinc-500 line-clamp-2">
+                Contributions by {contributors.map((c) => c.label).join(", ")}
+              </p>
+            ) : null}
           </div>
         </div>
       </Link>

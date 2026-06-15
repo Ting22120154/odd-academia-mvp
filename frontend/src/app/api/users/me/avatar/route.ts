@@ -4,27 +4,18 @@ import { fileTypeFromBuffer } from "file-type";
 import { prisma } from "@/lib/prisma";
 import { requireAuthPayload } from "@/lib/auth/require-auth";
 import { ok, err } from "@/lib/response";
+import {
+  AVATAR_MIME_TO_EXT,
+  avatarApiUrl,
+  avatarDiskPath,
+  avatarBlobPath,
+  avatarPublicUrl,
+  deleteStoredAvatarBlobs,
+} from "@/lib/auth/avatar-storage";
 import { deleteBlob, isBlobUrl, uploadBlob, useBlobStorage } from "@/lib/storage/blob";
 
-function avatarApiUrl(userId: string) {
-  return `/api/users/${userId}/avatar`;
-}
-
-function avatarBlobPath(userId: string) {
-  return `avatars/${userId}.jpg`;
-}
-
 const MAX_BYTES = 2 * 1024 * 1024;
-const ALLOWED_MIME = "image/jpeg";
-const ALLOWED_EXT = new Set([".jpg", ".jpeg"]);
-
-function avatarDiskPath(userId: string) {
-  return path.join(process.cwd(), "public", "uploads", "avatars", `${userId}.jpg`);
-}
-
-function avatarPublicUrl(userId: string) {
-  return `/uploads/avatars/${userId}.jpg`;
-}
+const ALLOWED_MIMES = new Set(Object.keys(AVATAR_MIME_TO_EXT));
 
 export async function POST(req: Request) {
   const auth = await requireAuthPayload();
@@ -47,22 +38,13 @@ export async function POST(req: Request) {
     return err("File too large. Max size is 2MB.", 400);
   }
 
-  const nameExt = path.extname(file.name).toLowerCase();
-  if (nameExt && !ALLOWED_EXT.has(nameExt)) {
-    return err("Only .jpg and .jpeg images are allowed.", 400);
-  }
-
   const buffer = Buffer.from(await file.arrayBuffer());
   const detected = await fileTypeFromBuffer(buffer);
-  if (!detected || detected.mime !== ALLOWED_MIME) {
-    return err("Only JPEG images are allowed.", 400);
+  if (!detected || !ALLOWED_MIMES.has(detected.mime)) {
+    return err("Only JPEG, PNG, or WebP images are allowed.", 400);
   }
 
-  const declaredType = file.type?.trim();
-  if (declaredType && declaredType !== ALLOWED_MIME) {
-    return err("Only JPEG images are allowed.", 400);
-  }
-
+  const ext = AVATAR_MIME_TO_EXT[detected.mime]!;
   const userId = auth.payload.sub;
   const existing = await prisma.user.findUnique({
     where: { id: userId },
@@ -74,20 +56,27 @@ export async function POST(req: Request) {
     try {
       if (existing?.avatarUrl && isBlobUrl(existing.avatarUrl)) {
         await deleteBlob(existing.avatarUrl);
-      } else {
-        await deleteBlob(avatarBlobPath(userId));
       }
     } catch {
-      // blob may not exist yet
+      // ignore
     }
-    await uploadBlob(avatarBlobPath(userId), buffer, ALLOWED_MIME);
+    await deleteStoredAvatarBlobs(userId);
+    await uploadBlob(avatarBlobPath(userId, ext), buffer, detected.mime);
     avatarUrl = avatarApiUrl(userId);
   } else {
-    const diskPath = avatarDiskPath(userId);
+    const diskPath = avatarDiskPath(userId, ext);
     await mkdir(path.dirname(diskPath), { recursive: true });
+    for (const oldExt of ["jpg", "png", "webp"]) {
+      try {
+        await unlink(avatarDiskPath(userId, oldExt));
+      } catch {
+        // ignore
+      }
+    }
     await writeFile(diskPath, buffer);
-    avatarUrl = avatarPublicUrl(userId);
+    avatarUrl = avatarPublicUrl(userId, ext);
   }
+
   await prisma.user.update({
     where: { id: userId },
     data: { avatarUrl },
@@ -110,18 +99,18 @@ export async function DELETE() {
     try {
       if (existing?.avatarUrl && isBlobUrl(existing.avatarUrl)) {
         await deleteBlob(existing.avatarUrl);
-      } else {
-        await deleteBlob(avatarBlobPath(userId));
       }
     } catch {
       // ignore
     }
+    await deleteStoredAvatarBlobs(userId);
   } else {
-    const diskPath = avatarDiskPath(userId);
-    try {
-      await unlink(diskPath);
-    } catch {
-      // file may not exist
+    for (const ext of ["jpg", "png", "webp"]) {
+      try {
+        await unlink(avatarDiskPath(userId, ext));
+      } catch {
+        // ignore
+      }
     }
   }
 

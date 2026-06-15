@@ -9,7 +9,7 @@ type Props = {
   size?: "sm" | "md";
 };
 
-const JPEG_ACCEPT = "image/jpeg,.jpg,.jpeg";
+const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp";
 
 export function ProfileAvatarPicker({ avatarUrl, onAvatarChange, size = "md" }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,7 +68,7 @@ export function ProfileAvatarPicker({ avatarUrl, onAvatarChange, size = "md" }: 
       <input
         ref={inputRef}
         type="file"
-        accept={JPEG_ACCEPT}
+        accept={IMAGE_ACCEPT}
         className="hidden"
         onChange={(e) => void onFile(e.target.files?.[0])}
       />
@@ -95,7 +95,7 @@ export function ProfileAvatarPicker({ avatarUrl, onAvatarChange, size = "md" }: 
           </>
         )}
       </div>
-      <p className="mt-1 text-xs text-gray-400">JPEG (.jpg / .jpeg) only, max 2MB</p>
+      <p className="mt-1 text-xs text-gray-400">JPEG, PNG, or WebP — max 2MB</p>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );

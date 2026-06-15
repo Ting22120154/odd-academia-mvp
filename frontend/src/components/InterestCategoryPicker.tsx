@@ -1,23 +1,25 @@
 "use client";
 
-import { INTEREST_OPTIONS } from "@/lib/interests";
+import { INTEREST_OPTIONS, normalizeProfileInterests } from "@/lib/interests";
+import { normalizeCategory } from "@/lib/papers/categories";
 
 type Props = {
   selected: string[];
   onChange: (next: string[]) => void;
 };
-
 /** Multi-select interests via dropdown + chips (matches onboarding categories). */
 export function InterestCategoryPicker({ selected, onChange }: Props) {
-  const available = INTEREST_OPTIONS.filter((o) => !selected.includes(o.label));
+  const canonicalSelected = normalizeProfileInterests(selected);
+  const available = INTEREST_OPTIONS.filter((o) => !canonicalSelected.includes(o.label));
 
   function addInterest(label: string) {
-    if (!label || selected.includes(label)) return;
-    onChange([...selected, label]);
+    const canonical = normalizeCategory(label);
+    if (!canonical || canonicalSelected.includes(canonical)) return;
+    onChange([...canonicalSelected, canonical]);
   }
 
   function removeInterest(label: string) {
-    onChange(selected.filter((i) => i !== label));
+    onChange(canonicalSelected.filter((i) => i !== label));
   }
 
   return (
@@ -36,9 +38,9 @@ export function InterestCategoryPicker({ selected, onChange }: Props) {
         ))}
       </select>
 
-      {selected.length > 0 ? (
+      {canonicalSelected.length > 0 ? (
         <div className="flex flex-wrap gap-2">
-          {selected.map((label) => {
+          {canonicalSelected.map((label) => {
             const opt = INTEREST_OPTIONS.find((o) => o.label === label);
             return (
               <span

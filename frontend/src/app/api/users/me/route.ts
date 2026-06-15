@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuthPayload } from "@/lib/auth/require-auth";
 import { loadProfile } from "@/lib/auth/load-profile";
 import { visibilityFromUi, workStatusFromUi } from "@/lib/auth/profile";
+import { interestIcon, normalizeProfileInterests } from "@/lib/interests";
 import { ok, err } from "@/lib/response";
 
 export async function GET() {
@@ -69,18 +70,15 @@ export async function PATCH(req: NextRequest) {
       }
 
       if (Array.isArray(body.interests)) {
-        const names = (body.interests as unknown[])
-          .map((n) => String(n).trim())
-          .filter(Boolean)
-          .slice(0, 30);
+        const names = normalizeProfileInterests(body.interests);
 
         await tx.userInterest.deleteMany({ where: { userId: payload.sub } });
 
         for (const name of names) {
           const interest = await tx.interest.upsert({
             where: { name },
-            update: {},
-            create: { name, icon: "📌" },
+            update: { icon: interestIcon(name) },
+            create: { name, icon: interestIcon(name) },
           });
           await tx.userInterest.create({
             data: { userId: payload.sub, interestId: interest.id },

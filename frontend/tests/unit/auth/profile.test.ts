@@ -17,6 +17,8 @@ describe("profile mappers", () => {
     expect(workStatusFromUi("Freelancing")).toBe("freelance");
     expect(workStatusFromUi("Freelance")).toBe("freelance");
     expect(workStatusFromUi("Undisclosed")).toBe("none");
+    expect(workStatusFromUi("employed")).toBe("open");
+    expect(workStatusFromUi("SEEKING EMPLOYMENT")).toBe("not_open");
     expect(workStatusFromUi("Unknown")).toBe("none");
   });
 

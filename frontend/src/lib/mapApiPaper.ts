@@ -1,4 +1,5 @@
 import type { MockPost } from "@/lib/mockPosts";
+import { resolveAvatarUrl } from "@/lib/auth/user";
 import { getPaperBrowseCategories } from "@/lib/papers/categories";
 import { mapDbContributors } from "@/lib/papers/contributors";
 import { ABSTRACT_SUMMARY_MAX_WORDS, truncateToMaxWords } from "@/lib/papers/abstract";
@@ -64,7 +65,9 @@ export function mapApiPaperToViewerPost(paper: ApiPaper): MockPost {
     summary: truncateToMaxWords(abstract, ABSTRACT_SUMMARY_MAX_WORDS),
     authorId: paper.author?.id,
     authorName: paper.author?.fullName ?? "Unknown",
-    authorAvatarUrl: paper.author?.avatarUrl ?? "/avatars/profile.svg",
+    authorAvatarUrl: paper.author?.id
+      ? resolveAvatarUrl(paper.author.id, paper.author.avatarUrl) ?? "/avatars/profile.svg"
+      : "/avatars/profile.svg",
     authorBio: paper.author?.bio ?? undefined,
     authorJobTitle: paper.author?.jobTitle ?? undefined,
     contributors: mapDbContributors(paper.contributors ?? []),
